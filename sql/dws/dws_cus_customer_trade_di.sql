@@ -1,0 +1,71 @@
+-- dws.dws_cus_customer_trade_di  游客×商户 交易日汇总
+-- 粒度：travel_date × buyer_customer_id × seller_tenant_id
+-- 来源：dwd_ord_order_di, dwd_ord_refund_ticket_di, dwd_ord_verify_di
+-- 生成方式：Spark SQL / Hive；字段 10 个：直接翻译 2 · 规则翻译 4 · 待确认 4
+-- 多来源：每个来源表按粒度键先汇总，UNION ALL 后再合并
+-- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
+
+INSERT OVERWRITE TABLE dws.dws_cus_customer_trade_di PARTITION (travel_date = '${bizdate}')
+SELECT
+  u.buyer_customer_id,
+  u.seller_tenant_id,
+  SUM(u.pay_order_qty) AS pay_order_qty,
+  SUM(u.pay_ticket_qty) AS pay_ticket_qty,
+  SUM(u.pay_amt) AS pay_amt,
+  SUM(u.refund_amt) AS refund_amt,
+  SUM(u.verify_ticket_qty) AS verify_ticket_qty,
+  CURRENT_TIMESTAMP() AS etl_time
+FROM (
+  -- 来源：dwd_ord_order_status_log_di
+  SELECT
+    CAST(NULL AS BIGINT) AS buyer_customer_id,
+    seller_tenant_id AS seller_tenant_id,
+    COUNT(DISTINCT CASE WHEN after_status='PAID' THEN order_no END) AS pay_order_qty,
+    NULL AS pay_ticket_qty,
+    NULL AS pay_amt,
+    NULL AS refund_amt,
+    NULL AS verify_ticket_qty
+  FROM dwd.dwd_ord_order_status_log_di s
+  WHERE s.travel_date = '${bizdate}'
+  GROUP BY seller_tenant_id
+  UNION ALL
+  -- 来源：dwd_ord_order_di
+  SELECT
+    buyer_customer_id AS buyer_customer_id,
+    seller_tenant_id AS seller_tenant_id,
+    NULL AS pay_order_qty,
+    SUM(CASE WHEN pay_time IS NOT NULL THEN buy_ticket_qty END) AS pay_ticket_qty,
+    SUM(CASE WHEN pay_time IS NOT NULL THEN unit_price_amt*buy_ticket_qty END) AS pay_amt,
+    NULL AS refund_amt,
+    NULL AS verify_ticket_qty
+  FROM dwd.dwd_ord_order_di s
+  WHERE s.travel_date = '${bizdate}'
+  GROUP BY buyer_customer_id, seller_tenant_id
+  UNION ALL
+  -- 来源：dwd_ord_refund_ticket_di
+  SELECT
+    CAST(NULL AS BIGINT) AS buyer_customer_id,
+    seller_tenant_id AS seller_tenant_id,
+    NULL AS pay_order_qty,
+    NULL AS pay_ticket_qty,
+    NULL AS pay_amt,
+    SUM(CASE WHEN refund_status = 'COMPLETED' THEN refund_amt END) AS refund_amt,
+    NULL AS verify_ticket_qty
+  FROM dwd.dwd_ord_refund_ticket_di s
+  WHERE s.travel_date = '${bizdate}'
+  GROUP BY seller_tenant_id
+  UNION ALL
+  -- 来源：dwd_ord_verify_di
+  SELECT
+    CAST(NULL AS BIGINT) AS buyer_customer_id,
+    seller_tenant_id AS seller_tenant_id,
+    NULL AS pay_order_qty,
+    NULL AS pay_ticket_qty,
+    NULL AS pay_amt,
+    NULL AS refund_amt,
+    COUNT(DISTINCT CASE WHEN 1 = 1 THEN ticket_no END) AS verify_ticket_qty  -- 待确认：verify_result='SUCCESS'
+  FROM dwd.dwd_ord_verify_di s
+  WHERE s.travel_date = '${bizdate}'
+  GROUP BY seller_tenant_id
+) u
+GROUP BY u.buyer_customer_id, u.seller_tenant_id;

@@ -144,6 +144,7 @@ mark{background:#ffe98a;padding:0 1px;border-radius:2px}
 .links a{display:inline-block;margin:0 10px 3px 0;font-family:var(--mono);font-size:12px}
 .sub{font-size:12px;color:var(--muted);margin:0 0 6px}
 pre.code{margin:0;flex:1;min-height:0;overflow:auto;background:#0f1729;color:#d6e0ff;border-radius:8px;padding:14px 16px;font:12px/1.65 var(--mono);tab-size:2}
+pre.code .fn{color:#c3a6ff}pre.code .vr{color:#ffb4a2}pre.code .todo{display:inline-block;min-width:100%;background:rgba(255,190,60,.13);box-shadow:inset 3px 0 0 #f3b46b}pre.code .todo.cur{background:rgba(255,190,60,.32)}
 pre.code .kw{color:#9db4ff}pre.code .ty{color:#7fe0c3}pre.code .cm{color:#8f9bb8}pre.code .st{color:#f6c177}
 .dtool{display:flex;gap:8px;align-items:center;margin-bottom:10px}
 /* 指标卡片 */
@@ -236,7 +237,7 @@ pre.code.sm{flex:none;max-height:none}
 </div>
 <div class="mask" id="mask"></div>
 <aside class="drawer" id="drawer"><div class="dh2"><h2 id="dt"></h2><button class="btn" id="dx">关闭 ✕</button></div><div class="body" id="dbd"></div></aside>
-<script>const RAW=__DATA__;const CHK=__CHECKS__;const BMETA=__META__;const ADS=__ADS__;const ORIG=__ORIG__;const CHG=ORIG.changed;</script>
+<script>const RAW=__DATA__;const CHK=__CHECKS__;const BMETA=__META__;const ADS=__ADS__;const ETL=__ETL__;const ORIG=__ORIG__;const CHG=ORIG.changed;</script>
 <script>
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -289,6 +290,14 @@ function ddl(t){
   s+=t.rt?`\n-- 实时表（流式写入）`:`\nSTORED AS ORC`;
   return s+';';
 }
+const SQLKW=/\b(INSERT OVERWRITE TABLE|INSERT INTO|CREATE MATERIALIZED VIEW IF NOT EXISTS|REFRESH ASYNC EVERY|PARTITION|SELECT|FROM|LEFT JOIN|JOIN|ON|WHERE|AND|OR|GROUP BY|ORDER BY|UNION ALL|WITH|AS|CASE|WHEN|THEN|ELSE|END|IS NOT NULL|IS NULL|NOT|NULL|DISTINCT|OVER|PARTITION BY|INTERVAL|FOR SYSTEM_TIME AS OF|TABLE|DESCRIPTOR|BETWEEN|IN|VALUES)\b/g;
+const SQLFN=/\b(SUM|COUNT|MAX|MIN|AVG|ROUND|NULLIF|COALESCE|CAST|DATE_FORMAT|DATE_SUB|DATE_ADD|DATEDIFF|TO_DATE|TRUNC|ADD_MONTHS|LEAST|GET_JSON_OBJECT|JSON_ARRAY_LENGTH|LAG|ROW_NUMBER|UNIX_TIMESTAMP|CURRENT_TIMESTAMP|MD5|CONCAT_WS|CONCAT|SPLIT|HOUR|BITMAP_UNION|BITMAP_UNION_COUNT|BITMAP_COUNT|TO_BITMAP|TUMBLE|IF|NOW|CURDATE)\b(?=\s*\()/g;
+function sqlHtml(sql){return String(sql).split('\n').map(l=>{
+  const ci=l.indexOf('--');let code=ci>=0?l.slice(0,ci):l,cm=ci>=0?l.slice(ci):'';
+  let h=esc(code).replace(/('(?:[^'\\]|\\.)*')|(\$\{\w+\})/g,(m,a,b)=>a?`\u0001${a}\u0002`:`<span class="vr">${b}</span>`);
+  h=h.split(/(\u0001[^\u0002]*\u0002)/).map(seg=>seg.startsWith('\u0001')?`<span class="st">${seg.slice(1,-1)}</span>`:seg.replace(SQLKW,'<span class="kw">$1</span>').replace(SQLFN,'<span class="fn">$1</span>')).join('');
+  if(cm)h+=`<span class="cm">${esc(cm)}</span>`;
+  return /待确认/.test(l)&&!/^\s*--/.test(l)?`<span class="todo">${h}</span>`:h}).join('\n')}
 function ddlHtml(t){
   return esc(ddl(t)).replace(/('(?:[^'\\]|\\.)*')/g,'<span class="st">$1</span>').replace(/^(--.*)$/gm,'<span class="cm">$1</span>')
    .replace(/\b(CREATE TABLE IF NOT EXISTS|COMMENT|PARTITIONED BY|STORED AS|ORC)\b/g,'<span class="kw">$1</span>')
@@ -446,7 +455,7 @@ function vTables(v,a,b){
   function detail(){
     const t=TBM[TS.sel],el=$('#td2');
     if(!t){el.innerHTML='<div class="empty" style="margin:auto">← 从左侧选择一张表，查看概览、字段与 DDL</div>';return}
-    const tabs=[['info','概览'],['cols',`字段 (${t.fields.length})`]];if(t.metrics&&t.metrics.length)tabs.push(['met',`指标口径 (${t.metrics.length})`]);tabs.push(['ddl','DDL']);const sch=SCHED(t.short),dq=DQ(t.short);const of=OF[t.short]||[];if(of.length)tabs.splice(2,0,['orig',`改造前字段 (${of.length})`]);if(TS.tab==='orig'&&!of.length)TS.tab='info';if(sch.length)tabs.push(['sch','调度']);if(dq.length)tabs.push(['dq',`质量规则 (${dq.length})`]);if(TS.tab==='sch'&&!sch.length||TS.tab==='dq'&&!dq.length)TS.tab='info';if(TS.tab==='met'&&!(t.metrics&&t.metrics.length))TS.tab='info';
+    const tabs=[['info','概览'],['cols',`字段 (${t.fields.length})`]];if(t.metrics&&t.metrics.length)tabs.push(['met',`指标口径 (${t.metrics.length})`]);tabs.push(['ddl','DDL']);const sch=SCHED(t.short),dq=DQ(t.short);const of=OF[t.short]||[];if(of.length)tabs.splice(2,0,['orig',`改造前字段 (${of.length})`]);if(ETL[t.short])tabs.splice(2,0,['etl','加工逻辑']);if(TS.tab==='etl'&&!ETL[t.short])TS.tab='info';if(TS.tab==='orig'&&!of.length)TS.tab='info';if(sch.length)tabs.push(['sch','调度']);if(dq.length)tabs.push(['dq',`质量规则 (${dq.length})`]);if(TS.tab==='sch'&&!sch.length||TS.tab==='dq'&&!dq.length)TS.tab='info';if(TS.tab==='met'&&!(t.metrics&&t.metrics.length))TS.tab='info';
     el.innerHTML=`<div class="dh"><h2>${ltag(t.layer)}${esc(t.name)}<button class="btn" id="cpn" style="margin-left:auto;height:26px">复制表名</button></h2><div class="cn">${esc(t.cn)} · <span class="pill">${esc(t.domain)}</span> ${t.rt?'<span class="pill o">实时</span>':'<span class="pill g">离线</span>'}${CHG[t.short]?` <span class="pill o">改造</span> <span style="color:var(--sub);font-size:12px">${esc(CHG[t.short])}</span>`:''}</div><div class="tabs">${tabs.map(([k,l])=>`<a data-k="${k}" class="${TS.tab===k?'on':''}">${l}</a>`).join('')}</div></div><div class="db ${['info','met','sch','dq'].includes(TS.tab)?'':'flex'}" id="dbody"></div>`;
     $('#cpn').onclick=e=>copy(t.name,e.target);
     el.querySelector('.tabs').onclick=e=>{const a=e.target.closest('a');if(a){TS.tab=a.dataset.k;detail()}};
@@ -463,6 +472,11 @@ function vTables(v,a,b){
     }else if(TS.tab==='met'){
       body.innerHTML=`<div class="mcards">${t.metrics.map((r,k)=>`<div class="mc" data-k="${k}"><div class="mh"><span class="c-id">${esc(r[2])}</span>${r[3]?`<b>${esc(r[3])}</b>`:''}<span class="grow"></span>${r[5]?`<span class="pill">${esc(r[5])}</span>`:''}<span class="pill">${esc(r[6])}</span>${catPill(r[10])}</div><div class="mk">${esc(r[4])}</div><div class="ml"><span>计算</span><code>${esc(r[7])}</code></div></div>`).join('')}</div>`;
       body.onclick=e=>{const c=e.target.closest('.mc');if(c)metDrawer(t.metrics[+c.dataset.k])};
+    }else if(TS.tab==='etl'){
+      const e=ETL[t.short],st=e.stats;const KN={hive:'Spark SQL / Hive（离线日调度）',flink:'Flink SQL（实时）',starrocks:'StarRocks 物化视图（实时）'};
+      body.innerHTML=`<div class="dtool" style="flex-wrap:wrap"><span class="sub" style="margin:0">${KN[e.kind]} · <span class="mono-s">${esc(e.path)}</span></span><span class="pill g">直接翻译 ${st.auto||0}</span><span class="pill b">规则翻译 ${st.rule||0}</span>${st.review?`<span class="pill o">待确认 ${st.review}</span><button class="btn" id="etodo" style="height:26px">定位待确认</button>`:''}<span class="grow" style="flex:1"></span><button class="btn pri" id="cpe">复制 SQL</button></div><pre class="code" id="esql">${sqlHtml(e.sql)}</pre>`;
+      $('#cpe').onclick=ev=>copy(e.sql,ev.target);
+      const tb=$('#etodo');if(tb){let k=0;tb.onclick=()=>{const L=[...document.querySelectorAll('#esql .todo')];if(!L.length)return;L.forEach(x=>x.classList.remove('cur'));const x=L[k%L.length];x.classList.add('cur');x.scrollIntoView({block:'center'});tb.textContent=`定位待确认 ${k%L.length+1}/${L.length}`;k++}}
     }else if(TS.tab==='orig'){
       const F0=ORIG['字段清单'],c0=F0.cols,g0=n=>c0.indexOf(n);const now=new Set(t.fields.map(f=>f.n));
       const rows=of.map(r=>[r[g0('序号')],r[g0('字段名')],r[g0('类型')],r[g0('字段类别')],r[g0('字段注释')],now.has(r[g0('字段名')])?'保留':'已替换']);

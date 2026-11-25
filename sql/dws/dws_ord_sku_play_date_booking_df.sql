@@ -1,0 +1,77 @@
+-- dws.dws_ord_sku_play_date_booking_df  SKU×游玩日 预订存量快照
+-- 粒度：travel_date（快照日）× sku_id × play_date × time_slot_code
+-- 来源：dwd_ord_order_di, dwd_ord_refund_ticket_di, dwd_ord_verify_di, dwd_inv_pool_snapshot_df
+-- 生成方式：Spark SQL / Hive；字段 12 个：直接翻译 3 · 规则翻译 2 · 待确认 7
+-- 多来源：每个来源表按粒度键先汇总，UNION ALL 后再合并；快照/累计表：增量来源取截至统计日的全部分区
+-- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
+
+INSERT OVERWRITE TABLE dws.dws_ord_sku_play_date_booking_df PARTITION (travel_date = '${bizdate}')
+SELECT
+  u.sku_id,
+  u.play_date,
+  u.time_slot_code,
+  SUM(u.pay_ticket_qty) AS pay_ticket_qty,
+  SUM(u.refund_ticket_qty) AS refund_ticket_qty,
+  SUM(u.verify_ticket_qty) AS verify_ticket_qty,
+  SUM(u.advance_book_day_qty) AS advance_book_day_qty,
+  SUM(u.stock_available_qty) AS stock_available_qty,
+  SUM(u.pay_ticket_qty) - SUM(u.refund_ticket_qty) AS net_pay_ticket_qty,
+  CURRENT_TIMESTAMP() AS etl_time
+FROM (
+  -- 来源：dwd_ord_order_di
+  SELECT
+    sku_id AS sku_id,
+    play_date AS play_date,
+    time_slot_code AS time_slot_code,
+    SUM(CASE WHEN pay_time IS NOT NULL THEN buy_ticket_qty END) AS pay_ticket_qty,
+    NULL AS refund_ticket_qty,
+    NULL AS verify_ticket_qty,
+    NULL AS advance_book_day_qty,  -- 待确认：sum(datediff(play_date, pay_date) * buy_ticket_qty)
+    NULL AS stock_available_qty
+  FROM dwd.dwd_ord_order_di s
+  WHERE s.travel_date <= '${bizdate}'
+  GROUP BY sku_id, play_date, time_slot_code
+  UNION ALL
+  -- 来源：dwd_ord_refund_ticket_di
+  SELECT
+    sku_id AS sku_id,
+    play_date AS play_date,
+    CAST(NULL AS STRING) AS time_slot_code,
+    NULL AS pay_ticket_qty,
+    COUNT(DISTINCT CASE WHEN 1 = 1 THEN ticket_no END) AS refund_ticket_qty,  -- 待确认：of completed refunds
+    NULL AS verify_ticket_qty,
+    NULL AS advance_book_day_qty,
+    NULL AS stock_available_qty
+  FROM dwd.dwd_ord_refund_ticket_di s
+  WHERE s.travel_date <= '${bizdate}'
+  GROUP BY sku_id, play_date
+  UNION ALL
+  -- 来源：dwd_ord_verify_di
+  SELECT
+    sku_id AS sku_id,
+    play_date AS play_date,
+    CAST(NULL AS STRING) AS time_slot_code,
+    NULL AS pay_ticket_qty,
+    NULL AS refund_ticket_qty,
+    COUNT(DISTINCT CASE WHEN 1 = 1 THEN ticket_no END) AS verify_ticket_qty,  -- 待确认：verify_result='SUCCESS'
+    NULL AS advance_book_day_qty,
+    NULL AS stock_available_qty
+  FROM dwd.dwd_ord_verify_di s
+  WHERE s.travel_date <= '${bizdate}'
+  GROUP BY sku_id, play_date
+  UNION ALL
+  -- 来源：dwd_inv_pool_snapshot_df
+  SELECT
+    sku_id AS sku_id,
+    play_date AS play_date,
+    CAST(NULL AS STRING) AS time_slot_code,
+    NULL AS pay_ticket_qty,
+    NULL AS refund_ticket_qty,
+    NULL AS verify_ticket_qty,
+    NULL AS advance_book_day_qty,
+    NULL AS stock_available_qty  -- 待确认：sum(available_quantity)
+  FROM dwd.dwd_inv_pool_snapshot_df s
+  WHERE s.travel_date = '${bizdate}'
+  GROUP BY sku_id, play_date
+) u
+GROUP BY u.sku_id, u.play_date, u.time_slot_code;

@@ -30,13 +30,21 @@ def load_sheets(xlsx):
 
 
 def main():
-    import checks, ads_model
+    import checks, ads_model, etl_gen, shutil
     xlsx = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else next((ROOT / 'data').glob('*.xlsx')))
     data = load_sheets(xlsx)
     res = checks.run(data, DOCS / 'source')
     model = ads_model.build(data, res)
     data2, changed = ads_model.apply_to_dictionary(data, model, res)
+    etl = etl_gen.generate(data2, model)
     model.pop('_int')
+    sql_root = ROOT.parent / 'sql'
+    if sql_root.exists():
+        shutil.rmtree(sql_root)
+    for t, e in etl.items():
+        f = ROOT.parent / e['path']
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(e['sql'] + '\n', encoding='utf-8')
     # 改造前的原版（供页面对照）：被改动表的表清单行、字段，以及原 ADS业务指标
     ti = data['表清单']['cols'].index('表名（库.表）'); fi = data['字段清单']['cols'].index('表名（库.表）')
     short = lambda s: str(s).split('.', 1)[-1]
@@ -47,7 +55,7 @@ def main():
     meta = {'xlsx': xlsx.name, 'built': datetime.date.today().isoformat()}
     js = lambda o: json.dumps(o, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/')
     tpl = (ROOT / 'src' / 'template.html').read_text(encoding='utf-8')
-    html = tpl.replace('__DATA__', js(data2)).replace('__ORIG__', js(orig)).replace('__CHECKS__', js(res)).replace('__META__', js(meta)).replace('__ADS__', js(model))
+    html = tpl.replace('__DATA__', js(data2)).replace('__ORIG__', js(orig)).replace('__CHECKS__', js(res)).replace('__META__', js(meta)).replace('__ADS__', js(model)).replace('__ETL__', js(etl))
     (ROOT / 'dist').mkdir(exist_ok=True)
     (ROOT / 'dist' / 'index.html').write_text(html, encoding='utf-8')
     DOCS.mkdir(exist_ok=True)
@@ -57,6 +65,11 @@ def main():
     out = ROOT / 'dist' / (xlsx.stem + '_改造版.xlsx')
     ads_model.dict_xlsx(data2, changed, out)
     print('改造版字典 ->', out.name, '改动表', len(changed))
+    import collections
+    tot = collections.Counter()
+    for e in etl.values():
+        tot.update(e['stats'])
+    print('加工逻辑：', len(etl), '张表 ->', sql_root, dict(tot))
     print('核对：', res['summary'])
     print('ADS 指标体系：', model['summary'], '业务指标行', n, '字段冲突', len(model['problems']))
 
