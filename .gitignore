@@ -221,3 +221,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# 数仓字典构建产物需要提交（双击即可打开）
+!dw-dict/dist/
