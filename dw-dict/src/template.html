@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PFT3.0 数仓字典</title>
+<style>
+:root{--bg:#f3f4ef;--panel:#fff;--line:#e3e6ec;--line2:#eef0f4;--text:#1b2233;--sub:#4b5568;--muted:#7b8497;--brand:#2f3a12;--brand-soft:#eef7cf;
+--ODS:#7a5af8;--DWD:#0e9384;--DIM:#d9770a;--DWS:#3a5bd9;--ADS:#d92d78;
+--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font:13px/1.55 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Noto Sans SC","Segoe UI",sans-serif;color:var(--text);background:var(--bg)}
+button,input,select{font:inherit;color:inherit}
+a{color:var(--brand);cursor:pointer;text-decoration:none}a:hover{text-decoration:underline}
+.app{display:flex;height:100vh}
+/* 左侧极简导航：黑色竖向胶囊，仅图标 */
+.app{padding:14px;gap:14px;background:#e9ebe4}
+.rail{width:56px;flex:none;background:#000;border-radius:28px;display:flex;flex-direction:column;align-items:center;padding:14px 0;gap:10px}
+.rail .lg{width:30px;height:30px;border-radius:50%;border:3px solid #c6ef4e;border-top-color:transparent;margin:2px 0 14px}
+.rail a{width:38px;height:38px;border-radius:50%;color:#8a8f98;display:grid;place-items:center;position:relative;text-decoration:none}
+.rail a span{display:none;position:absolute;left:50px;background:#000;color:#fff;padding:3px 10px;border-radius:6px;font-size:12px;white-space:nowrap;z-index:30}
+.rail a:hover span{display:block}
+.rail a svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.rail a:hover{color:#fff;background:#1c1c1c}
+.rail a.on{background:#eaecdf;color:#000}
+.main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg);border-radius:22px;overflow:hidden}
+.top{height:52px;flex:none;background:var(--panel);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;padding:0 20px}
+.top h1{margin:0;font-size:16px;font-weight:650}
+.top .desc{color:var(--muted);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.view{flex:1;min-height:0;padding:14px 20px 16px;display:flex;flex-direction:column;overflow:hidden}
+.view.scroll{overflow:auto}
+/* 工具栏 */
+.bar{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;margin-bottom:10px}
+.bar .grow{flex:1}
+.inp{height:30px;padding:0 10px;border:1px solid var(--line);border-radius:6px;background:#fff;outline:none;min-width:240px}
+.inp:focus,.sel:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
+.sel{height:30px;padding:0 8px;border:1px solid var(--line);border-radius:6px;background:#fff;max-width:200px;outline:none}
+.sel.act{border-color:var(--brand);background:var(--brand-soft);color:var(--brand)}
+.btn{height:30px;padding:0 12px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--brand);color:var(--brand)}
+.btn:disabled{opacity:.4;cursor:default;border-color:var(--line);color:inherit}
+.btn.pri{background:#000;border-color:#000;color:#c6ef4e}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{height:26px;padding:0 11px;border:1px solid var(--line);border-radius:13px;background:#fff;cursor:pointer;color:var(--sub);font-size:12.5px}
+.chip:hover{border-color:var(--brand)}
+.chip.on{background:#000;border-color:#000;color:#c6ef4e}
+.chip i{font-style:normal;opacity:.6;margin-left:4px;font-size:11.5px}
+.cnt{color:var(--muted);font-size:12px;white-space:nowrap}
+/* 表格 */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 1px 2px rgba(20,30,60,.04)}
+.tw{flex:1;min-height:0;overflow:auto;border-radius:10px}
+table.t{border-collapse:separate;border-spacing:0;width:100%}
+.t th{position:sticky;top:0;z-index:2;background:#f5f6f9;text-align:left;font-weight:600;font-size:12px;color:var(--sub);padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap;cursor:pointer;user-select:none}
+.t th:hover{color:var(--brand)}
+.t td{padding:9px 12px;border-bottom:1px solid var(--line2);vertical-align:top;font-size:12.5px;background:#fff}
+.t tbody tr:hover td{background:#f5f8ff}
+.t tbody tr.sel td{background:var(--brand-soft)}
+.t tbody tr{cursor:pointer}
+.t.wide{width:max-content;min-width:100%}
+.t.wide th:first-child,.t.wide td:first-child{position:sticky;left:0;z-index:1;box-shadow:inset -1px 0 0 var(--line)}
+.t.wide th:first-child{z-index:3}
+.c-s{white-space:nowrap}
+.c-n{white-space:nowrap;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+.c-id{font-family:var(--mono);font-size:12px;white-space:nowrap}
+.c-m{min-width:140px;max-width:220px}
+.c-l{min-width:260px;max-width:440px}
+.c-fill{min-width:200px}
+.c-cm{min-width:120px;max-width:200px}
+.c-kou{min-width:200px}
+.kou{color:#3d4a12}
+.c-src{width:22%;font-size:12px;color:var(--sub);word-break:break-all}
+.c-src .cl{display:-webkit-box}
+.c-xl{min-width:320px;max-width:520px}
+.cl{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;line-height:1.6}
+.c-s .cl,.c-id .cl{display:block;overflow:visible}
+.t td.c-id .cl{max-width:360px;overflow:hidden;text-overflow:ellipsis}
+mark{background:#ffe98a;padding:0 1px;border-radius:2px}
+.tag{display:inline-block;min-width:38px;text-align:center;padding:0 7px;border-radius:4px;font-size:11.5px;font-weight:600;color:#fff;line-height:19px;background:#98a2b3}
+.tag.rt{outline:1.5px dashed rgba(0,0,0,.25);outline-offset:-3px}
+.pill{display:inline-block;padding:0 7px;border-radius:4px;font-size:12px;line-height:19px;background:#eef0f5;color:var(--sub);white-space:nowrap}
+.pill.g{background:#e6f6ec;color:#067647}.pill.o{background:#fff1de;color:#b54708}.pill.b{background:#e8eeff;color:#2d4bc0}.pill.p{background:#f3eaff;color:#6941c6}.pill.r{background:#fdecec;color:#b42318}
+.pager{display:flex;justify-content:center;align-items:center;gap:10px;padding-top:10px;color:var(--muted)}
+.empty{padding:40px;text-align:center;color:var(--muted)}
+/* 总览 */
+.grid5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:14px}
+.lc{padding:14px 16px;border-top:3px solid var(--c);cursor:pointer;transition:.15s}
+.lc:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(20,30,60,.1)}
+.lc .k{font-weight:700;color:var(--c);font-size:12px;letter-spacing:.5px}
+.lc .n{font-size:30px;font-weight:700;line-height:1.2}
+.lc .n small{font-size:12px;color:var(--muted);font-weight:400;margin-left:4px}
+.lc .d{color:var(--sub);font-size:12px;margin-top:2px}
+.lc .x{color:var(--muted);font-size:12px;margin-top:6px;padding-top:6px;border-top:1px dashed var(--line)}
+.two{display:grid;grid-template-columns:1.2fr 1fr;gap:14px;margin-bottom:14px}
+.sec{padding:14px 16px}
+.sec h3{margin:0 0 10px;font-size:14px}
+.sec h3 small{color:var(--muted);font-weight:400;margin-left:6px}
+.bars{display:grid;gap:7px}
+.brow{display:grid;grid-template-columns:44px 1fr 64px;gap:10px;align-items:center;font-size:12.5px;cursor:pointer}
+.brow:hover .bt{filter:brightness(.92)}
+.bk{font-family:var(--mono);color:var(--sub)}
+.bg{height:16px;background:#eff1f6;border-radius:4px;overflow:hidden;display:flex}
+.bt{height:100%;background:var(--brand)}
+.bn{text-align:right;color:var(--muted)}
+.quick{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.qk{padding:14px 16px;cursor:pointer}
+.qk:hover{border-color:var(--brand)}
+.qk b{display:block;font-size:14px}.qk span{color:var(--muted);font-size:12px}
+.qk em{display:block;font-style:normal;font-size:22px;font-weight:700;margin-top:4px}
+/* 分层汇总 */
+.layers{display:grid;gap:10px;margin-bottom:14px}
+.lrow{display:grid;grid-template-columns:90px 130px 70px 1fr 220px;gap:14px;align-items:center;padding:12px 16px;border-left:4px solid var(--c);cursor:pointer}
+.lrow:hover{background:#f8faff}
+.lrow .n{font-size:22px;font-weight:700}
+.lrow .nm{font-weight:600}
+.glos{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:14px}
+.glos table{width:100%;border-collapse:collapse}
+.glos td{padding:7px 4px;border-bottom:1px solid var(--line2);vertical-align:top}
+.glos td:first-child{width:38%;font-family:var(--mono);font-size:12px;color:var(--sub)}
+/* 表清单 split */
+.split{flex:1;min-height:0;display:grid;grid-template-columns:minmax(300px,340px) minmax(0,1fr);gap:14px}
+.tw:focus,.tw *:focus{outline:none}
+.tl td{padding:7px 10px}
+.tl .row1{display:flex;align-items:center;gap:8px}
+.tl .row1 .tag{flex:none;min-width:34px;font-size:10.5px;line-height:17px}
+.pane{display:flex;flex-direction:column;min-height:0;min-width:0}
+.pane .tw{flex:1}
+.tl-name{font-family:var(--mono);font-size:12px;word-break:break-all}
+.tl-cn{color:var(--sub);font-size:12px}
+.det{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.dh{padding:14px 18px 0;border-bottom:1px solid var(--line)}
+.dh h2{margin:0;font-size:15px;font-family:var(--mono);word-break:break-all;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.dh .cn{color:var(--sub);margin:2px 0 8px}
+.tabs{display:flex;gap:2px}
+.tabs a{padding:8px 14px;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;text-decoration:none;cursor:pointer}
+.tabs a.on{color:#000;border-color:#9fcf1c;font-weight:600}
+.tabs a:hover{color:var(--brand)}
+.db{flex:1;min-height:0;overflow:auto;padding:12px 14px}
+.db.flex{display:flex;flex-direction:column;overflow:hidden}
+.kv{display:grid;grid-template-columns:96px 1fr;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:14px}
+.kv>div{padding:8px 12px;border-bottom:1px solid var(--line2);white-space:pre-wrap;overflow-wrap:anywhere}
+.kv>.k{background:#f6f7fa;color:var(--muted)}
+.kv>div:nth-last-child(-n+2){border-bottom:0}
+.links a{display:inline-block;margin:0 10px 3px 0;font-family:var(--mono);font-size:12px}
+.sub{font-size:12px;color:var(--muted);margin:0 0 6px}
+pre.code{margin:0;flex:1;min-height:0;overflow:auto;background:#0f1729;color:#d6e0ff;border-radius:8px;padding:14px 16px;font:12px/1.65 var(--mono);tab-size:2}
+pre.code .fn{color:#c3a6ff}pre.code .vr{color:#ffb4a2}pre.code .todo{display:inline-block;min-width:100%;background:rgba(255,190,60,.13);box-shadow:inset 3px 0 0 #f3b46b}pre.code .todo.cur{background:rgba(255,190,60,.32)}
+pre.code .kw{color:#9db4ff}pre.code .ty{color:#7fe0c3}pre.code .cm{color:#8f9bb8}pre.code .st{color:#f6c177}
+.dtool{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+/* 指标卡片 */
+.sep{width:1px;height:22px;background:var(--line)}
+.mono-s{font-family:var(--mono);font-size:11.5px;color:var(--sub)}
+.mcards{display:grid;gap:8px}
+.mc{border:1px solid var(--line);border-radius:8px;padding:10px 12px;cursor:pointer;background:#fff}
+.mc:hover{border-color:#9fcf1c;background:#fbfdf3}
+.mh{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.mh .grow{flex:1}
+.mh b{font-size:13px}
+.mk{margin:6px 0 4px;color:var(--text);line-height:1.6}
+.ml{display:flex;gap:8px;font-size:12px;color:var(--muted)}
+.ml span{flex:none;color:var(--muted)}
+.ml code{font-family:var(--mono);color:var(--sub);overflow-wrap:anywhere}
+/* 悬浮提示 */
+.tip{position:fixed;z-index:50;max-width:440px;padding:10px 12px;background:#1b2027;color:#eef1f5;border-radius:8px;font-size:12.5px;line-height:1.65;box-shadow:0 8px 24px rgba(0,0,0,.22);white-space:pre-wrap;overflow-wrap:anywhere;pointer-events:none;opacity:0;transform:translateY(4px);transition:opacity .12s,transform .12s}
+.tip.show{opacity:1;transform:none}
+.tip .th{display:block;font-size:11px;color:#c6ef4e;margin-bottom:4px;letter-spacing:.3px}
+.tip code{font-family:var(--mono)}
+/* 抽屉 */
+.mask{position:fixed;inset:0;background:rgba(15,20,35,.3);z-index:20;display:none}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(760px,94vw);background:#fff;z-index:21;transform:translateX(100%);transition:transform .2s;box-shadow:-10px 0 30px rgba(0,0,0,.14);display:flex;flex-direction:column}
+.drawer.open{transform:none}
+.drawer .dh2{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:flex-start}
+.drawer .dh2 h2{flex:1;margin:0;font-size:15px;line-height:1.4}
+.drawer .dh2 h2 small{display:block;color:var(--muted);font-weight:400;font-family:var(--mono);font-size:12px}
+.drawer .body{flex:1;overflow:auto;padding:14px 18px}
+.drawer pre.code{white-space:pre-wrap;overflow-wrap:anywhere}
+.formula{background:#f6f8ff;border:1px solid #dfe6ff;border-radius:8px;padding:10px 12px;margin-bottom:14px;font-family:var(--mono);font-size:12.5px;white-space:pre-wrap;overflow-wrap:anywhere}
+/* 核对报告 */
+.rv-head{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) 1.6fr;gap:12px;margin-bottom:14px}
+.rv-k{padding:14px 16px;border-top:3px solid var(--c)}.rv-k b{display:block;font-size:28px;line-height:1.2;color:var(--c)}.rv-k span{color:var(--sub);font-size:12px}
+.rv-meta{padding:12px 16px;color:var(--sub);font-size:12px;line-height:1.8}
+.fd{padding:14px 16px;margin-bottom:10px;border-left:4px solid var(--c,#98a2b3)}
+.fh{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.fh b{font-size:14px}.fh .grow{flex:1}
+.fdd{margin:8px 0 6px;color:var(--text);line-height:1.75}
+.fs{background:#f6f8f0;border-radius:6px;padding:8px 10px;color:#3d4a12;line-height:1.7}.fs span{font-weight:600;margin-right:8px}
+.fmore{display:inline-block;margin-top:8px;font-size:12.5px}
+.banner{display:flex;align-items:center;gap:14px;padding:12px 16px;margin-bottom:14px;border-left:4px solid #b42318;cursor:pointer}
+.banner:hover{background:#fffafa}.banner b{font-size:14px}.banner .grow{flex:1}
+table.st{width:100%;border-collapse:collapse;font-size:12.5px}
+table.st th{background:#f5f6f9;text-align:left;font-weight:600;color:var(--sub);padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+table.st td{padding:8px 10px;border-bottom:1px solid var(--line2);vertical-align:top;line-height:1.65}
+table.st td.mono{font-family:var(--mono);font-size:12px;white-space:nowrap}
+/* 时间周期方案 */
+.pd{max-width:1180px}
+.pd h2{font-size:17px;margin:22px 0 10px;display:flex;align-items:center;gap:8px}.pd h2:first-child{margin-top:0}
+.pd h2 .no{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#000;color:#c6ef4e;font-size:12px}
+.pd p{margin:0 0 10px;color:var(--sub);line-height:1.8}
+.pd .lead{font-size:13.5px;color:var(--text)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.box{padding:14px 16px}.box h4{margin:0 0 6px;font-size:13.5px}.box p{margin:0;font-size:12.5px}
+.box .big{font-size:26px;font-weight:700;line-height:1.2;margin:2px 0 4px}
+.flow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;align-items:stretch;margin:4px 0 8px}
+.fl{position:relative;padding:12px 14px;margin-right:22px;border-top:3px solid var(--c)}
+.fl:not(:last-child)::after{content:'→';position:absolute;right:-19px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:16px}
+.fl b{display:block;font-size:13px;margin-bottom:4px}.fl span{font-size:12px;color:var(--sub);line-height:1.65;display:block}
+.fl.hi{background:#fbfdf3;border-color:#9fcf1c}
+.side{display:flex;gap:12px;margin-top:4px}.side .box{flex:1}
+.rs{display:grid;grid-template-columns:330px minmax(0,1fr);gap:14px}
+.rs .ctl{padding:14px 16px;display:grid;gap:10px;align-content:start}
+.rs label{display:grid;gap:4px;font-size:12px;color:var(--muted)}
+.rs .sel,.rs .inp{max-width:none;min-width:0;width:100%}
+.rs .out{padding:14px 16px;min-width:0}
+.rng{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px}
+.rng div{border:1px solid var(--line);border-radius:8px;padding:8px 12px;min-width:200px}
+.rng small{display:block;color:var(--muted);font-size:11.5px}.rng b{font-family:var(--mono);font-size:13px}
+.rng .cmp{border-style:dashed;flex:1}
+.cal{display:flex;flex-wrap:wrap;gap:3px;margin:4px 0 12px}
+.cal i{width:15px;height:15px;border-radius:3px;background:#eef0f4;display:block}
+.cal i.on{background:#3a5bd9}.cal i.c{background:#f3b46b}.cal i.on.c{background:linear-gradient(135deg,#3a5bd9 50%,#f3b46b 50%)}
+.cal i.h{outline:1.5px solid #d92d78;outline-offset:-1.5px}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted);align-items:center;flex-wrap:wrap}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+pre.code.sm{flex:none;max-height:none}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#3a5bd9}
+.t td.c-dot{text-align:center}
+@media(max-width:1100px){.rv-head{grid-template-columns:repeat(2,1fr)}.g2,.g3,.rs{grid-template-columns:1fr}.flow{grid-template-columns:1fr}.fl{margin:0 0 18px}.fl:not(:last-child)::after{content:'↓';right:auto;left:50%;top:auto;bottom:-18px;transform:none}.side{flex-direction:column}}
+@media(max-width:1100px){.split{grid-template-columns:1fr}.grid5{grid-template-columns:repeat(2,1fr)}.two{grid-template-columns:1fr}.quick{grid-template-columns:repeat(2,1fr)}.lrow{grid-template-columns:70px 1fr}}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="rail" id="rail"></nav>
+  <div class="main">
+    <div class="top"><h1 id="ttl"></h1><div class="desc" id="dsc"></div></div>
+    <div class="view" id="view"></div>
+  </div>
+</div>
+<div class="mask" id="mask"></div>
+<aside class="drawer" id="drawer"><div class="dh2"><h2 id="dt"></h2><button class="btn" id="dx">关闭 ✕</button></div><div class="body" id="dbd"></div></aside>
+<script>const RAW=__DATA__;const CHK=__CHECKS__;const BMETA=__META__;const ADS=__ADS__;const ETL=__ETL__;const ORIG=__ORIG__;const CHG=ORIG.changed;</script>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const LAY=['ODS','DWD','DIM','DWS','ADS'];
+const base=l=>String(l).replace(/（实时）/,'');
+const isRT=l=>/实时/.test(l);
+const shortN=n=>String(n||'').replace(/^\w+\./,'');
+const ix=(k,name)=>RAW[k].cols.indexOf(name);
+function hl(html,q){if(!q)return html;const re=new RegExp('('+String(q).split(/\s+/).filter(Boolean).map(x=>x.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|')+')','gi');return html.replace(/(<[^>]+>)|([^<]+)/g,(m,t,x)=>t?t:x.replace(re,'<mark>$1</mark>'))}
+const ltag=l=>`<span class="tag ${isRT(l)?'rt':''}" style="background:var(--${base(l)})" title="${esc(l)}">${base(l)}</span>`;
+
+/* ---------- 数据建模 ---------- */
+const TB=[];const TBM={};
+{const c=RAW['表清单'].cols;const g=n=>c.indexOf(n);
+ RAW['表清单'].rows.forEach(r=>{const o={no:r[g('序号')],layer:r[g('分层')],domain:r[g('业务域')],name:r[g('表名（库.表）')],cn:r[g('表中文名')],grain:r[g('粒度')],suffix:r[g('后缀含义')],part:r[g('分区')],src:r[g('来源')],keys:r[g('度量 / 口径 / 关键字段')],up:r[g('上游表')],down:r[g('下游表')],note:r[g('备注')]};o.short=shortN(o.name);o.b=base(o.layer);o.rt=isRT(o.layer);o.fields=[];TB.push(o);TBM[o.short]=o;});}
+{const c=RAW['字段清单'].cols;const g=n=>c.indexOf(n);
+ RAW['字段清单'].rows.forEach(r=>{const t=TBM[shortN(r[g('表名（库.表）')])];if(t)t.fields.push({no:r[g('序号')],n:r[g('字段名')],t:r[g('类型')],k:r[g('字段类别')],c:r[g('字段注释')],s:r[g('加工 / 来源')],u:r[g('上游字段')]});});}
+// 指标口径：DIM/DWD/DWS/ADS 层字段类别为 度量/指标 的字段
+function parseCmt(c){c=String(c||'');let name='',kou=c,unit='';
+  const m=c.match(/^([^：:]{1,40})[：:]([\s\S]+)$/);if(m&&!/[，,；;]/.test(m[1])){name=m[1].trim();kou=m[2].trim()}
+  const u=kou.match(/[，,]\s*单位[：:]\s*([^，,；;]+)\s*$/);if(u){unit=u[1].trim();kou=kou.slice(0,u.index)}
+  return{name,kou,unit}}
+const MLAY=['DIM','DWD','DWS','ADS'];const MET={DIM:[],DWD:[],DWS:[],ADS:[]};
+TB.forEach(t=>{if(!MET[t.b])return;t.metrics=[];t.fields.filter(f=>f.k==='度量'||f.k==='指标').forEach(f=>{const p=parseCmt(f.c);const o=[t.short,t.cn,f.n,p.name||'',p.kou,p.unit,f.t,f.s,f.u,t.rt?'实时':'离线',f.k];t.metrics.push(o);MET[t.b].push(o)})});
+const ADSK={},DWSK={};
+{const R=RAW['ADS业务指标'],c=R.cols,a=c.indexOf('ADS表'),f=c.indexOf('字段名'),k=c.indexOf('业务口径'),g=c.indexOf('计算公式');R.rows.forEach(r=>ADSK[shortN(r[a])+'|'+r[f]]={kou:r[k],calc:r[g]})}
+{const R=RAW['DWS口径'],c=R.cols,e=c.indexOf('英文名'),k=c.indexOf('业务口径'),g=c.indexOf('计算公式');R.rows.forEach(r=>DWSK[r[e]]={kou:r[k],calc:r[g]})}
+function caliber(t,f){
+  if(t.b==='ADS'){const x=ADSK[t.short+'|'+f.n];if(x)return x.kou}
+  if(t.b==='DWS'&&f.k==='指标'){const x=DWSK[f.n];if(x)return x.kou}
+  if(f.k==='度量'||f.k==='指标'){const p=parseCmt(f.c);return p.kou+(p.unit?`（单位：${p.unit}）`:'')}
+  return String(f.c||'');
+}
+function shortCmt(f){if(f.k==='度量'||f.k==='指标'){const p=parseCmt(f.c);if(p.name)return p.name}
+  const c=String(f.c||'');const m=c.match(/^[^（(，,：:；;]+/);const s=m?m[0].trim():c;return s.length>=2&&s.length<=24?s:c.slice(0,24)}
+const METCOLS=['表名','表中文名','字段名','指标名','业务口径','单位','类型','计算逻辑 / 加工','上游字段','离线/实时','类别'];
+const tokens=s=>String(s||'').split(/[、,，\s;；]+/).map(x=>shortN(x.trim())).filter(Boolean);
+
+/* ---------- DDL ---------- */
+function ddl(t){
+  const q=s=>String(s??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,' ');
+  const parts=t.fields.filter(f=>f.k==='分区'),cols=t.fields.filter(f=>f.k!=='分区');
+  // 字段清单没登记分区字段时，按「表清单·分区」列补出 travel_date（离线 Hive 表）
+  if(!parts.length&&!t.rt&&/travel_date/.test(t.part))parts.push({n:'travel_date',t:'STRING',c:'数据日期，格式 YYYYMMDD'+(/小时/.test(t.part)?'（小时子分区字段名待规范补充）':''),auto:1});
+  const w=Math.max(...cols.map(f=>f.n.length),8),tw=Math.max(...cols.map(f=>String(f.t).length),6);
+  const pad=(s,n)=>s+' '.repeat(Math.max(1,n-s.length+1));
+  let s=`CREATE TABLE IF NOT EXISTS ${t.name} (\n`+cols.map(f=>`  ${pad(f.n,w)}${pad(String(f.t),tw)} COMMENT '${q(f.c)}'`).join(',\n')+`\n)\nCOMMENT '${q(t.cn)}'`;
+  if(parts.length)s+=`\nPARTITIONED BY (\n`+parts.map(f=>`  ${f.n} ${f.t} COMMENT '${q(f.c)}'`).join(',\n')+`\n)`+(parts.some(f=>f.auto)?`\n-- 注：字段清单未登记分区字段，按表清单「分区」列补出`:'');
+  else if(t.part)s+=`\n-- 分区：${t.part}`;
+  s+=t.rt?`\n-- 实时表（流式写入）`:`\nSTORED AS ORC`;
+  return s+';';
+}
+const SQLKW=/\b(INSERT OVERWRITE TABLE|INSERT INTO|CREATE MATERIALIZED VIEW IF NOT EXISTS|REFRESH ASYNC EVERY|PARTITION|SELECT|FROM|LEFT JOIN|JOIN|ON|WHERE|AND|OR|GROUP BY|ORDER BY|UNION ALL|WITH|AS|CASE|WHEN|THEN|ELSE|END|IS NOT NULL|IS NULL|NOT|NULL|DISTINCT|OVER|PARTITION BY|INTERVAL|FOR SYSTEM_TIME AS OF|TABLE|DESCRIPTOR|BETWEEN|IN|VALUES)\b/g;
+const SQLFN=/\b(SUM|COUNT|MAX|MIN|AVG|ROUND|NULLIF|COALESCE|CAST|DATE_FORMAT|DATE_SUB|DATE_ADD|DATEDIFF|TO_DATE|TRUNC|ADD_MONTHS|LEAST|GET_JSON_OBJECT|JSON_ARRAY_LENGTH|LAG|ROW_NUMBER|UNIX_TIMESTAMP|CURRENT_TIMESTAMP|MD5|CONCAT_WS|CONCAT|SPLIT|HOUR|BITMAP_UNION|BITMAP_UNION_COUNT|BITMAP_COUNT|TO_BITMAP|TUMBLE|IF|NOW|CURDATE)\b(?=\s*\()/g;
+function sqlHtml(sql){return String(sql).split('\n').map(l=>{
+  const ci=l.indexOf('--');let code=ci>=0?l.slice(0,ci):l,cm=ci>=0?l.slice(ci):'';
+  let h=esc(code).replace(/('(?:[^'\\]|\\.)*')|(\$\{\w+\})/g,(m,a,b)=>a?`\u0001${a}\u0002`:`<span class="vr">${b}</span>`);
+  h=h.split(/(\u0001[^\u0002]*\u0002)/).map(seg=>seg.startsWith('\u0001')?`<span class="st">${seg.slice(1,-1)}</span>`:seg.replace(SQLKW,'<span class="kw">$1</span>').replace(SQLFN,'<span class="fn">$1</span>')).join('');
+  if(cm)h+=`<span class="cm">${esc(cm)}</span>`;
+  return /待确认/.test(l)&&!/^\s*--/.test(l)?`<span class="todo">${h}</span>`:h}).join('\n')}
+function ddlHtml(t){
+  return esc(ddl(t)).replace(/('(?:[^'\\]|\\.)*')/g,'<span class="st">$1</span>').replace(/^(--.*)$/gm,'<span class="cm">$1</span>')
+   .replace(/\b(CREATE TABLE IF NOT EXISTS|COMMENT|PARTITIONED BY|STORED AS|ORC)\b/g,'<span class="kw">$1</span>')
+   .replace(/\b(BIGINT|STRING|INT|DECIMAL\(\d+,\s*\d+\)|DATETIME|TIMESTAMP|DATE|BOOLEAN|DOUBLE|TINYINT|SMALLINT|JSON|TEXT|BITMAP)\b/gi,'<span class="ty">$1</span>');
+}
+function copy(text,btn){const done=()=>{if(btn){const o=btn.textContent;btn.textContent='已复制 ✓';setTimeout(()=>btn.textContent=o,1200)}};
+  if(navigator.clipboard&&window.isSecureContext)navigator.clipboard.writeText(text).then(done);else{const a=document.createElement('textarea');a.value=text;document.body.appendChild(a);a.select();document.execCommand('copy');a.remove();done()}}
+
+/* ---------- 通用表格 ---------- */
+function colClass(rows,i){
+  const vals=rows.map(r=>r[i]).filter(v=>v!==''&&v!=null).slice(0,300);
+  if(!vals.length)return'c-s';
+  if(vals.every(v=>typeof v==='number'))return'c-n';
+  const L=vals.map(v=>String(v).length).sort((a,b)=>a-b),p=L[Math.floor(L.length*.9)],mx=L[L.length-1];
+  const idish=vals.filter(v=>/^[A-Za-z0-9_.\-]+$/.test(String(v))).length/vals.length>.9;
+  if(idish)return mx<=14?'c-s':'c-id';
+  if(p<=12)return'c-s';if(p<=26)return'c-m';if(p<=70)return'c-l';return'c-xl';
+}
+/* 渲染器：cfg={cols,rows,cls?,cell(i,v,q,row),onRow(row),filters:[colIdx],pageSize,wide,csvName,searchPh,extra} */
+function grid(host,cfg){
+  const st=cfg.state||(cfg.state={});st.q??='';st.f??={};st.sort??=null;st.page??=0;
+  const cls=cfg.cols.map((_,i)=>cfg.cls?.[i]||colClass(cfg.rows,i));
+  const fcols=(cfg.filters||[]).map(i=>[i,[...new Set(cfg.rows.map(r=>r[i]).filter(v=>v!==''))].sort()]);
+  host.innerHTML=`<div class="bar">
+    <input class="inp" id="g-q" placeholder="${esc(cfg.searchPh||'搜索…')}" value="${esc(st.q)}">
+    ${fcols.map(([i,v])=>`<select class="sel ${st.f[i]?'act':''}" data-i="${i}"><option value="">${esc(cfg.cols[i])}：全部</option>${v.map(x=>`<option ${st.f[i]==x?'selected':''}>${esc(x)}</option>`).join('')}</select>`).join('')}
+    <button class="btn" id="g-r">重置</button><span class="grow"></span><span class="cnt" id="g-c"></span><button class="btn" id="g-csv">导出 CSV</button></div>
+    ${cfg.extra||''}<div class="card tw"><table class="t ${cfg.wide?'wide':''}"><thead><tr>${cfg.cols.map((c,i)=>`<th data-i="${i}" class="${cls[i]==='c-n'?'c-n':''}">${esc(c)}<span class="ar"></span></th>`).join('')}</tr></thead><tbody></tbody></table></div><div class="pager"></div>`;
+  const PS=cfg.pageSize||100;let rows=[];
+  const tb=host.querySelector('tbody'),tw=host.querySelector('.tw');
+  function draw(){
+    const qs=st.q.toLowerCase().split(/\s+/).filter(Boolean);
+    rows=cfg.rows.filter(r=>Object.entries(st.f).every(([i,v])=>!v||String(r[i])===v)&&(!qs.length||qs.every(q=>r.some(v=>String(v).toLowerCase().includes(q)))));
+    if(st.sort){const[i,d]=st.sort;rows=rows.slice().sort((a,b)=>{const x=a[i],y=b[i];return(typeof x==='number'&&typeof y==='number'?x-y:String(x).localeCompare(String(y),'zh'))*d})}
+    host.querySelectorAll('th').forEach(th=>th.querySelector('.ar').textContent=st.sort&&st.sort[0]==th.dataset.i?(st.sort[1]>0?' ▲':' ▼'):'');
+    const pages=Math.max(1,Math.ceil(rows.length/PS));st.page=Math.min(st.page,pages-1);
+    const sl=rows.slice(st.page*PS,st.page*PS+PS);
+    tb.innerHTML=sl.length?sl.map((r,k)=>`<tr data-k="${k}">${r.map((v,i)=>`<td class="${cls[i]}"><div class="cl">${cfg.cell?cfg.cell(i,v,st.q,r):hl(esc(v),st.q)}</div></td>`).join('')}</tr>`).join(''):`<tr><td colspan="${cfg.cols.length}" class="empty">没有匹配的数据</td></tr>`;
+    host.querySelector('#g-c').textContent=`${rows.length} / ${cfg.rows.length} 行`;
+    host.querySelector('.pager').innerHTML=pages>1?`<button class="btn" id="pp" ${st.page?'':'disabled'}>上一页</button><span>第 <b>${st.page+1}</b> / ${pages} 页 · 每页 ${PS} 行</span><button class="btn" id="np" ${st.page<pages-1?'':'disabled'}>下一页</button>`:'';
+    const pp=host.querySelector('#pp');if(pp){pp.onclick=()=>{st.page--;draw();tw.scrollTop=0};host.querySelector('#np').onclick=()=>{st.page++;draw();tw.scrollTop=0}}
+    tb._sl=sl;
+  }
+  let tm;host.querySelector('#g-q').oninput=e=>{clearTimeout(tm);tm=setTimeout(()=>{st.q=e.target.value.trim();st.page=0;draw()},160)};
+  host.querySelectorAll('select').forEach(s=>s.onchange=()=>{st.f[s.dataset.i]=s.value;s.classList.toggle('act',!!s.value);st.page=0;draw()});
+  host.querySelector('#g-r').onclick=()=>{st.q='';st.f={};st.sort=null;st.page=0;grid(host,cfg)};
+  host.querySelectorAll('th').forEach(th=>th.onclick=()=>{const i=+th.dataset.i;st.sort=st.sort&&st.sort[0]===i?(st.sort[1]>0?[i,-1]:null):[i,1];draw()});
+  host.querySelector('#g-csv').onclick=()=>{const L=r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+[L(cfg.cols),...rows.map(L)].join('\n')],{type:'text/csv'}));a.download=(cfg.csvName||'export')+'.csv';a.click()};
+  tb.onclick=e=>{const a=e.target.closest('a[data-t]');if(a){e.stopPropagation();return go('#/tables/'+a.dataset.t)}const tr=e.target.closest('tr[data-k]');if(tr&&cfg.onRow)cfg.onRow(tb._sl[+tr.dataset.k])};
+  draw();return{draw,tw};
+}
+const tlink=(t,q)=>TBM[t]?`<a data-t="${t}">${hl(esc(t),q)}</a>`:hl(esc(t),q);
+
+/* ---------- 抽屉 ---------- */
+function drawer(title,sub,html){$('#dt').innerHTML=esc(title)+(sub?`<small>${esc(sub)}</small>`:'');$('#dbd').innerHTML=html;$('#dbd').scrollTop=0;$('#drawer').classList.add('open');$('#mask').style.display='block'}
+function closeD(){$('#drawer').classList.remove('open');$('#mask').style.display='none'}
+$('#dx').onclick=closeD;$('#mask').onclick=closeD;document.addEventListener('keydown',e=>e.key==='Escape'&&closeD());
+$('#dbd').addEventListener('click',e=>{const a=e.target.closest('a[data-t]');if(a){closeD();go('#/tables/'+a.dataset.t)}});
+function kvHtml(pairs){return`<div class="kv">${pairs.map(([k,v])=>`<div class="k">${esc(k)}</div><div>${v===''||v==null?'<span style="color:#b6bccb">—</span>':v}</div>`).join('')}</div>`}
+const linksHtml=s=>{const a=tokens(s);return a.length?`<div class="links">${a.map(x=>TBM[x]?`<a data-t="${x}">${esc(x)}</a>`:`<span class="pill">${esc(x)}</span>`).join('')}</div>`:''};
+
+/* ---------- 路由 / 导航 ---------- */
+const ICON={
+ home:'<path d="M3 11l9-8 9 8M5 10v10h14V10"/>',
+ layers:'<path d="M12 3l9 5-9 5-9-5 9-5zM3 13l9 5 9-5M3 17l9 5 9-5" transform="scale(.9) translate(1.3 -1)"/>',
+ table:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/>',
+ cols:'<path d="M4 6h16M4 12h16M4 18h10"/>',
+ sigma:'<path d="M18 5H6l6 7-6 7h12"/>',
+ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+ shield:'<path d="M12 3l8 3v6c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V6l8-3z"/>',
+ check:'<path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/>'};
+const NAV=[['overview','总览','home'],['layers','分层','layers'],['tables','表清单','table'],['fields','字段','cols'],['metrics','指标口径','sigma'],['period','ADS 指标体系','clock'],['gov','调度与治理','shield'],['review','核对报告','check']];
+$('#rail').innerHTML='<div class="lg"></div>'+NAV.map(([k,l,i])=>`<a href="#/${k}" data-k="${k}" ><svg viewBox="0 0 24 24">${ICON[i]}</svg><span>${l}</span></a>`).join('');
+const go=h=>{location.hash=h};
+const META={overview:['总览','PFT3.0 数仓分层架构与资产概览'],layers:['分层汇总','各层定位、表数、拆分规则，及统计周期 / 修饰词 / 业务域口径说明'],tables:['表清单','左侧选表，右侧查看概览、字段与 DDL'],fields:['字段清单','全部分层表的字段明细，点表名跳转到表详情'],metrics:['指标口径','按口径归并的指标目录 · DIM / DWD 度量 · DWS / ADS 指标 · 口径与指标字典'],
+ period:['ADS 指标体系','基础指标 × 统计周期（当日/周/月/季/半年/年/近N日/节假日/自定义）× 派生方式（数/钱/率/日均/环比/同比/占比）'],
+ gov:['调度与治理','调度工作流 · 质量规则 · 一致性维度总线矩阵 · 质量体检 · 待确认事项'],
+ review:['核对报告','对照命名规范、业务库 DDL 与字典内部一致性的自动核对结果']};
+function route(){
+  const h=location.hash.replace(/^#\/?/,'');const[p,a,b]=h.split('/');const k=NAV.some(n=>n[0]===p)?p:'overview';
+  document.querySelectorAll('.rail a').forEach(x=>x.classList.toggle('on',x.dataset.k===k));
+  $('#ttl').textContent=META[k][0];$('#dsc').textContent=META[k][1];closeD();
+  const v=$('#view');v.className='view'+(['overview','layers','period','review'].includes(k)?' scroll':'');v.innerHTML='';
+  ({overview:vOverview,layers:vLayers,tables:vTables,fields:vFields,metrics:vMetrics,period:vPeriod,gov:vGov,review:vReview})[k](v,a,b);
+}
+window.addEventListener('hashchange',route);
+
+/* ---------- 总览 ---------- */
+const LSUM=RAW['分层汇总'].rows;
+const LINFO=Object.fromEntries(LSUM.filter(r=>LAY.includes(r[0])).map(r=>[r[0],r]));
+function vOverview(v){
+  const cnt=l=>TB.filter(t=>t.b===l);
+  const colors={ODS:'ODS',DWD:'DWD',DIM:'DIM',DWS:'DWS',ADS:'ADS'};
+  const dom={};TB.forEach(t=>{(dom[t.domain]??={})[t.b]=(dom[t.domain][t.b]||0)+1});
+  const dk=Object.keys(dom).sort((a,b)=>Object.values(dom[b]).reduce((x,y)=>x+y,0)-Object.values(dom[a]).reduce((x,y)=>x+y,0));
+  const mx=Math.max(...dk.map(d=>Object.values(dom[d]).reduce((x,y)=>x+y,0)));
+  const nf=TB.reduce((a,t)=>a+t.fields.length,0);
+  const cs=CHK.summary;
+  v.innerHTML=`<div class="card banner" data-go="#/review"><span class="pill r">核对</span><b>客户交付字典核对：高 ${cs['高']} 项 · 中 ${cs['中']} 项 · 低 ${cs['低']} 项</b><span style="color:var(--sub)">${esc(CHK.findings.filter(f=>f.level==='高').map(f=>f.title.split('，')[0]).join('；'))}</span><span class="grow"></span><a>查看核对报告 →</a></div>
+  <div class="grid5">${LAY.map(l=>{const r=LINFO[l];const all=cnt(l),rt=all.filter(t=>t.rt).length;return`<div class="card lc" style="--c:var(--${l})" data-l="${l}"><div class="k">${l} · ${esc(r[1])}</div><div class="n">${all.length-rt}<small>张离线${rt?` + ${rt} 实时`:''}</small></div><div class="d">${esc(r[3])}</div><div class="x">${esc(r[4])}</div></div>`}).join('')}</div>
+  <div class="two"><div class="card sec"><h3>业务域分布<small>点击域名筛选表清单</small></h3><div class="bars">${dk.map(d=>{const tot=Object.values(dom[d]).reduce((x,y)=>x+y,0);return`<div class="brow" data-d="${d}"><span class="bk">${d}</span><div class="bg" style="width:${tot/mx*100}%">${LAY.filter(l=>dom[d][l]).map(l=>`<div class="bt" style="flex:${dom[d][l]};background:var(--${l})" title="${l} ${dom[d][l]}"></div>`).join('')}</div><span class="bn">${tot} 张</span></div>`}).join('')}</div></div>
+  <div class="card sec"><h3>业务域前缀说明</h3><div class="glos" style="grid-template-columns:1fr">${glossary('业务域前缀')}</div></div></div>
+  <div class="quick">
+   <div class="card qk" data-go="#/tables"><b>表清单</b><span>概览 · 字段 · DDL</span><em>${TB.length}</em></div>
+   <div class="card qk" data-go="#/fields"><b>字段清单</b><span>全部字段明细</span><em>${nf.toLocaleString()}</em></div>
+   <div class="card qk" data-go="#/metrics/catalog"><b>DWS 口径</b><span>原子 / 派生 / 计算指标</span><em>${RAW['DWS口径'].rows.length}</em></div>
+   <div class="card qk" data-go="#/period/biz"><b>ADS 业务指标</b><span>指标字段 × 统计周期（改造后）</span><em>${ADS.summary.biz.toLocaleString()}</em><span style="display:none">${RAW['ADS业务指标'].rows.length}</em></div></div>`;
+  v.onclick=e=>{const l=e.target.closest('[data-l]');if(l)return go('#/tables/layer:'+l.dataset.l);const d=e.target.closest('[data-d]');if(d)return go('#/tables/domain:'+d.dataset.d);const q=e.target.closest('[data-go]');if(q)go(q.dataset.go)};
+}
+/* 分层汇总里的小词典：以“表头行”(第3列起为空 & 后续行也为空) 切段 */
+function sections(){
+  const out=[];let cur=null;
+  LSUM.forEach(r=>{
+    if(LAY.includes(r[0])||r[0]==='实时链路'||r[0]==='离线合计')return;
+    const isHead=['统计周期','修饰词','业务域前缀'].includes(r[0]);
+    if(isHead){cur={title:r[0],head:[r[0],r[1]],rows:[]};out.push(cur)}else if(cur)cur.rows.push([r[0],r[1]]);
+  });return out;
+}
+function glossary(title){const s=sections().find(x=>x.title===title);if(!s)return'';return`<table>${s.rows.map(r=>`<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td></tr>`).join('')}</table>`}
+
+/* ---------- 分层汇总 ---------- */
+function vLayers(v){
+  const rt=LSUM.find(r=>r[0]==='实时链路');
+  v.innerHTML=`<div class="layers">${LAY.map(l=>{const r=LINFO[l];const all=TB.filter(t=>t.b===l);return`<div class="card lrow" style="--c:var(--${l})" data-l="${l}"><div>${ltag(l)}</div><div class="nm">${esc(r[1])}</div><div class="n">${all.filter(t=>!t.rt).length}</div><div>${esc(r[3])}</div><div style="color:var(--sub)">${esc(r[4])}</div></div>`}).join('')}
+   ${rt?`<div class="card lrow" style="--c:#98a2b3" data-l="rt"><div><span class="tag" style="background:#667085">实时</span></div><div class="nm">${esc(rt[1])}</div><div class="n">${rt[2]}</div><div>${esc(rt[3])}</div><div style="color:var(--sub)">${esc(rt[4])}</div></div>`:''}</div>
+   <div class="glos">${sections().map(s=>`<div class="card sec"><h3>${esc(s.title)}<small>${esc(s.head[1])}</small></h3><table>${s.rows.map(r=>`<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td></tr>`).join('')}</table></div>`).join('')}</div>`;
+  v.onclick=e=>{const l=e.target.closest('[data-l]');if(l)go('#/tables/'+(l.dataset.l==='rt'?'rt:1':'layer:'+l.dataset.l))};
+}
+
+/* ---------- 表清单 ---------- */
+const TS={q:'',layer:'',domain:'',rt:'',sel:null,tab:'info',fq:''};
+function vTables(v,a,b){
+  if(a){if(/^(layer|domain|rt):/.test(a)){const[k,x]=a.split(':');TS.layer=k==='layer'?x:'';TS.domain=k==='domain'?x:'';TS.rt=k==='rt'?'1':'';TS.q='';TS.sel=null;history.replaceState(null,'','#/tables')}else if(TBM[a]){TS.sel=a;TS.tab=b||'info';TS.fq=''}}
+  if(!TS.sel)TS.sel=null;
+  const doms=[...new Set(TB.map(t=>t.domain))].sort();
+  v.innerHTML=`<div class="bar"><input class="inp" id="tq" placeholder="搜索表名 / 中文名 / 来源 / 字段…" value="${esc(TS.q)}">
+   <div class="chips" id="lc"><button class="chip ${!TS.layer?'on':''}" data-l="">全部<i>${TB.length}</i></button>${LAY.map(l=>`<button class="chip ${TS.layer===l?'on':''}" data-l="${l}">${l}<i>${TB.filter(t=>t.b===l).length}</i></button>`).join('')}</div>
+   <select class="sel ${TS.domain?'act':''}" id="td"><option value="">业务域：全部</option>${doms.map(d=>`<option ${TS.domain===d?'selected':''}>${d}</option>`).join('')}</select>
+   <button class="chip ${TS.chg?'on':''}" id="tchg">只看改造<i>${Object.keys(CHG).length}</i></button>
+   <select class="sel ${TS.rt?'act':''}" id="tr"><option value="">离线 + 实时</option><option value="0" ${TS.rt==='0'?'selected':''}>仅离线</option><option value="1" ${TS.rt==='1'?'selected':''}>仅实时</option></select>
+   <span class="grow"></span><span class="cnt" id="tc"></span></div>
+   <div class="split"><div class="pane"><div class="card tw" id="tl"></div></div><div class="pane"><div class="card det" id="td2"></div></div></div>`;
+  const filt=()=>{const q=TS.q.toLowerCase();return TB.filter(t=>(!TS.chg||CHG[t.short])&&(!TS.layer||t.b===TS.layer)&&(!TS.domain||t.domain===TS.domain)&&(!TS.rt||(TS.rt==='1')===t.rt)&&(!q||[t.name,t.cn,t.src,t.grain,t.keys,t.note].some(x=>String(x||'').toLowerCase().includes(q))||t.fields.some(f=>f.n.toLowerCase().includes(q))))};
+  function list(){
+    const L=filt();$('#tc').textContent=`${L.length} / ${TB.length} 张表`;
+    $('#tl').innerHTML=`<table class="t tl"><tbody>${L.map(t=>`<tr data-s="${t.short}" class="${TS.sel===t.short?'sel':''}"><td><div class="row1">${ltag(t.layer)}<span class="tl-name">${hl(esc(t.short),TS.q)}</span>${CHG[t.short]?'<span class="pill o" style="margin-left:auto;font-size:11px">改造</span>':''}</div><div class="tl-cn" style="display:flex;justify-content:space-between;padding-left:42px"><span>${hl(esc(t.cn),TS.q)}</span><span style="color:var(--muted)">${t.fields.length} 字段</span></div></td></tr>`).join('')||'<tr><td class="empty">没有匹配的表</td></tr>'}</tbody></table>`;
+    const s=$('#tl .sel');if(s&&!list.noScroll)s.scrollIntoView({block:'center'});
+  }
+  $('#tl').onclick=e=>{const tr=e.target.closest('tr[data-s]');if(!tr)return;TS.sel=tr.dataset.s;TS.tab='info';TS.fq='';list.noScroll=true;list();detail();list.noScroll=false};
+  let tm;$('#tq').oninput=e=>{clearTimeout(tm);tm=setTimeout(()=>{TS.q=e.target.value.trim();list()},160)};
+  $('#lc').onclick=e=>{const b=e.target.closest('.chip');if(!b)return;TS.layer=b.dataset.l;document.querySelectorAll('#lc .chip').forEach(x=>x.classList.toggle('on',x===b));list()};
+  $('#td').onchange=e=>{TS.domain=e.target.value;e.target.classList.toggle('act',!!TS.domain);list()};
+  $('#tchg').onclick=e=>{TS.chg=!TS.chg;e.currentTarget.classList.toggle('on',TS.chg);list()};
+  $('#tr').onchange=e=>{TS.rt=e.target.value;e.target.classList.toggle('act',!!TS.rt);list()};
+  function detail(){
+    const t=TBM[TS.sel],el=$('#td2');
+    if(!t){el.innerHTML='<div class="empty" style="margin:auto">← 从左侧选择一张表，查看概览、字段与 DDL</div>';return}
+    const tabs=[['info','概览'],['cols',`字段 (${t.fields.length})`]];if(t.metrics&&t.metrics.length)tabs.push(['met',`指标口径 (${t.metrics.length})`]);tabs.push(['ddl','DDL']);const sch=SCHED(t.short),dq=DQ(t.short);const of=OF[t.short]||[];if(of.length)tabs.splice(2,0,['orig',`改造前字段 (${of.length})`]);if(ETL[t.short])tabs.splice(2,0,['etl','加工逻辑']);if(TS.tab==='etl'&&!ETL[t.short])TS.tab='info';if(TS.tab==='orig'&&!of.length)TS.tab='info';if(sch.length)tabs.push(['sch','调度']);if(dq.length)tabs.push(['dq',`质量规则 (${dq.length})`]);if(TS.tab==='sch'&&!sch.length||TS.tab==='dq'&&!dq.length)TS.tab='info';if(TS.tab==='met'&&!(t.metrics&&t.metrics.length))TS.tab='info';
+    el.innerHTML=`<div class="dh"><h2>${ltag(t.layer)}${esc(t.name)}<button class="btn" id="cpn" style="margin-left:auto;height:26px">复制表名</button></h2><div class="cn">${esc(t.cn)} · <span class="pill">${esc(t.domain)}</span> ${t.rt?'<span class="pill o">实时</span>':'<span class="pill g">离线</span>'}${CHG[t.short]?` <span class="pill o">改造</span> <span style="color:var(--sub);font-size:12px">${esc(CHG[t.short])}</span>`:''}</div><div class="tabs">${tabs.map(([k,l])=>`<a data-k="${k}" class="${TS.tab===k?'on':''}">${l}</a>`).join('')}</div></div><div class="db ${['info','met','sch','dq'].includes(TS.tab)?'':'flex'}" id="dbody"></div>`;
+    $('#cpn').onclick=e=>copy(t.name,e.target);
+    el.querySelector('.tabs').onclick=e=>{const a=e.target.closest('a');if(a){TS.tab=a.dataset.k;detail()}};
+    const body=$('#dbody');
+    if(TS.tab==='info'){
+      const ot=OT[t.short];
+      body.innerHTML=(CHG[t.short]?`<div class="fs" style="margin-bottom:12px"><span>改造</span>${esc(CHG[t.short])}${ot?`<br><span>改造前粒度</span>${esc(ot.grain)}<br><span>改造前</span>${esc(ot.keys)}`:''}</div>`:'')+kvHtml([['粒度',esc(t.grain)],['后缀含义',esc(t.suffix)],['分区',esc(t.part)],['来源',esc(t.src)],['度量 / 口径 / 关键字段',esc(t.keys)],['上游表',linksHtml(t.up)],['下游表',linksHtml(t.down)],['备注',esc(t.note)]]);
+      body.onclick=e=>{const a=e.target.closest('a[data-t]');if(a){TS.sel=a.dataset.t;TS.tab='info';list();detail()}};
+    }else if(TS.tab==='cols'){
+      const F=t.fields.map(f=>[f.no,f.n,f.t,f.k,shortCmt(f),caliber(t,f),f.s]);
+      const H=['#','字段名','类型','类别','中文名','口径说明','加工 / 来源'];
+      body.innerHTML='';const box=document.createElement('div');box.style.cssText='flex:1;min-height:0;display:flex;flex-direction:column';body.appendChild(box);
+      grid(box,{cols:H,rows:F,cls:['c-n','c-id','c-s','c-s','c-cm','c-kou','c-src'],filters:[3],searchPh:'筛选字段名 / 注释…',pageSize:200,csvName:t.short+'_fields',state:{q:TS.fq,f:{},sort:null,page:0},cell:(i,v,q)=>i===3?catPill(v):i===5?(v?`<span class="kou">${hl(esc(v),q)}</span>`:'<span style="color:#c3c8d3">—</span>'):hl(esc(v),q),onRow:r=>{const f=t.fields.find(x=>x.no===r[0]&&x.n===r[1]);drawer(f.n,t.name,(caliber(t,f)?`<div class="sub">口径说明</div><div class="formula" style="font-family:inherit">${esc(caliber(t,f))}</div>`:'')+kvHtml([['序号',f.no],['类型',esc(f.t)],['类别',catPill(f.k)],['字段注释',esc(f.c)],['加工 / 来源',esc(f.s)],['上游字段',esc(f.u)]]))}});
+    }else if(TS.tab==='met'){
+      body.innerHTML=`<div class="mcards">${t.metrics.map((r,k)=>`<div class="mc" data-k="${k}"><div class="mh"><span class="c-id">${esc(r[2])}</span>${r[3]?`<b>${esc(r[3])}</b>`:''}<span class="grow"></span>${r[5]?`<span class="pill">${esc(r[5])}</span>`:''}<span class="pill">${esc(r[6])}</span>${catPill(r[10])}</div><div class="mk">${esc(r[4])}</div><div class="ml"><span>计算</span><code>${esc(r[7])}</code></div></div>`).join('')}</div>`;
+      body.onclick=e=>{const c=e.target.closest('.mc');if(c)metDrawer(t.metrics[+c.dataset.k])};
+    }else if(TS.tab==='etl'){
+      const e=ETL[t.short],st=e.stats;const KN={hive:'Spark SQL / Hive（离线日调度）',flink:'Flink SQL（实时）',starrocks:'StarRocks 物化视图（实时）'};
+      body.innerHTML=`<div class="dtool" style="flex-wrap:wrap"><span class="sub" style="margin:0">${KN[e.kind]} · <span class="mono-s">${esc(e.path)}</span></span><span class="pill g">直接翻译 ${st.auto||0}</span><span class="pill b">规则翻译 ${st.rule||0}</span>${st.review?`<span class="pill o">待确认 ${st.review}</span><button class="btn" id="etodo" style="height:26px">定位待确认</button>`:''}<span class="grow" style="flex:1"></span><button class="btn pri" id="cpe">复制 SQL</button></div><pre class="code" id="esql">${sqlHtml(e.sql)}</pre>`;
+      $('#cpe').onclick=ev=>copy(e.sql,ev.target);
+      const tb=$('#etodo');if(tb){let k=0;tb.onclick=()=>{const L=[...document.querySelectorAll('#esql .todo')];if(!L.length)return;L.forEach(x=>x.classList.remove('cur'));const x=L[k%L.length];x.classList.add('cur');x.scrollIntoView({block:'center'});tb.textContent=`定位待确认 ${k%L.length+1}/${L.length}`;k++}}
+    }else if(TS.tab==='orig'){
+      const F0=ORIG['字段清单'],c0=F0.cols,g0=n=>c0.indexOf(n);const now=new Set(t.fields.map(f=>f.n));
+      const rows=of.map(r=>[r[g0('序号')],r[g0('字段名')],r[g0('类型')],r[g0('字段类别')],r[g0('字段注释')],now.has(r[g0('字段名')])?'保留':'已替换']);
+      body.innerHTML='';const box=document.createElement('div');box.style.cssText='flex:1;min-height:0;display:flex;flex-direction:column';body.appendChild(box);
+      grid(box,{cols:['#','字段名','类型','类别','字段注释','改造后'],rows,filters:[5],cls:['c-n','c-id','c-s','c-s','c-l','c-s'],pageSize:300,csvName:t.short+'_改造前',searchPh:'筛选改造前字段…',
+        extra:`<div class="sub" style="margin:-2px 0 8px">客户原版字段。ADS 表里按周期写死的列（如 pay_1d_amt / pay_7d_amt / pay_30d_amt）改造后合并为一个日字段 pay_amt（比率改存分子分母、买家数改存位图），任意周期在查询时关联时间表 dim_opr_period_f 汇总。</div>`,
+        cell:(i,v,q)=>i===5?`<span class="pill ${v==='保留'?'g':'o'}">${v}</span>`:i===3?catPill(v):hl(esc(v),q)});
+    }else if(TS.tab==='sch'){
+      const W=RAW['调度工作流'],c=W.cols;
+      body.innerHTML=sch.map(r=>`<div class="sub" style="margin:4px 0 6px">${esc(r[0])} · 第 ${esc(r[1])} 步 · ${esc(r[3])}</div>`+kvHtml(c.map((n,i)=>[n,i===8||i===10?linksHtml(String(r[i]).replace(/dq\./g,'')):esc(r[i])]).filter((x,i)=>![0,1,3].includes(i)))).join('');
+      body.onclick=e=>{const a=e.target.closest('a[data-t]');if(a){TS.sel=a.dataset.t;TS.tab='info';list();detail()}};
+    }else if(TS.tab==='dq'){
+      body.innerHTML=dq.map(r=>`<div class="mc" style="cursor:default;margin-bottom:8px"><div class="mh"><span class="c-id">${esc(r[0])}</span><b>${esc(r[5])}</b><span class="grow"></span><span class="pill">${esc(r[4])}</span><span class="pill ${r[6]==='强'?'r':''}">${esc(r[6])}</span><span class="pill">${esc(r[7])}</span></div><div class="mk">期望：${esc(r[8])}${r[9]?` · <span style="color:var(--sub)">${esc(r[9])}</span>`:''}</div><pre class="code sm">${esc(r[10])}</pre></div>`).join('');
+    }else{
+      body.innerHTML=`<div class="dtool"><span class="sub" style="margin:0">${t.rt?'流式表':'Hive（ORC）'} · 根据字段清单生成 · ${t.fields.length} 个字段</span><span class="grow" style="flex:1"></span><button class="btn pri" id="cpd">复制 DDL</button></div><pre class="code">${ddlHtml(t)}</pre>`;
+      $('#cpd').onclick=e=>copy(ddl(t),e.target);
+    }
+  }
+  list();detail();
+}
+const CAT={'主键':'r','业务主键':'o','外键':'p','度量':'g','指标':'g','退化维度':'b','维度属性':'b','分区':'o','时间':'','状态类型':'','ETL':'','拉链':'p','粒度键':'o'};
+const catPill=v=>v?`<span class="pill ${CAT[v]||''}">${esc(v)}</span>`:'';
+
+/* ---------- 字段清单 ---------- */
+const FS={};
+function vFields(v){
+  const R=RAW['字段清单'];let cols=R.cols;
+  const rows=R.rows.map(r=>{const t=TBM[shortN(r[1])];const f={n:r[4],k:r[6],c:r[7]};const x=r.slice(0,7);x.push(shortCmt(f),t?caliber(t,f):String(r[7]||''),r[8],r[9]);return x});
+  cols=[...R.cols.slice(0,7),'字段中文名','口径说明',R.cols[8],R.cols[9]];
+  grid(v,{state:FS,cols,rows,wide:true,filters:[0,6,5],searchPh:'搜索表名 / 字段名 / 注释 / 口径 / 来源…',csvName:'字段清单',cls:['c-s','c-id','c-m','c-n','c-id','c-s','c-s','c-m','c-l','c-l','c-l'],
+   cell:(i,v,q)=>i===0?ltag(v):i===1?tlink(shortN(v),q).replace(/>([^<]*)</,'>'+esc(shortN(v))+'<'):i===6?catPill(v):hl(esc(v),q)});
+}
+
+/* ---------- 业务口径 ---------- */
+const MS={};
+function metCell(i,v,q){return i===0?tlink(v,q):i===2?`<span class="c-id">${hl(esc(v),q)}</span>`:i===3?`<b>${hl(esc(v),q)}</b>`:i===8?tokens(v).map(x=>`<span class="mono-s">${hl(esc(x),q)}</span>`).join('<br>'):i===9?`<span class="pill ${v==='实时'?'o':'g'}">${v}</span>`:i===10?catPill(v):hl(esc(v),q)}
+function metDrawer(r){drawer(r[3]||r[2],r[0]+'.'+r[2],`<div class="sub">业务口径</div><div class="formula" style="font-family:inherit">${esc(r[4])||'—'}</div><div class="sub">计算逻辑 / 加工</div><div class="formula">${esc(r[7])||'—'}</div>`+kvHtml([['所属表',linksHtml(r[0])+`<div class="sub" style="margin:2px 0 0">${esc(r[1])}</div>`],['字段名',`<span class="c-id">${esc(r[2])}</span>`],['单位',esc(r[5])],['类型',esc(r[6])],['类别',catPill(r[10])],['上游字段',esc(r[8])],['离线/实时',r[9]]]))}
+function vMetrics(v,a){
+  const keys=['catalog','dim','dwd','dws','ads','dwsdict','adsdict'];const tab=keys.includes(a)?a:'catalog';
+  const T=[['dim','DIM 度量',MET.DIM.length],['dwd','DWD 度量',MET.DWD.length],['dws','DWS 指标',MET.DWS.length],['ads','ADS 指标',MET.ADS.length]];
+  const T2=[['dwsdict','DWS 口径字典',RAW['DWS口径'].rows.length],['adsdict','ADS 指标字典',RAW['ADS业务指标'].rows.length]];
+  const chip=([k,l,n])=>`<button class="chip ${tab===k?'on':''}" data-k="${k}" style="height:30px;padding:0 14px">${l}<i>${n}</i></button>`;
+  v.innerHTML=`<div class="bar" style="margin-bottom:6px"><div class="chips">${chip(['catalog','指标目录（按口径）',CATALOG.length])}</div><span class="sep"></span><div class="chips">${T.map(chip).join('')}</div><span class="sep"></span><div class="chips">${T2.map(chip).join('')}</div></div><div id="mh" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>`;
+  v.querySelectorAll('.chips').forEach(c=>c.onclick=e=>{const b=e.target.closest('.chip');if(b)go('#/metrics/'+b.dataset.k)});
+  const h=$('#mh');MS[tab]??={};
+  if(tab==='catalog'){vCatalog(h);return}
+  if(['dim','dwd','dws','ads'].includes(tab)){
+    const L=tab.toUpperCase();const rows=MET[L];
+    const hasName=rows.some(r=>r[3]);
+    const idx=hasName?[0,2,3,4,5,7,9]:[0,2,4,5,6,7,9];
+    const cols=idx.map(i=>i===4&&!hasName?'口径 / 注释':METCOLS[i]);
+    const view=rows.map(r=>idx.map(i=>r[i]));
+    const tbls=[...new Set(rows.map(r=>r[0]))].sort();
+    grid(h,{state:MS[tab],cols,rows:view,wide:true,filters:[0,idx.indexOf(5),idx.indexOf(9)].filter(i=>i>=0),searchPh:`搜索 ${L} 表 / 字段 / 指标名 / 口径…`,csvName:L+'_指标口径',
+      cls:idx.map(i=>({0:'c-id',2:'c-id',3:'c-m',4:'c-l',5:'c-s',6:'c-s',7:'c-l',9:'c-s'})[i]),
+      cell:(j,v,q)=>metCell(idx[j],v,q),onRow:vr=>{const k=view.indexOf(vr);metDrawer(rows[k])},
+      extra:`<div class="sub" style="margin:-2px 0 8px">${L} 层共 ${tbls.length} 张表含${L==='DIM'||L==='DWD'?'度量':'指标'}字段 · 口径取自字段清单「字段注释」，计算逻辑取自「加工 / 来源」· 点行查看完整口径</div>`});
+  }else if(tab==='dwsdict'){
+    const R=RAW['DWS口径'],c=R.cols,tcols=['落地 DWS 表','来源明细表','被哪些 ADS 表使用'];
+    grid(h,{state:MS[tab],cols:c,rows:R.rows,wide:true,filters:[3,4,7],searchPh:'搜索口径编码 / 中文名 / 公式…',csvName:'DWS口径',
+      cell:(i,v,q)=>c[i]==='口径类型'?typePill(v):tcols.includes(c[i])?tokens(v).map(x=>tlink(x,q)).join('<br>'):hl(esc(v),q),
+      onRow:r=>metricDrawer(c,r,r[2],r[0]+' · '+r[1],5,6,tcols)});
+  }else{
+    const R=RAW['ADS业务指标'],c=R.cols,tcols=['ADS表','来源 DWS'];
+    grid(h,{state:MS[tab],cols:c,rows:R.rows,wide:true,filters:[c.indexOf('统计周期'),c.indexOf('口径类型'),c.indexOf('离线/实时'),c.indexOf('使用端'),c.indexOf('ADS表')],searchPh:'搜索指标编码 / 名称 / 字段名 / 公式…',csvName:'ADS业务指标',
+      cell:(i,v,q)=>c[i]==='口径类型'?typePill(v):tcols.includes(c[i])?tokens(v).map(x=>tlink(x,q)).join('<br>'):c[i]==='离线/实时'?`<span class="pill ${v==='实时'?'o':'g'}">${esc(v)}</span>`:hl(esc(v),q),
+      onRow:r=>metricDrawer(c,r,r[1],r[0]+' · '+r[2],3,4,tcols)});
+  }
+}
+const typePill=v=>v?`<span class="pill ${v==='原子指标'?'b':v==='派生指标'?'o':'p'}">${esc(v)}</span>`:'';
+function metricDrawer(c,r,title,sub,ki,fi,tcols){
+  drawer(title,sub,`<div class="sec-t sub">业务口径</div><div class="formula" style="font-family:inherit">${esc(r[ki])}</div><div class="sub">计算公式</div><div class="formula">${esc(r[fi])}</div>`+
+   kvHtml(c.map((n,i)=>[n,i===ki||i===fi?null:tcols.includes(n)?linksHtml(r[i]):n==='口径类型'?typePill(r[i]):esc(r[i])]).filter((_,i)=>i!==ki&&i!==fi)));
+}
+/* ---------- 改造前原版 ---------- */
+const OF={},OT={};{const c=ORIG['字段清单'].cols,g=c.indexOf('表名（库.表）');ORIG['字段清单'].rows.forEach(r=>(OF[shortN(r[g])]??=[]).push(r));
+ const tc=ORIG['表清单'].cols,tg=n=>tc.indexOf(n);ORIG['表清单'].rows.forEach(r=>OT[shortN(r[tg('表名（库.表）')])]={grain:r[tg('粒度')],keys:r[tg('度量 / 口径 / 关键字段')]})}
+/* ---------- 调度 / 质量规则 索引 ---------- */
+const SCHED=(()=>{const m={};(RAW['调度工作流']?.rows||[]).forEach(r=>{const k=String(r[2]);(m[k]??=[]).push(r)});return t=>m[t]||[]})();
+const DQ=(()=>{const m={};(RAW['质量规则']?.rows||[]).forEach(r=>{(m[r[3]]??=[]).push(r)});return t=>m[t]||[]})();
+
+/* ---------- 指标目录（按口径归并） ---------- */
+const CLS=CHK.classLabel;
+const clsPill=k=>k?`<span class="pill ${({additive:'g',once:'g',distinct:'r',ratio:'p',snapshot:'o',window:'b'})[k]||''}" title="${esc(CLS[k]?.[1]||'')}">${esc(CLS[k]?.[0]||k)}</span>`:'';
+const CATALOG=(()=>{const D=RAW['DWS口径'],c=D.cols,g=n=>c.indexOf(n);const A=RAW['ADS业务指标'],ac=A.cols,ag=n=>ac.indexOf(n);
+  const by={};A.rows.forEach(r=>{const k=String(r[ag('基础口径')]).split(' ')[0];(by[k]??=[]).push(r)});
+  const PO=['当日','近7日','近30日','近90日','本周','本月','本月累计','本年累计','截至当日','自带周期','当小时','今日实时','近1小时','近5分钟','当前'];
+  return D.rows.map(r=>{const code=r[g('口径编码')],ads=by[code]||[];const per=[...new Set(ads.map(x=>x[ag('统计周期')]))].sort((a,b)=>PO.indexOf(a)-PO.indexOf(b));
+    return{code,en:r[g('英文名')],cn:r[g('中文名')],type:r[g('口径类型')],dom:r[g('业务域')],kou:r[g('业务口径')],calc:r[g('计算公式')],unit:r[g('单位')],tcal:r[g('时间口径')],src:r[g('来源明细表')],land:r[g('落地 DWS 表')],cls:CHK.mclass[code],ads,per}})})();
+const MCS={};const LBL2K=Object.fromEntries(Object.entries(CLS).map(([k,v])=>[v[0],k]));
+function vCatalog(h){
+  const cols=['口径编码','中文名','英文名','口径类型','跨区间聚合方式','ADS 展开','已展开的周期','业务口径'];
+  const rows=CATALOG.map(m=>[m.code,m.cn,m.en,m.type,CLS[m.cls]?.[0]||'',m.ads.length,m.per.join('、'),m.kou]);
+  grid(h,{state:MCS,cols,rows,wide:true,filters:[3,4],searchPh:'搜索口径编码 / 中文名 / 英文名 / 口径…',csvName:'指标目录',
+    cls:['c-s','c-m','c-id','c-s','c-s','c-n','c-l','c-xl'],
+    extra:`<div class="sub" style="margin:-2px 0 8px">${CATALOG.length} 个口径，一行一个；「ADS 展开」是改造后该口径在 ADS 中的指标字段数（每个字段再按统计周期得到业务指标）。「跨区间聚合方式」决定该口径能否在任意时间区间上直接由日数据算出，见 <a href="#/period">ADS 指标体系</a>。</div>`,
+    cell:(i,v,q)=>i===3?typePill(v):i===4?clsPill(LBL2K[v]):i===5?(v?`<b>${v}</b>`:'<span style="color:#c3c8d3">0</span>'):i===2?`<span class="c-id">${hl(esc(v),q)}</span>`:hl(esc(v),q),
+    onRow:r=>catDrawer(CATALOG.find(m=>m.code===r[0]))});
+}
+function catDrawer(m){
+  const A=RAW['ADS业务指标'],ac=A.cols,ag=n=>ac.indexOf(n);
+  const sql=periodSQL(m,{s:'${start_date}',e:'${end_date}',kind:'range'});
+  drawer(m.cn,m.code+' · '+m.en,`<div class="sub">业务口径</div><div class="formula" style="font-family:inherit">${esc(m.kou)}</div><div class="sub">计算公式</div><div class="formula">${esc(m.calc)}</div>`+
+   kvHtml([['口径类型',typePill(m.type)],['跨区间聚合',clsPill(m.cls)+` <span style="color:var(--sub)">${esc(CLS[m.cls]?.[1]||'')}</span>`],['单位',esc(m.unit)],['时间口径',esc(m.tcal)],['来源明细表',linksHtml(m.src)],['落地 DWS 表',linksHtml(m.land)]])+
+   `<div class="sub">任意时间区间的取数方式（ADS 指标体系）</div><pre class="code sm" style="margin-bottom:14px">${esc(sql)}</pre>`+
+   `<div class="sub">当前已展开的 ADS 指标（${m.ads.length}）</div>`+(m.ads.length?`<table class="st"><thead><tr><th>编码</th><th>指标名</th><th>字段</th><th>周期</th><th>ADS 表</th></tr></thead><tbody>${m.ads.map(r=>`<tr><td class="mono">${esc(r[ag('指标编码')])}</td><td>${esc(r[ag('业务指标名')])}</td><td class="mono">${esc(r[ag('字段名')])}</td><td>${esc(r[ag('统计周期')])}</td><td>${linksHtml(r[ag('ADS表')])}</td></tr>`).join('')}</tbody></table>`:'<div class="empty" style="padding:12px">未被 ADS 使用</div>'));
+}
+
+/* ---------- 核对报告 ---------- */
+const LVC={'高':'#b42318','中':'#b54708','低':'#2d4bc0','提示':'#667085'},LVP={'高':'r','中':'o','低':'b','提示':''};
+function vReview(v){
+  const s=CHK.summary;
+  const VC={'属实':'g','部分属实':'o','有风险':'o','不符':'r','未复核':''};
+  v.innerHTML=`<div class="rv-head">${['高','中','低','提示'].map(l=>`<div class="card rv-k" style="--c:${LVC[l]}"><b>${s[l]}</b><span>${({'高':'高 · 影响数据正确性，必须修改','中':'中 · 影响可维护性/口径一致','低':'低 · 规范与细节','提示':'提示 · 已核对无误的部分'})[l]}</span></div>`).join('')}
+    <div class="card rv-meta">核对对象：<b>${esc(BMETA.xlsx)}</b>（${s.tables} 张表 · ${s.fields.toLocaleString()} 个字段 · ${s.dws} 个口径 · ${s.ads} 个 ADS 指标）<br>对照依据：数仓命名规范 · ${s.srcTables} 张业务库 DDL（docs/source）· 字典各页交叉校验<br>由 checks.py 在构建时自动生成 · ${esc(BMETA.built)}</div></div>
+    <div>${CHK.findings.map((f,i)=>`<div class="card fd" style="--c:${LVC[f.level]}"><div class="fh"><span class="pill ${LVP[f.level]}">${f.level}</span><span class="mono-s">${f.id}</span><b>${esc(f.title)}</b><span class="grow"></span><span class="pill">${esc(f.cat)}</span></div><div class="fdd">${esc(f.detail)}</div><div class="fs"><span>建议</span>${esc(f.suggest)}</div>${f.n?`<a class="fmore" data-i="${i}">查看明细 ${f.n} 条 →</a>`:''}${['H1','H2','M6'].includes(f.id)?` <a class="fmore" href="#/period" style="margin-left:14px">ADS 指标体系 →</a>`:''}</div>`).join('')}</div>
+    <div class="card sec" style="margin-top:4px"><h3>「质量体检」结论复核<small>客户在 Excel「质量体检」页的自评，逐条复核</small></h3>
+    <table class="st"><thead><tr><th>维度</th><th>检查项</th><th>客户结论</th><th>复核</th><th>说明</th></tr></thead><tbody>${CHK.verify.map(r=>`<tr><td style="white-space:nowrap">${esc(r[0])}</td><td>${esc(r[1])}</td><td style="white-space:nowrap">${esc(r[2])} <span class="pill ${r[3]==='通过'?'g':'o'}">${esc(r[3])}</span></td><td style="white-space:nowrap"><span class="pill ${VC[r[4]]??''}">${esc(r[4])}</span></td><td style="color:var(--sub)">${esc(r[5])}</td></tr>`).join('')}</tbody></table></div>`;
+  v.onclick=e=>{const a=e.target.closest('a.fmore[data-i]');if(!a)return;const f=CHK.findings[+a.dataset.i];const cols=f.cols.filter(Boolean);
+    drawer(f.title,f.id+' · '+f.level+' · 共 '+f.n+' 条','<div id="fdg" style="height:calc(100vh - 110px);display:flex;flex-direction:column"></div>');
+    grid($('#fdg'),{cols,rows:f.rows.map(r=>r.slice(0,cols.length)),pageSize:100,csvName:f.id,searchPh:'筛选…',cell:(i,v,q)=>{const x=shortN(v);return TBM[x]?tlink(x,q):hl(esc(v),q)}});
+    $('#fdg').onclick=e=>{const a=e.target.closest('a[data-t]');if(a){closeD();go('#/tables/'+a.dataset.t)}}};
+}
+
+/* ---------- 调度与治理 ---------- */
+const GS={};
+function vGov(v,a){
+  const T=[['wf','调度工作流'],['dq','质量规则'],['bus','总线矩阵'],['health','质量体检'],['todo','待确认事项']].filter(([k])=>RAW[({wf:'调度工作流',dq:'质量规则',bus:'总线矩阵',health:'质量体检',todo:'待确认事项'})[k]]);
+  const tab=T.some(x=>x[0]===a)?a:'wf';const SN={wf:'调度工作流',dq:'质量规则',bus:'总线矩阵',health:'质量体检',todo:'待确认事项'};
+  v.innerHTML=`<div class="bar" style="margin-bottom:6px"><div class="chips">${T.map(([k,l])=>`<button class="chip ${tab===k?'on':''}" data-k="${k}" style="height:30px;padding:0 14px">${l}<i>${RAW[SN[k]].rows.length}</i></button>`).join('')}</div></div><div id="gh" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>`;
+  v.querySelector('.chips').onclick=e=>{const b=e.target.closest('.chip');if(b)go('#/gov/'+b.dataset.k)};
+  const R=RAW[SN[tab]],c=R.cols,h=$('#gh');GS[tab]??={};const ci=n=>c.indexOf(n);
+  const tl=(v,q)=>{const x=shortN(String(v).replace(/^dq\./,''));return TBM[x]?tlink(x,q):hl(esc(v),q)};
+  const multi=(v,q)=>String(v||'').split(/、/).map(x=>tl(x.trim(),q)).join('<br>');
+  if(tab==='wf'){
+    grid(h,{state:GS[tab],cols:c,rows:R.rows,wide:true,filters:[0,3,5,6],searchPh:'搜索节点 / 依赖 / 脚本…',csvName:'调度工作流',
+      cls:c.map((n,i)=>({0:'c-s',1:'c-n',2:'c-id',3:'c-s',4:'c-m',5:'c-s',6:'c-s',7:'c-n',8:'c-l',9:'c-m',10:'c-l',11:'c-xl'})[i]),
+      cell:(i,v,q)=>i===2?tl(v,q):i===8||i===10?multi(v,q):i===5&&v?ltag(v):hl(esc(v),q),
+      onRow:r=>drawer(r[2],r[0]+' · 第 '+r[1]+' 步',kvHtml(c.map((n,i)=>[n,i===8||i===10?linksHtml(String(r[i]).replace(/dq\./g,'')):esc(r[i])])))});
+  }else if(tab==='dq'){
+    grid(h,{state:GS[tab],cols:c,rows:R.rows,wide:true,filters:[ci('工作流'),ci('质量维度'),ci('级别'),ci('失败处理')],searchPh:'搜索规则编号 / 表 / 规则 / SQL…',csvName:'质量规则',
+      cls:c.map(n=>n==='检测 SQL'?'c-xl':n==='说明'?'c-l':n==='表'||n==='质检节点'?'c-id':'c-s'),
+      cell:(i,v,q)=>c[i]==='表'?tl(v,q):c[i]==='级别'?`<span class="pill ${v==='强'?'r':''}">${esc(v)}</span>`:c[i]==='检测 SQL'?`<span class="mono-s">${hl(esc(v),q)}</span>`:hl(esc(v),q),
+      onRow:r=>drawer(r[ci('规则')],r[0]+' · '+r[ci('表')],kvHtml(c.filter(n=>n!=='检测 SQL').map(n=>[n,n==='表'?linksHtml(r[ci(n)]):esc(r[ci(n)])]))+`<div class="sub">检测 SQL</div><pre class="code sm">${esc(r[ci('检测 SQL')])}</pre>`)});
+  }else if(tab==='bus'){
+    grid(h,{state:GS[tab],cols:c,rows:R.rows,wide:true,filters:[0],searchPh:'搜索表名 / 中文名…',csvName:'总线矩阵',pageSize:200,
+      cls:c.map((n,i)=>i===1?'c-id':i<3?'c-s':'c-dot'),
+      extra:`<div class="sub" style="margin:-2px 0 8px">行 = 事实/汇总表，列 = 一致性维度；建新报表时先在这里选维度。</div>`,
+      cell:(i,v,q)=>i===0?ltag(v):i===1?tl(v,q):i>2?(v?'<span class="dot"></span>':''):hl(esc(v),q)});
+  }else if(tab==='health'){
+    grid(h,{state:GS[tab],cols:c,rows:R.rows,filters:[0,3],searchPh:'搜索检查项…',csvName:'质量体检',pageSize:200,
+      extra:`<div class="sub" style="margin:-2px 0 8px">这是客户在 Excel 里的自评。逐条复核结果见 <a href="#/review">核对报告</a>。</div>`,
+      cell:(i,v,q)=>i===3?`<span class="pill ${v==='通过'?'g':'o'}">${esc(v)}</span>`:hl(esc(v),q)});
+  }else{
+    grid(h,{state:GS[tab],cols:c,rows:R.rows,filters:[1],searchPh:'搜索问题 / 建议…',csvName:'待确认事项',pageSize:200,cls:['c-n','c-s','c-l','c-xl','c-m']});
+  }
+  h.addEventListener('click',e=>{const a=e.target.closest('a[data-t]');if(a){e.stopPropagation();go('#/tables/'+a.dataset.t)}},true);
+}
+
+/* ---------- 时间周期方案 ---------- */
+// 节假日样例（国务院办公厅放假安排）。生产以 dim_opr_holiday_period_f 为准。
+const HOL={2024:[['元旦','new_year','2024-01-01','2024-01-01'],['春节','spring_festival','2024-02-10','2024-02-17'],['清明节','qingming','2024-04-04','2024-04-06'],['劳动节','labour_day','2024-05-01','2024-05-05'],['端午节','dragon_boat','2024-06-08','2024-06-10'],['中秋节','mid_autumn','2024-09-15','2024-09-17'],['国庆节','national_day','2024-10-01','2024-10-07']],
+ 2025:[['元旦','new_year','2025-01-01','2025-01-01'],['春节','spring_festival','2025-01-28','2025-02-04'],['清明节','qingming','2025-04-04','2025-04-06'],['劳动节','labour_day','2025-05-01','2025-05-05'],['端午节','dragon_boat','2025-05-31','2025-06-02'],['国庆节·中秋节','national_day','2025-10-01','2025-10-08']],
+ 2026:[['元旦','new_year','2026-01-01','2026-01-03'],['春节','spring_festival','2026-02-15','2026-02-23'],['清明节','qingming','2026-04-04','2026-04-06'],['劳动节','labour_day','2026-05-01','2026-05-05'],['端午节','dragon_boat','2026-06-19','2026-06-21'],['中秋节','mid_autumn','2026-09-25','2026-09-27'],['国庆节','national_day','2026-10-01','2026-10-07']]};
+const dP=s=>{const[y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d)};
+const dF=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const dN=d=>dF(d).replace(/-/g,'');
+const add=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x};
+const days=(a,b)=>Math.round((b-a)/864e5)+1;
+const addY=(d,n)=>{const x=new Date(d.getFullYear()+n,d.getMonth(),1);x.setDate(Math.min(d.getDate(),new Date(x.getFullYear(),x.getMonth()+1,0).getDate()));return x};
+function periodStart(d,u){const y=d.getFullYear(),m=d.getMonth();
+  if(u==='week'){const w=(d.getDay()+6)%7;return add(d,-w)}
+  if(u==='month')return new Date(y,m,1);if(u==='quarter')return new Date(y,m-m%3,1);if(u==='half')return new Date(y,m<6?0:6,1);return new Date(y,0,1)}
+function periodShift(s,u,n){if(u==='week')return add(s,7*n);const k={month:1,quarter:3,half:6,year:12}[u];return new Date(s.getFullYear(),s.getMonth()+k*n,1)}
+const UL={week:'周',month:'月',quarter:'季度',half:'半年',year:'年'};
+function resolve(p){
+  const anc=dP(p.anchor);let s,e,label,hol=null;
+  if(p.kind==='day'){s=e=anc;label='当日'}
+  else if(p.kind==='lastN'){e=anc;s=add(anc,-(p.n-1));label=`近${p.n}日（含截止日）`}
+  else if(p.kind==='nat'){s=periodStart(anc,p.unit);if(p.off)s=periodShift(s,p.unit,-p.off);e=add(periodShift(s,p.unit,1),-1);label=(p.off?'上':'本')+UL[p.unit]+'（完整自然'+UL[p.unit]+'）'}
+  else if(p.kind==='todate'){s=periodStart(anc,p.unit);e=anc;label=`本${UL[p.unit]}至今（${({week:'WTD',month:'MTD',quarter:'QTD',half:'HTD',year:'YTD'})[p.unit]}）`}
+  else if(p.kind==='holiday'){hol=(HOL[p.year]||[]).find(h=>h[1]===p.hol)||(HOL[p.year]||[])[0];s=dP(hol[2]);e=dP(hol[3]);label=`${p.year} ${hol[0]}（${hol[1]}）`}
+  else{s=dP(p.s);e=dP(p.e);if(e<s)[s,e]=[e,s];label='自定义区间'}
+  const n=days(s,e);let c=null,cl='';
+  if(p.cmp==='mom'){if(p.kind==='nat'){c=[periodShift(s,p.unit,-1),add(s,-1)];cl='环比：上一个自然'+UL[p.unit]}
+    else if(p.kind==='todate'){const ps=periodShift(s,p.unit,-1),pe=add(ps,n-1),lim=add(s,-1);c=[ps,pe>lim?lim:pe];cl='环比：上一'+UL[p.unit]+'同期（相同天数）'}
+    else{c=[add(s,-n),add(s,-1)];cl=`环比：前 ${n} 天`}}
+  else if(p.cmp==='yoy'){c=[addY(s,-1),addY(e,-1)];cl='同比：去年公历同期'}
+  else if(p.cmp==='yoyw'){c=[add(s,-364),add(e,-364)];cl='同比：按星期对齐（往前 52 周）'}
+  else if(p.cmp==='yoyh'){const lh=(HOL[+p.year-1]||[]).find(h=>h[1]===p.hol);if(lh){c=[dP(lh[2]),dP(lh[3])];cl=`同比：${+p.year-1} ${lh[0]}（按节假日对齐，逐日按「假期第 N 天」比较）`}else{c=[addY(s,-1),addY(e,-1)];cl=`同比：${+p.year-1} 年无独立的同名假期（如 2025 中秋并入国庆），退回公历同期`}}
+  return{s,e,n,label,c,cl,hol}
+}
+const TEN=t=>{const f=TBM[t]?.fields.map(x=>x.n)||[];return f.includes('seller_tenant_id')?'seller_tenant_id':f.includes('tenant_id')?'tenant_id':f.includes('supplier_tenant_id')?'supplier_tenant_id':null};
+const CN2EN=(()=>{const m=CATALOG.map(x=>[String(x.cn),x.en]).sort((a,b)=>b[0].length-a[0].length);return m})();
+function ratioExpr(m){
+  let f=String(m.calc).split('=').slice(1).join('=').split(/[，；;]/)[0].replace(/（按[^）]*）/g,'').trim();
+  CN2EN.forEach(([cn,en])=>{if(cn&&en!==m.en)f=f.split(cn).join(`SUM(${en})`)});
+  f=f.replace(/\s*([*\-+\/])\s*/g,' $1 ').replace(/\/ (SUM\(\w+\)|\([^()]*\))/g,'/ NULLIF($1, 0)');
+  return /[一-龥]/.test(f)?null:f;
+}
+function periodSQL(m,r){
+  const land=tokens(m.land).filter(x=>!/_rt$/.test(x))[0]||tokens(m.src).filter(x=>/^dws_/.test(x))[0]||'dws_sup_tenant_trade_di';
+  const ten=TEN(land);const isH=r.kind==='holiday';
+  const from=isH?`FROM dws.${land} f\nJOIN dim.dim_opr_date_f d ON d.date_no = f.travel_date`:`FROM dws.${land}`;
+  const where=isH?`WHERE d.holiday_period_code = '${r.code}'`:`WHERE travel_date BETWEEN '${r.s}' AND '${r.e}'`;
+  const tw=ten?`\n  AND ${isH?'f.':''}${ten} = \${tenant_id}`:'';
+  const head=`-- ${m.code} ${m.cn}（${CLS[m.cls]?.[0]||''}）· ${CLS[m.cls]?.[1]||''}\n`;
+  if(m.cls==='distinct'){const b=m.en.replace(/_qty$/,'_bitmap');return head+`-- 需先在 ${land} 增加 ${b} BITMAP 列（BITMAP_UNION 聚合），当前只有 BIGINT 计数无法跨天去重\nSELECT BITMAP_UNION_COUNT(${b}) AS ${m.en}\n${from}\n${where}${tw};`}
+  if(m.cls==='ratio'){const ex=ratioExpr(m);return head+`-- 公式：${m.calc}\n-- 分子、分母先在区间内各自 SUM，再相除；不能把每天的比率相加或取平均\nSELECT ${ex||'SUM(分子) * 100 / NULLIF(SUM(分母), 0)'} AS ${m.en}\n${from}\n${where}${tw};`}
+  if(m.cls==='snapshot'){return head+`-- 期末值：取区间最后一天的快照\nSELECT ${m.en}\nFROM dws.${land}\nWHERE travel_date = '${isH?r.eNo:r.e}'${ten?`\n  AND ${ten} = \${tenant_id}`:''};\n-- 区间日均（如日均在途票数）：\n-- SELECT AVG(${m.en}) ... WHERE travel_date BETWEEN '${isH?r.sNo:r.s}' AND '${isH?r.eNo:r.e}'`}
+  if(m.cls==='window')return head+`-- 口径自带「近30天 / 累计」窗口：改造后由区间参数代替窗口，按其基础原子口径（可加或去重）计算\n-- 公式：${m.calc}`;
+  return head+`SELECT SUM(${m.en}) AS ${m.en}\n${from}\n${where}${tw};`;
+}
+const PS={kind:'holiday',anchor:'',n:30,unit:'quarter',off:0,year:2026,hol:'national_day',s:'',e:'',cmp:'yoyh',metric:'M0001'};
+function vPeriodPlan(v){
+  const s=CHK.summary,mc=CHK.mclass;const cnt={};Object.values(mc).forEach(k=>cnt[k]=(cnt[k]||0)+1);
+  const A=ORIG['ADS业务指标'],per={};A.rows.forEach(r=>{if(r[12]==='离线'){const k=r[6];per[k]=(per[k]||0)+1}});
+  const h1=CHK.findings.find(f=>f.id==='H1');const m6=CHK.findings.find(f=>f.id==='M6');
+  const today=new Date();const y=add(today,-1);PS.anchor||=dF(y);PS.s||=dF(add(y,-13));PS.e||=dF(y);
+  v.innerHTML=`<div class="pd">
+  <h2><span class="no">1</span>现状与问题</h2>
+  <p class="lead">客户字典把时间周期当成了<b>指标的一部分</b>：同一个「支付金额」口径，按当日 / 近7日 / 近30日 / 本月累计 / 本年累计展开成 pay_1d_amt、pay_7d_amt…… 五个字段，写死在 ADS 宽表里。${CATALOG.length} 个口径因此展开成 ${A.rows.length} 个指标。</p>
+  <div class="g3">
+   <div class="card box"><h4>现在能选的周期</h4><div class="big">5 种</div><p>当日、近7日、近30日、本月累计、本年累计（个别表另有近90日/本周/本月）。任意起止日、国庆 7 天、暑期、Q3、上半年、去年同期对比——都不在 1d/7d/30d/mtd/ytd 里，每加一种就要给 ${RAW['表清单'].rows.filter(r=>r[1]==='ADS').length} 张 ADS 表加列、改 SQL、补字典。</p></div>
+   <div class="card box"><h4>已有的周期展开</h4><div class="big">${(per['当日']||0)+(per['近7日']||0)+(per['近30日']||0)+(per['本月累计']||0)+(per['本年累计']||0)}</div><p>离线指标里当日 ${per['当日']||0} · 近7日 ${per['近7日']||0} · 近30日 ${per['近30日']||0} · 本月累计 ${per['本月累计']||0} · 本年累计 ${per['本年累计']||0}，同一口径重复登记。</p></div>
+   <div class="card box" style="border-left:4px solid #b42318"><h4>去重指标算不对</h4><div class="big">${h1?h1.n:0}</div><p>支付买家数、老客买家数按天存 BIGINT 计数，跨天/跨维度相加会重复计人；近7日/近30日/本月/本年买家数现在就是偏大的（核对报告 H1）。</p></div>
+  </div>
+  <h2><span class="no">2</span>思路：ADS 按日存，统计周期在查询时关联时间表</h2>
+  <p class="lead">指标 = <b>口径</b>（算什么）× <b>时间区间</b>（哪段时间）× <b>修饰词/维度</b>（渠道、支付方式、商户…）。ADS 保持<b>日粒度</b>，只存能跨天汇总的日数据；做一张<b>时间表</b>，查询时 ADS 日数据关联时间表，按区间汇总，再算日均、环比、同比、占比。<b>数据不膨胀</b>：ADS 行数不变，列数比原来少。</p>
+  <div class="flow">
+   <div class="card fl" style="--c:var(--ODS)"><b>ODS / DWD</b><span>不变</span></div>
+   <div class="card fl hi" style="--c:var(--DWS)"><b>DWS · 日粒度</b><span>去重类补 BITMAP 列，上卷改 BITMAP_UNION（修 H1）</span></div>
+   <div class="card fl hi" style="--c:var(--ADS)"><b>ADS · 日粒度</b><span>原来按周期写死的 ${ADS.summary.oldCols} 列合并为 ${ADS.summary.store} 个日字段：可加存日值、去重存位图、比率存分子分母、快照存日快照</span></div>
+   <div class="card fl hi" style="--c:var(--DIM)"><b>时间表</b><span>dim_opr_period_f：截止日 × 周期 → 本期/环比/同比区间；dim_opr_date_f 补节假日、半年度等属性</span></div>
+   <div class="card fl" style="--c:#000"><b>查询（报表 / 后台）</b><span>ADS JOIN 时间表 → 当日、本周…近1年、节假日、自定义区间；再派生日均/环比/同比/占比</span></div>
+  </div>
+  <h2><span class="no">3</span>业务指标 = 基础指标 × 统计周期 × 派生方式（查询时生成）</h2>
+  <div class="g3">
+   <div class="card box"><h4>统计周期 · ${ADS.periods.length} 种</h4><div class="big">${ADS.periods.filter(p=>p[6]).length} + 自定义</div><p>${ADS.periods.map(p=>esc(p[1])).join('、')}。都是时间表里的行，加一种周期只是给时间表加数据，ADS 不动。<a href="#/period/periods">看时间表 →</a></p></div>
+   <div class="card box"><h4>派生方式 · ${ADS.derivs.length} 种</h4><div class="big">数 / 钱 / 率</div><p>${ADS.derivs.map(d=>esc(d[1])).join('、')}。查询时计算；比率类用百分点差，去重类不做日均，占比只给带修饰词的指标。<a href="#/period/derivs">看规则 →</a></p></div>
+   <div class="card box" style="border-left:4px solid #9fcf1c"><h4>覆盖的业务指标</h4><div class="big">${ADS.summary.biz.toLocaleString()}</div><p>${ADS.summary.combos} 个基础指标（ADS ${ADS.summary.store} 个日字段）→ ${ADS.summary.fields.toLocaleString()} 个查询指标 × 适用周期 = ${ADS.summary.biz.toLocaleString()} 个业务指标，逐条有编码、名称、单位和取数 SQL。<a href="#/period/biz">查清单 →</a></p></div>
+  </div>
+  <p style="margin-top:10px">例：「近半年小程序支付金额同比增长率」= ads_ord_channel_sales_structure_di 的日字段 <code class="mono-s">mp_pay_amt</code> 关联时间表 <code class="mono-s">period_type_code='N180'</code>，(本期 SUM − 去年同期 SUM) × 100 ÷ 去年同期 SUM。</p>
+  <h2><span class="no">4</span>每类口径怎样在任意区间上算</h2>
+  <p>按「跨区间能否直接相加」把 ${CATALOG.length} 个 DWS 口径分类（由 checks.py 按公式与时间口径自动判定，可在 <a href="#/metrics/catalog">指标目录</a> 里逐个查看）。</p>
+  <table class="st card" style="border-radius:10px;overflow:hidden"><thead><tr><th>聚合方式</th><th>口径数</th><th>区间计算规则</th><th>DWS 存储要求</th><th>例子</th></tr></thead><tbody>
+   <tr><td>${clsPill('additive')}</td><td><b>${cnt.additive||0}</b></td><td>区间内 SUM</td><td>日粒度数值列（现状即可）</td><td>支付金额、支付票数、核销人次</td></tr>
+   <tr><td>${clsPill('once')}</td><td><b>${cnt.once||0}</b></td><td>区间内 SUM（每个实体只发生一次）</td><td>现状即可；跨商户汇总到平台时注意同一游客在多商户注册</td><td>新注册游客、首单买家、新入驻商户</td></tr>
+   <tr><td>${clsPill('distinct')}</td><td><b>${cnt.distinct||0}</b></td><td>区间内 BITMAP_UNION_COUNT</td><td><b>新增 BITMAP 列</b>（buyer_id 等）；不能再用 BIGINT 计数相加</td><td>支付买家数、动销商户数、动销 SKU 数</td></tr>
+   <tr><td>${clsPill('ratio')}</td><td><b>${cnt.ratio||0}</b></td><td>SUM(分子) / SUM(分母)</td><td>只存分子分母；DWS 里存的比率列（如 pay_conversion_rate）不能跨天用</td><td>转化率、退票率、客单价、平均票价</td></tr>
+   <tr><td>${clsPill('snapshot')}</td><td><b>${cnt.snapshot||0}</b></td><td>取区间末日值；或区间日均</td><td>每天一行快照（现状即可）</td><td>在途票数、可用余额、库存</td></tr>
+   ${cnt.window?`<tr><td>${clsPill('window')}</td><td><b>${cnt.window}</b></td><td>窗口改为区间参数</td><td>不再单独存「近30天」派生列</td><td>近30天支付金额、累计支付单数</td></tr>`:''}</tbody></table>
+  <h2><span class="no">5</span>区间解析演示</h2>
+  <p>选择周期和指标，看时间表会给出的日期区间、对比区间，以及 ADS 日数据的取数 SQL（演示用实际日期代替关联时间表）。节假日为 2024–2026 国务院放假安排样例数据。</p>
+  <div class="rs"><div class="card ctl" id="pc"></div><div class="card out" id="po"></div></div>
+  <h2><span class="no">6</span>改造清单</h2>
+  <div class="g2">
+   <div class="card box"><h4>① 日期维表与节假日区间表</h4><p>dim_opr_date_f 补字段：${(m6?.rows||[]).map(r=>`<code class="mono-s">${esc(r[0])}</code>`).join('、')||'—'}。新增节假日区间表（DDL 见下）。每年 12 月国务院公布次年安排后维护一次。</p></div>
+   <div class="card box"><h4>② DWS 去重类加 BITMAP</h4><p>${cnt.distinct||0} 个去重口径落地的 DWS 表各加一列 BITMAP（如 pay_buyer_bitmap）。StarRocks 用 BITMAP_UNION 聚合模型；Hive 侧可存 ARRAY&lt;BIGINT&gt; 同步到 StarRocks 时转 BITMAP。dws_sup_tenant_trade_di 等由明细表向上卷时改为 BITMAP_UNION，不再 SUM。</p></div>
+   <div class="card box"><h4>③ ADS 按周期写死的列合并为日字段</h4><p>pay_1d_amt / pay_7d_amt / pay_30d_amt / pay_mtd_amt / pay_ytd_amt → pay_amt（日值）；比率列 → 分子、分母两个日字段；买家数 → 日位图。表粒度、分区不变，${ADS.summary.oldCols} 列 → ${ADS.summary.store} 列。</p></div>
+   <div class="card box"><h4>④ 时间表与字典</h4><p>新增 dim_opr_period_f（每年约 6 千行，脚本生成）；字典「ADS业务指标」按查询指标登记，统计周期写「查询时关联时间表」。周报、月报表可下线。</p></div>
+  </div>
+  <pre class="code sm" style="margin-top:12px">${esc(HOLDDL)}</pre>
+  <h2><span class="no">7</span>实施顺序</h2>
+  <table class="st card" style="border-radius:10px;overflow:hidden"><thead><tr><th>步骤</th><th>内容</th><th>说明</th></tr></thead><tbody>
+   <tr><td class="mono">1</td><td>修正去重类指标（H1）</td><td>数据正确性问题，先做：DWS 加 BITMAP、上卷改 BITMAP_UNION</td></tr>
+   <tr><td class="mono">2</td><td>建时间表</td><td>dim_opr_holiday_period_f 录入假期 → dim_opr_date_f 补字段 → 脚本生成 dim_opr_period_f</td></tr>
+   <tr><td class="mono">3</td><td>ADS 改日字段</td><td>周期列合并为日值 / 位图 / 分子分母；粒度、分区、调度不变</td></tr>
+   <tr><td class="mono">4</td><td>报表查询改为关联时间表</td><td>按「表结构与查询」里的 SQL 模板；先接商户后台「经营概览」的周期筛选与同比</td></tr>
+   <tr><td class="mono">5</td><td>下线旧列与周报/月报表</td><td>报表全部切换后删除原 *_7d_* / *_30d_* / *_mtd_* / *_ytd_* 列</td></tr></tbody></table>
+  </div>`;
+  periodForm();
+}
+const HOLDDL=ADS.holidayDDL;
+function periodForm(){
+  const c=$('#pc');const yrs=Object.keys(HOL);
+  const opts=(a,v)=>a.map(([k,l])=>`<option value="${k}" ${String(k)===String(v)?'selected':''}>${esc(l)}</option>`).join('');
+  const mlist=ADS.combos;
+  const cmpOpts=PS.kind==='holiday'?[['','不对比'],['yoyh','同比：去年同一假期'],['yoy','同比：去年公历同期']]:[['','不对比'],['mom','环比'],['yoy','同比：去年公历同期'],['yoyw','同比：按星期对齐']];
+  if(!cmpOpts.some(x=>x[0]===PS.cmp))PS.cmp='';
+  c.innerHTML=`<label>周期类型<select class="sel" data-k="kind">${opts([['day','当日'],['lastN','近 N 日'],['nat','自然周期'],['todate','至今累计'],['holiday','节假日'],['custom','自定义起止日']],PS.kind)}</select></label>
+   ${PS.kind==='holiday'?`<label>年份<select class="sel" data-k="year">${opts(yrs.map(y=>[y,y+' 年']),PS.year)}</select></label><label>假期<select class="sel" data-k="hol">${opts((HOL[PS.year]||[]).map(h=>[h[1],h[0]+'（'+h[2].slice(5)+' ~ '+h[3].slice(5)+'）']),PS.hol)}</select></label>`:''}
+   ${PS.kind==='custom'?`<label>开始日<input class="inp" type="date" data-k="s" value="${PS.s}"></label><label>结束日<input class="inp" type="date" data-k="e" value="${PS.e}"></label>`:''}
+   ${['day','lastN','nat','todate'].includes(PS.kind)?`<label>${PS.kind==='day'?'日期':'截止日 / 参照日'}<input class="inp" type="date" data-k="anchor" value="${PS.anchor}"></label>`:''}
+   ${PS.kind==='lastN'?`<label>N（天）<input class="inp" type="number" min="1" max="730" data-k="n" value="${PS.n}"></label>`:''}
+   ${['nat','todate'].includes(PS.kind)?`<label>周期<select class="sel" data-k="unit">${opts([['week','周'],['month','月'],['quarter','季度'],['half','半年'],['year','年']],PS.unit)}</select></label>`:''}
+   ${PS.kind==='nat'?`<label>哪一个<select class="sel" data-k="off">${opts([[0,'本期（参照日所在）'],[1,'上期']],PS.off)}</select></label>`:''}
+   <label>对比<select class="sel" data-k="cmp">${opts(cmpOpts,PS.cmp)}</select></label>
+   <label>指标（ADS 基础指标）<select class="sel" data-k="metric">${mlist.map(m=>`<option value="${m.mcode}" ${m.mcode===PS.metric?'selected':''}>${esc(m.mcode+' '+m.base_cn+' · '+(KIND[m.kind]?.[0]||'')+' · '+m.t)}</option>`).join('')}</select></label>`;
+  c.oninput=c.onchange=e=>{const k=e.target.dataset.k;if(!k)return;let v=e.target.value;if(['n','off','year'].includes(k))v=+v||1;if(k==='off')v=+e.target.value;PS[k]=v;
+    if(k==='year'&&!(HOL[v]||[]).some(h=>h[1]===PS.hol))PS.hol=HOL[v][0][1];
+    if(k==='kind'){PS.cmp=v==='holiday'?'yoyh':'';periodForm();return}if(k==='year'){periodForm();return}periodOut()};
+  periodOut();
+}
+function periodOut(){
+  const r=resolve(PS),m=CM[PS.metric]||ADS.combos[0];
+  // 日历条：显示覆盖区间与对比区间
+  const lo=r.c&&r.c[0]<r.s?r.c[0]:r.s,hi=r.c&&r.c[1]>r.e?r.c[1]:r.e;const span=days(lo,hi);
+  const hset=new Set();Object.values(HOL).flat().forEach(h=>{for(let d=dP(h[2]);d<=dP(h[3]);d=add(d,1))hset.add(dF(d))});
+  const strip=(a,b)=>{let x='';for(let d=new Date(a);d<=b;d=add(d,1)){const on=d>=r.s&&d<=r.e,cc=r.c&&d>=r.c[0]&&d<=r.c[1];x+=`<i class="${on?'on':''} ${cc?'c':''} ${hset.has(dF(d))?'h':''}" title="${dF(d)}"></i>`}return x};
+  // 两段相距太远时分开画，避免一长串空白
+  let cal='';if(span<=120)cal=strip(lo,hi);else if(r.n<=400)cal=strip(r.s,r.e)+(r.c&&days(r.c[0],r.c[1])<=400?'<span style="width:100%;height:4px"></span>'+strip(r.c[0],r.c[1]):'');
+  // 本期 / 对比期都用实际日期；正式查询时由时间表 dim_opr_period_f 提供这些日期
+  const lr={mode:'lit',s:dN(r.s),e:dN(r.e),n:r.n,ps:r.c?dN(r.c[0]):'',pe:r.c?dN(r.c[1]):'',ls:r.c?dN(r.c[0]):'',le:r.c?dN(r.c[1]):'',w:''};
+  const d=r.c?(m.kind==='pct'?(PS.cmp==='mom'?'MOMD':'YOYD'):(PS.cmp==='mom'?'MOM':'YOY')):'VAL';
+  const fld=ADS.fields.find(x=>x.m===m.mcode&&x.d===d)||ADS.fields.find(x=>x.m===m.mcode);
+  if(r.c&&PS.cmp==='mom'){lr.ls=lr.ps;lr.le=lr.pe}
+  let sql=adsSQL(m,fld.d,lr,fld.f);
+  $('#po').innerHTML=`<div class="rng"><div><small>本期 · ${esc(r.label)}</small><b>${dF(r.s)} ~ ${dF(r.e)}</b> <span class="pill">${r.n} 天</span></div>${r.c?`<div class="cmp"><small>${esc(r.cl)}</small><b>${dF(r.c[0])} ~ ${dF(r.c[1])}</b> <span class="pill">${days(r.c[0],r.c[1])} 天</span></div>`:''}</div>
+   ${cal?`<div class="cal">${cal}</div><div class="legend" style="margin-bottom:12px"><span><i style="background:#3a5bd9"></i>本期</span>${r.c?'<span><i style="background:#f3b46b"></i>对比期</span>':''}<span><i style="background:#eef0f4;outline:1.5px solid #d92d78;outline-offset:-1.5px"></i>法定假日</span><span>（一格一天）</span></div>`:''}
+   <div class="sub">${esc(m.mcode+' '+m.base_cn)} · ${kindPill(m.kind)} · ADS 日字段 <code class="mono-s">${esc(m.store.join('、'))}</code> · ${esc(DN[fld.d][1])}</div><pre class="code sm">${esc(sql)}</pre>`;
+}
+
+/* ---------- ADS 指标体系 ---------- */
+const KIND={additive:['可加','g'],once:['一次性事件','g'],distinct:['去重','r'],pct:['比率(%)','p'],avg:['均值/比值','p'],snapshot:['快照','o']};
+const kindPill=k=>KIND[k]?`<span class="pill ${KIND[k][1]}">${KIND[k][0]}</span>`:'';
+const PN=Object.fromEntries(ADS.periods.map(p=>[p[0],p[1]])),DN=Object.fromEntries(ADS.derivs.map(d=>[d[0],d]));
+const CM=Object.fromEntries(ADS.combos.map(c=>[c.mcode,c]));
+/* 取数 SQL：日粒度 ADS 关联时间表（或前端传入的起止日）按区间汇总 */
+function rngCond(c,role,r){
+  const snap=c.expr.snap;
+  if(r.mode==='tbl'){const P={cur:['p.start_date_no','p.end_date_no'],prev:['p.prev_start_date_no','p.prev_end_date_no'],ly:['p.ly_start_date_no','p.ly_end_date_no'],wow:['p.wow_date_no','p.wow_date_no']}[role];
+    return snap||role==='wow'?`a.travel_date = ${P[1]}`:`a.travel_date BETWEEN ${P[0]} AND ${P[1]}`}
+  const P={cur:[r.s,r.e],prev:[r.ps,r.pe],ly:[r.ls,r.le],wow:[r.w,r.w]}[role];
+  return snap||role==='wow'?`a.travel_date = '${P[1]}'`:`a.travel_date BETWEEN '${P[0]}' AND '${P[1]}'`;
+}
+const aggx=(c,role,r,sum)=>sum?`SUM(CASE WHEN ${rngCond({expr:{}},role,r)} THEN a.${c.store[0]} END)`:c.expr.v.replace(/\{C\}(\w+)/g,(_,x)=>`CASE WHEN ${rngCond(c,role,r)} THEN a.${x} END`);
+/* 两层写法：内层按区间汇总出 本期 / 上期 / 去年同期 / 上周同日，外层算日均、环比、同比、占比 */
+const NEED={VAL:['cur'],AVG:['cur'],PREV:['prev'],LYV:['ly'],MOM:['cur','prev'],MOMD:['cur','prev'],YOY:['cur','ly'],YOYD:['cur','ly'],WOW:['cur','wow'],WOWD:['cur','wow'],SHR:['cur','base']};
+const RN={cur:'本期',prev:'上期',ly:'去年同期',wow:'上周同日',base:'全量本期'};
+function outerExpr(c,d,v){const days='period_day_qty';
+  return {VAL:v('cur'),AVG:`${c.kind==='snapshot'?v('cur_sum'):v('cur')} / ${days}`,PREV:v('prev'),LYV:v('ly'),
+   MOM:`(${v('cur')} - ${v('prev')}) * 100 / NULLIF(${v('prev')}, 0)`,MOMD:`${v('cur')} - ${v('prev')}`,
+   YOY:`(${v('cur')} - ${v('ly')}) * 100 / NULLIF(${v('ly')}, 0)`,YOYD:`${v('cur')} - ${v('ly')}`,
+   WOW:`(${v('cur')} - ${v('wow')}) * 100 / NULLIF(${v('wow')}, 0)`,WOWD:`${v('cur')} - ${v('wow')}`,
+   SHR:`${v('cur')} * 100 / NULLIF(${v('base')}, 0)`}[d];}
+function innerCols(c,roles,r,pre){
+  const out=[];const nm=x=>`${pre}${x}`;
+  roles.forEach(x=>{if(x==='base'){const b=CM[c.share_base];out.push(`    ${b?aggx(b,'cur',r):'NULL /* 同口径不带修饰词的本期值 */'} AS ${nm('base')}`)}
+    else out.push(`    ${aggx(c,x,r)} AS ${nm(x)}`)});
+  return out;
+}
+function fromClause(c,r,ind){const keys=ADS.dims[c.t]||[];const k=keys[0];
+  if(r.mode==='tbl')return `${ind}FROM ads.${c.t} a\n${ind}JOIN dim.dim_opr_period_f p\n${ind}  ON p.anchor_date_no = '\${T}'\n${ind} AND p.period_type_code = '${r.p}'${r.p==='HOL'?`\n${ind} AND p.holiday_period_code = '\${holiday_period_code}'   -- 如 2026_national_day`:''}\n${ind} AND a.travel_date BETWEEN p.scan_start_date_no AND p.end_date_no${k?`\n${ind}WHERE a.${k} = \${${k}}`:''}`;
+  const lo=[r.s,r.ps,r.ls,r.w].filter(Boolean).sort()[0];
+  return `${ind}FROM ads.${c.t} a\n${ind}WHERE a.travel_date BETWEEN '${lo}' AND '${r.e}'${k?`\n${ind}  AND a.${k} = \${${k}}`:''}`;
+}
+function adsSQL(c,d,r,alias){
+  const roles=[...NEED[d]];if(d==='AVG'&&c.kind==='snapshot')roles.push('cur_sum');
+  const head=`-- ${c.mcode} ${c.base_cn}（${KIND[c.kind]?.[0]}）· ${DN[d][1]}\n-- ADS 只存日数据（${c.store.join('、')}）；${r.mode==='tbl'?'区间来自时间表 dim_opr_period_f':'区间由前端传入'}\n`;
+  const inner=roles.map(x=>x==='cur_sum'?`    ${aggx(c,'cur',r,1)} AS cur_sum`:innerCols(c,[x],r,'')[0]);
+  const days=r.mode==='tbl'?'    MAX(p.period_day_qty) AS period_day_qty':`    ${r.n} AS period_day_qty`;
+  if(d==='AVG')inner.push(days);
+  return head+`SELECT ${outerExpr(c,d,x=>x)} AS ${alias}\nFROM (\n  SELECT\n${inner.join(',\n')}\n${fromClause(c,r,'  ')}\n) x;`;
+}
+let BIZ=null;const bizRows=()=>BIZ||(BIZ=ADS.fields.flatMap(f=>f.pers.map(p=>[`${f.m}-${p}-${f.d}`,PN[p]+f.nm,f.t,f.f,PN[p],DN[f.d][1],f.unit,KIND[f.kind]?.[0]||f.kind,CM[f.m].store.join('、'),p==='CUS'?'前端传入起止日':'关联时间表'])));
+const AS={};
+function vPeriod(v,a){
+  const s=ADS.summary;
+  const tabs=[['plan','方案'],['periods','时间表',ADS.periods.length],['derivs','派生方式',ADS.derivs.length],['base','基础指标',s.combos],['biz','业务指标清单',s.biz],['ddl','表结构与查询',s.tables]];
+  const tab=tabs.some(t=>t[0]===a)?a:'plan';const flow=!['plan','periods','derivs'].includes(tab);
+  v.className='view'+(flow?'':' scroll');
+  v.innerHTML=`<div class="bar" style="margin-bottom:8px"><div class="chips">${tabs.map(([k,l,n])=>`<button class="chip ${tab===k?'on':''}" data-k="${k}" style="height:30px;padding:0 14px">${l}${n!=null?`<i>${n.toLocaleString()}</i>`:''}</button>`).join('')}</div><span class="grow"></span><a class="btn pri" href="ADS指标体系.xlsx" download style="display:inline-flex;align-items:center;text-decoration:none">下载 ADS指标体系.xlsx</a></div><div id="ah" style="${flow?'flex:1;min-height:0;display:flex;flex-direction:column':''}"></div>`;
+  v.querySelector('.chips').onclick=e=>{const b=e.target.closest('.chip');if(b)go('#/period/'+b.dataset.k)};
+  const h=$('#ah');AS[tab]??={};
+  if(tab==='plan')return vPeriodPlan(h);
+  if(tab==='periods'){
+    h.innerHTML=`<div class="pd"><p class="lead">时间表 <b>dim_opr_period_f</b>：每个截止日 T × 每种统计周期一行，给出<b>本期、环比基期、同比基期</b>的起止日。ADS 只存日数据，查询时 <code class="mono-s">JOIN dim_opr_period_f ON travel_date BETWEEN start AND end</code> 汇总即可。每年约 6 千行，一次生成到 2035 年。示例日期按 T = ${esc(ADS.anchor)} 计算。</p>
+    <table class="st card" style="border-radius:10px;overflow:hidden"><thead><tr><th>编码</th><th>名称</th><th>分组</th><th>本期区间</th><th>环比基期</th><th>同比基期</th><th>来源</th><th>示例：本期</th><th>示例：环比基期</th><th>示例：同比基期</th></tr></thead><tbody>${ADS.periodRows.map(r=>`<tr><td class="mono">${esc(r[0])}</td><td><b>${esc(r[1])}</b></td><td style="white-space:nowrap">${esc(r[2])}</td><td>${esc(r[3])}</td><td>${esc(r[4])}</td><td>${esc(r[5])}</td><td><span class="pill ${r[0]==='CUS'?'o':'g'}">${esc(r[6])}</span></td>${[7,8,9].map(i=>`<td class="mono" style="font-size:11.5px">${esc(r[i]).replace(' ~ ','<br>~ ')}</td>`).join('')}</tr>`).join('')}</tbody></table>
+    <div class="g2" style="margin-top:14px"><div><h2>时间表 dim_opr_period_f</h2><pre class="code sm">${esc(ADS.periodDimDDL)}</pre></div>
+    <div><h2>节假日区间表 + 日期表补字段</h2><pre class="code sm">${esc(ADS.holidayDDL)}</pre></div></div>
+    <p style="margin-top:10px">日期表 dim_opr_date_f 用于<b>按周/月/季/半年/年分组看趋势</b>，以及按<b>周末、法定假日、寒暑假、旺淡季</b>过滤；时间表 dim_opr_period_f 用于<b>某个统计周期的汇总和环比/同比</b>。两张表都只在查询时关联，不改变 ADS 数据量。</p></div>`;
+    return;
+  }
+  if(tab==='derivs'){
+    const ks=['additive','once','distinct','pct','avg','snapshot'];const ok=(d,k)=>d[5]==='all'||d[5].split(',').includes(k);
+    h.innerHTML=`<div class="pd"><p class="lead">派生方式都在<b>查询时</b>计算，不落 ADS。「数 / 钱」= 本期值、日均、上期值、去年同期值；「率」= 环比、同比、周同比、占比（比率类指标的环比/同比用百分点差）。</p>
+    <table class="st card" style="border-radius:10px;overflow:hidden"><thead><tr><th>编码</th><th>派生方式</th><th>查询结果列名</th><th>单位</th><th>计算方式</th><th>适用周期</th>${ks.map(k=>`<th style="text-align:center">${kindPill(k)}</th>`).join('')}</tr></thead><tbody>${ADS.derivs.map(d=>`<tr><td class="mono">${esc(d[0])}</td><td><b>${esc(d[1])}</b></td><td class="mono">${esc(d[2])}</td><td>${esc(d[3])}</td><td>${esc(d[4])}</td><td style="white-space:nowrap">${d[6]==='all'?'全部':d[6]==='D1'?'仅当日':'多日周期'}</td>${ks.map(k=>`<td style="text-align:center">${ok(d,k)?'<span class="dot"></span>':''}</td>`).join('')}</tr>`).join('')}</tbody></table>
+    <h2 style="margin-top:20px">ADS 日字段怎样支持任意周期</h2>
+    <table class="st card" style="border-radius:10px;overflow:hidden"><thead><tr><th>聚合方式</th><th>ADS 存什么（日）</th><th>区间汇总</th><th>例子</th></tr></thead><tbody>
+     <tr><td>${kindPill('additive')} ${kindPill('once')}</td><td>日值</td><td class="mono">SUM(pay_amt)</td><td>支付金额、核销票数、新注册游客</td></tr>
+     <tr><td>${kindPill('distinct')}</td><td>日去重位图 *_bitmap</td><td class="mono">BITMAP_UNION_COUNT(pay_buyer_bitmap)</td><td>支付买家数、老客买家数</td></tr>
+     <tr><td>${kindPill('pct')} ${kindPill('avg')}</td><td>日分子 *_numerator_*、日分母 *_denominator_*</td><td class="mono">SUM(分子) * 100 / SUM(分母)</td><td>转化率、退票率、客单价（分母为买家位图）</td></tr>
+     <tr><td>${kindPill('snapshot')}</td><td>日快照</td><td class="mono">取区间末日；日均 = SUM ÷ 天数</td><td>在途票数、可用余额、库存、上座率</td></tr></tbody></table>
+    <h2 style="margin-top:20px">示例：支付金额（GMV）· 商户经营概览</h2>${exampleMatrix('ads_ord_tenant_trade_overview_di','pay')}</div>`;
+    return;
+  }
+  if(tab==='base'){
+    const cols=['基础指标','ADS表','口径','修饰词','指标名','聚合方式','单位','ADS 日字段','合并的原字段','可查询指标'];
+    const rows=ADS.combos.map(c=>[c.mcode,c.t,c.code,c.mod,c.base_cn,KIND[c.kind]?.[0]||c.kind,c.unit,c.store.join('、'),c.old_fields.join('、'),c.fields.length]);
+    grid(h,{state:AS[tab],cols,rows,wide:true,filters:[1,5,6],searchPh:'搜索指标名 / 字段 / 口径…',csvName:'基础指标',cls:['c-s','c-id','c-s','c-m','c-m','c-s','c-s','c-l','c-l','c-n'],
+      extra:`<div class="sub" style="margin:-2px 0 8px">基础指标 = ADS 表 × 口径 × 修饰词。原来按周期写死的 ${s.oldCols} 个 ADS 指标列合并为 ${s.combos} 个基础指标、${s.store} 个日字段（另 ${s.skipped} 个原指标不改造，见「表结构与查询」底部）。点行看可查询的指标与周期。</div>`,
+      cell:(i,v,q)=>i===1?tlink(v,q):i===5?kindPill(Object.keys(KIND).find(k=>KIND[k][0]===v)):i===7||i===8?`<span class="mono-s">${hl(esc(v),q)}</span>`:hl(esc(v),q),
+      onRow:r=>baseDrawer(CM[r[0]])});
+    return;
+  }
+  if(tab==='biz'){
+    const cols=['业务指标编码','业务指标名','ADS表','查询列名','统计周期','派生方式','单位','聚合方式','ADS 日字段','时间关联'];
+    grid(h,{state:AS[tab],cols,rows:bizRows(),wide:true,filters:[2,4,5,6],searchPh:'按业务名称搜，如 近半年 支付金额 同比…',csvName:'业务指标清单',pageSize:200,cls:['c-id','c-m','c-id','c-id','c-s','c-s','c-s','c-s','c-id','c-s'],
+      extra:`<div class="sub" style="margin:-2px 0 8px">${s.biz.toLocaleString()} 个业务指标 = ${s.fields.toLocaleString()} 个查询指标 × 适用统计周期，全部由 ADS 日字段关联时间表算出，不落表。点行看取数 SQL。</div>`,
+      cell:(i,v,q)=>i===2?tlink(v,q):i===9?`<span class="pill ${v==='关联时间表'?'g':'o'}">${esc(v)}</span>`:[0,3,8].includes(i)?`<span class="c-id">${hl(esc(v),q)}</span>`:hl(esc(v),q),
+      onRow:r=>{const[m,p,d]=r[0].split('-');const c=CM[m];const pr=ADS.periodRows.find(x=>x[0]===p);
+        const sql=p==='CUS'?adsSQL(c,d,{mode:'lit',s:'${start_date}',e:'${end_date}',ps:'${prev_start}',pe:'${prev_end}',ls:'${ly_start}',le:'${ly_end}',w:'',n:'${day_qty}'},r[3]):adsSQL(c,d,{mode:'tbl',p},r[3]);
+        drawer(r[1],r[0],kvHtml([['ADS 表',linksHtml(r[2])],['ADS 日字段',`<span class="c-id">${esc(c.store.join('、'))}</span>`],['统计周期',`${esc(r[4])}（${esc(p)}）· 本期 ${esc(pr[3])}`],['环比基期',esc(pr[4])],['同比基期',esc(pr[5])],['派生方式',esc(DN[d][1])+' · '+esc(DN[d][4])],['单位',esc(r[6])],['聚合方式',kindPill(c.kind)],['基础口径',esc(c.code+' '+c.base_cn)],['业务口径',esc(c.kou)],['口径公式',esc(c.calc)]])+
+          `<div class="sub">取数 SQL</div><pre class="code sm">${esc(sql)}</pre>`)}});
+    return;
+  }
+  // 表结构与查询
+  const ts=Object.keys(ADS.ddl);AS.ddl.t??=ts[0];AS.ddl.p??='N180';
+  h.innerHTML=`<div class="bar"><select class="sel" id="at" style="max-width:380px">${ts.map(t=>`<option ${t===AS.ddl.t?'selected':''}>${t}</option>`).join('')}</select><div class="chips" id="am"><button class="chip ${AS.ddl.m!=='q'?'on':''}" data-m="ddl">DDL（日粒度）</button><button class="chip ${AS.ddl.m==='q'?'on':''}" data-m="q">查询示例</button></div><select class="sel" id="apq" style="${AS.ddl.m==='q'?'':'display:none'}">${ADS.periods.filter(p=>p[6]).map(p=>`<option value="${p[0]}" ${p[0]===AS.ddl.p?'selected':''}>${p[0]} ${p[1]}</option>`).join('')}</select><span class="cnt" id="ac"></span><span class="grow"></span><button class="btn pri" id="acp">复制</button></div><pre class="code" id="ap"></pre>
+   ${ADS.skipped.length?`<details style="margin-top:10px"><summary class="sub" style="cursor:pointer">不改造的 ${ADS.skipped.length} 个原指标</summary><table class="st"><thead><tr><th>原编码</th><th>原指标</th><th>ADS 表</th><th>字段</th><th>处理</th></tr></thead><tbody>${ADS.skipped.map(r=>`<tr><td class="mono">${esc(r[0])}</td><td>${esc(r[1])}</td><td class="mono">${esc(r[2])}</td><td class="mono">${esc(r[3])}</td><td>${esc(r[4])}</td></tr>`).join('')}</tbody></table></details>`:''}`;
+  const draw=()=>{const t=AS.ddl.t,txt=AS.ddl.m==='q'?tableQuery(t,AS.ddl.p):ADS.ddl[t];$('#ap').innerHTML=esc(txt).replace(/('(?:[^'\\]|\\.)*')/g,'<span class="st">$1</span>').replace(/^(\s*--.*)$/gm,'<span class="cm">$1</span>');
+    const cs=ADS.combos.filter(c=>c.t===t);$('#ac').textContent=`${cs.length} 个基础指标 · ${ADS.store.filter(x=>x.t===t).length} 个日字段（原 ${cs.reduce((a,c)=>a+c.old_fields.length,0)} 列）`;$('#apq').style.display=AS.ddl.m==='q'?'':'none'};
+  $('#at').onchange=e=>{AS.ddl.t=e.target.value;draw()};$('#apq').onchange=e=>{AS.ddl.p=e.target.value;draw()};
+  $('#am').onclick=e=>{const b=e.target.closest('.chip');if(!b)return;AS.ddl.m=b.dataset.m;$('#am').querySelectorAll('.chip').forEach(x=>x.classList.toggle('on',x===b));draw()};
+  $('#acp').onclick=e=>copy($('#ap').textContent,e.target);
+  draw();
+}
+function tableQuery(t,p){
+  const cs=ADS.combos.filter(c=>c.t===t).slice(0,8),keys=ADS.dims[t]||[],r={mode:'tbl',p};
+  const inner=[],outer=[];
+  cs.forEach(c=>{const s=c.stem,k=c.kw,pre=`${s}_`;
+    const ds=(c.kind==='pct'?['VAL','PREV','LYV','MOMD','YOYD']:['VAL',...(['additive','once','snapshot'].includes(c.kind)&&p!=='D1'?['AVG']:[]),'PREV','LYV','MOM','YOY']).filter(d=>ADS.fields.some(x=>x.m===c.mcode&&x.d===d));
+    const roles=[...new Set(ds.flatMap(d=>NEED[d]))];
+    inner.push(`    -- ${c.mcode} ${c.base_cn}（${KIND[c.kind][0]}）`);
+    roles.forEach(x=>inner.push(`    ${aggx(c,x,r)} AS ${pre}${x},`));
+    if(ds.includes('AVG')&&c.kind==='snapshot')inner.push(`    ${aggx(c,'cur',r,1)} AS ${pre}cur_sum,`);
+    ds.forEach(d=>{const f=ADS.fields.find(x=>x.m===c.mcode&&x.d===d);outer.push(`  ${outerExpr(c,d,x=>pre+x)} AS ${f.f},`)})});
+  return `-- ${t}：ADS 日数据关联时间表，按「${PN[p]}」汇总，并算出日均 / 上期 / 去年同期 / 环比 / 同比\n-- 换周期只改 period_type_code；节假日加 holiday_period_code；自定义区间把 p.* 换成前端传入的起止日\n-- 展示前 ${cs.length} 个基础指标，其余写法相同\nSELECT\n  start_date, end_date${keys.map(k=>`, ${k}`).join('')},\n${outer.join('\n').replace(/,$/,'')}\nFROM (\n  SELECT\n    p.start_date, p.end_date, MAX(p.period_day_qty) AS period_day_qty${keys.map(k=>`, a.${k}`).join('')},\n${inner.join('\n').replace(/,$/,'')}\n  FROM ads.${t} a\n  JOIN dim.dim_opr_period_f p\n    ON p.anchor_date_no = '\${T}'\n   AND p.period_type_code = '${p}'${p==='HOL'?`\n   AND p.holiday_period_code = '\${holiday_period_code}'`:''}\n   AND a.travel_date BETWEEN p.scan_start_date_no AND p.end_date_no   -- 只扫本期、上期、去年同期覆盖的分区\n  GROUP BY p.start_date, p.end_date${keys.map(k=>`, a.${k}`).join('')}\n) x;\n\n-- 按月看趋势（也可按周/季/半年/年、节假日、周末分组）：关联日期表 dim_opr_date_f\nSELECT d.month_start_date,\n${cs.slice(0,3).map(c=>`  ${c.expr.v.replace(/\{C\}/g,'a.')} AS ${c.stem}_${c.kw}`).join(',\n')}\nFROM ads.${t} a\nJOIN dim.dim_opr_date_f d ON d.date_no = a.travel_date\nWHERE a.travel_date BETWEEN '\${start_date}' AND '\${end_date}'\n  -- AND d.holiday_type = 2     -- 只看法定节假日\n  -- AND d.vacation_type = 2    -- 只看暑假\nGROUP BY d.month_start_date\nORDER BY d.month_start_date;`;
+}
+function exampleMatrix(t,stem){
+  const c=ADS.combos.find(x=>x.t===t&&x.stem===stem);if(!c)return'';
+  const fs=ADS.fields.filter(f=>f.m===c.mcode),ps=ADS.periods.map(p=>p[0]);
+  return `<p>ADS 里只有一个日字段 <code class="mono-s">${esc(c.store.join('、'))}</code>（原来是 ${esc(c.old_fields.join('、'))} 共 ${c.old_fields.length} 列）。查询时关联时间表，得到下面 ${fs.reduce((a,f)=>a+f.pers.length,0)} 个业务指标：</p>
+  <div style="overflow:auto" class="card"><table class="st"><thead><tr><th>查询列</th><th>派生方式</th>${ps.map(p=>`<th style="text-align:center">${esc(PN[p])}</th>`).join('')}</tr></thead><tbody>${fs.map(f=>`<tr><td class="mono">${esc(f.f)}</td><td style="white-space:nowrap">${esc(DN[f.d][1])}</td>${ps.map(p=>`<td style="text-align:center">${f.pers.includes(p)?'<span class="dot"></span>':''}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+  <p style="margin-top:8px">例：「近半年支付金额（GMV）同比增长率」= 关联时间表 <code class="mono-s">period_type_code='N180'</code>，(本期 SUM(pay_amt) − 去年同期 SUM(pay_amt)) × 100 ÷ 去年同期。</p>`;
+}
+function baseDrawer(c){
+  const fs=ADS.fields.filter(f=>f.m===c.mcode),ps=ADS.periods.map(p=>p[0]);
+  drawer(c.base_cn,`${c.mcode} · ${c.t}`,kvHtml([['ADS 表',linksHtml(c.t)],['口径',esc(c.code)],['修饰词',esc(c.mod)],['聚合方式',kindPill(c.kind)],['单位',esc(c.unit)],['ADS 日字段',`<span class="c-id">${esc(c.store.join('、'))}</span>`],['区间汇总',`<span class="c-id">${esc(c.expr.v.replace(/\{C\}/g,''))}</span>${c.expr.snap?'（取区间末日）':''}`],['合并的原字段',`<span class="mono-s">${esc(c.old_fields.join('、'))}</span>`],['业务口径',esc(c.kou)],['口径公式',esc(c.calc)]])+
+   `<div class="sub">可查询指标 × 统计周期（${fs.reduce((a,f)=>a+f.pers.length,0)} 个业务指标）</div><div style="overflow:auto"><table class="st"><thead><tr><th>查询列</th><th>派生</th>${ps.map(p=>`<th style="text-align:center;font-size:11px">${esc(PN[p])}</th>`).join('')}</tr></thead><tbody>${fs.map(f=>`<tr><td class="mono">${esc(f.f)}</td><td style="white-space:nowrap">${esc(DN[f.d][1])}</td>${ps.map(p=>`<td style="text-align:center">${f.pers.includes(p)?'<span class="dot"></span>':''}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`);
+}
+
+// 自定义悬浮提示：仅当内容被截断时显示
+(()=>{const tip=document.createElement('div');tip.className='tip';document.body.appendChild(tip);let cur=null,tm=null;
+ const hide=()=>{clearTimeout(tm);tip.classList.remove('show');cur=null};
+ document.addEventListener('mouseover',e=>{const el=e.target.closest('.cl');if(el===cur)return;hide();if(!el)return;
+  if(el.scrollHeight<=el.clientHeight+1&&el.scrollWidth<=el.clientWidth+1)return;
+  cur=el;tm=setTimeout(()=>{const td=el.closest('td'),table=el.closest('table');const th=table&&td?table.querySelectorAll('thead th')[td.cellIndex]:null;
+   tip.innerHTML=(th?`<span class="th">${esc(th.textContent.replace(/[▲▼]/g,'').trim())}</span>`:'')+esc(el.textContent);
+   const r=el.getBoundingClientRect();tip.style.left='0px';tip.style.top='0px';tip.classList.add('show');
+   const w=tip.offsetWidth,h=tip.offsetHeight;let x=Math.min(r.left-12,innerWidth-w-12);x=Math.max(12,x);let y=r.bottom+6;if(y+h>innerHeight-12)y=r.top-h-6;
+   tip.style.left=x+'px';tip.style.top=y+'px'},250)});
+ document.addEventListener('scroll',hide,true);document.addEventListener('mousedown',hide);})();
+route();
+</script>
+</body>
+</html>
