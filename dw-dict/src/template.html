@@ -172,6 +172,7 @@ pre.code .kw{color:#9db4ff}pre.code .ty{color:#7fe0c3}pre.code .cm{color:#8f9bb8
 .drawer .dh2 h2{flex:1;margin:0;font-size:15px;line-height:1.4}
 .drawer .dh2 h2 small{display:block;color:var(--muted);font-weight:400;font-family:var(--mono);font-size:12px}
 .drawer .body{flex:1;overflow:auto;padding:14px 18px}
+.drawer pre.code{white-space:pre-wrap;overflow-wrap:anywhere}
 .formula{background:#f6f8ff;border:1px solid #dfe6ff;border-radius:8px;padding:10px 12px;margin-bottom:14px;font-family:var(--mono);font-size:12.5px;white-space:pre-wrap;overflow-wrap:anywhere}
 /* 核对报告 */
 .rv-head{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) 1.6fr;gap:12px;margin-bottom:14px}
@@ -467,7 +468,7 @@ function vTables(v,a,b){
       const rows=of.map(r=>[r[g0('序号')],r[g0('字段名')],r[g0('类型')],r[g0('字段类别')],r[g0('字段注释')],now.has(r[g0('字段名')])?'保留':'已替换']);
       body.innerHTML='';const box=document.createElement('div');box.style.cssText='flex:1;min-height:0;display:flex;flex-direction:column';body.appendChild(box);
       grid(box,{cols:['#','字段名','类型','类别','字段注释','改造后'],rows,filters:[5],cls:['c-n','c-id','c-s','c-s','c-l','c-s'],pageSize:300,csvName:t.short+'_改造前',searchPh:'筛选改造前字段…',
-        extra:`<div class="sub" style="margin:-2px 0 8px">客户原版字段。ADS 表里按周期写死的列（如 pay_1d_amt / pay_7d_amt / pay_30d_amt）改造后合并为 pay_amt 等，周期由 period_type_code 区分。</div>`,
+        extra:`<div class="sub" style="margin:-2px 0 8px">客户原版字段。ADS 表里按周期写死的列（如 pay_1d_amt / pay_7d_amt / pay_30d_amt）改造后合并为一个日字段 pay_amt（比率改存分子分母、买家数改存位图），任意周期在查询时关联时间表 dim_opr_period_f 汇总。</div>`,
         cell:(i,v,q)=>i===5?`<span class="pill ${v==='保留'?'g':'o'}">${v}</span>`:i===3?catPill(v):hl(esc(v),q)});
     }else if(TS.tab==='sch'){
       const W=RAW['调度工作流'],c=W.cols;
@@ -675,7 +676,7 @@ function periodSQL(m,r){
   if(m.cls==='window')return head+`-- 口径自带「近30天 / 累计」窗口：改造后由区间参数代替窗口，按其基础原子口径（可加或去重）计算\n-- 公式：${m.calc}`;
   return head+`SELECT SUM(${m.en}) AS ${m.en}\n${from}\n${where}${tw};`;
 }
-const PS={kind:'holiday',anchor:'',n:30,unit:'quarter',off:0,year:2026,hol:'national_day',s:'',e:'',cmp:'yoyh',metric:'A007'};
+const PS={kind:'holiday',anchor:'',n:30,unit:'quarter',off:0,year:2026,hol:'national_day',s:'',e:'',cmp:'yoyh',metric:'M0001'};
 function vPeriodPlan(v){
   const s=CHK.summary,mc=CHK.mclass;const cnt={};Object.values(mc).forEach(k=>cnt[k]=(cnt[k]||0)+1);
   const A=ORIG['ADS业务指标'],per={};A.rows.forEach(r=>{if(r[12]==='离线'){const k=r[6];per[k]=(per[k]||0)+1}});
@@ -689,22 +690,22 @@ function vPeriodPlan(v){
    <div class="card box"><h4>已有的周期展开</h4><div class="big">${(per['当日']||0)+(per['近7日']||0)+(per['近30日']||0)+(per['本月累计']||0)+(per['本年累计']||0)}</div><p>离线指标里当日 ${per['当日']||0} · 近7日 ${per['近7日']||0} · 近30日 ${per['近30日']||0} · 本月累计 ${per['本月累计']||0} · 本年累计 ${per['本年累计']||0}，同一口径重复登记。</p></div>
    <div class="card box" style="border-left:4px solid #b42318"><h4>去重指标算不对</h4><div class="big">${h1?h1.n:0}</div><p>支付买家数、老客买家数按天存 BIGINT 计数，跨天/跨维度相加会重复计人；近7日/近30日/本月/本年买家数现在就是偏大的（核对报告 H1）。</p></div>
   </div>
-  <h2><span class="no">2</span>思路：时间周期从「指标」里拿出来，变成查询参数</h2>
-  <p class="lead">指标 = <b>口径</b>（算什么）× <b>时间区间</b>（哪段时间，查询时传入）× <b>修饰词/维度</b>（渠道、支付方式、商户…）。数仓只把<b>日粒度原子数据</b>算对、存好，任何区间都在查询时由「区间解析 + 聚合规则」现算。</p>
+  <h2><span class="no">2</span>思路：ADS 按日存，统计周期在查询时关联时间表</h2>
+  <p class="lead">指标 = <b>口径</b>（算什么）× <b>时间区间</b>（哪段时间）× <b>修饰词/维度</b>（渠道、支付方式、商户…）。ADS 保持<b>日粒度</b>，只存能跨天汇总的日数据；做一张<b>时间表</b>，查询时 ADS 日数据关联时间表，按区间汇总，再算日均、环比、同比、占比。<b>数据不膨胀</b>：ADS 行数不变，列数比原来少。</p>
   <div class="flow">
-   <div class="card fl" style="--c:var(--ODS)"><b>ODS / DWD</b><span>不变。明细带 travel_date 与业务时间</span></div>
-   <div class="card fl hi" style="--c:var(--DWS)"><b>DWS · 日粒度原子</b><span>只存 1d：可加度量直接存；去重类加 BITMAP 列；比率只存分子分母；快照每天一行</span></div>
-   <div class="card fl hi" style="--c:var(--DIM)"><b>日期维 + 节假日区间</b><span>dim_opr_date_f 补半年/节假日区间/同比对齐日；新增 dim_opr_holiday_period_f</span></div>
-   <div class="card fl hi" style="--c:#000"><b>周期区间表</b><span>dim_opr_period_f：每个截止日 × 每种周期给出本期、环比基期、同比基期区间；ETL 和指标服务共用</span></div>
-   <div class="card fl" style="--c:var(--ADS)"><b>ADS · 多周期</b><span>每天按 17 种统计周期各算一行，含本期值/日均/上期/环比/去年同期/同比/占比；自定义区间走指标服务</span></div>
+   <div class="card fl" style="--c:var(--ODS)"><b>ODS / DWD</b><span>不变</span></div>
+   <div class="card fl hi" style="--c:var(--DWS)"><b>DWS · 日粒度</b><span>去重类补 BITMAP 列，上卷改 BITMAP_UNION（修 H1）</span></div>
+   <div class="card fl hi" style="--c:var(--ADS)"><b>ADS · 日粒度</b><span>原来按周期写死的 ${ADS.summary.oldCols} 列合并为 ${ADS.summary.store} 个日字段：可加存日值、去重存位图、比率存分子分母、快照存日快照</span></div>
+   <div class="card fl hi" style="--c:var(--DIM)"><b>时间表</b><span>dim_opr_period_f：截止日 × 周期 → 本期/环比/同比区间；dim_opr_date_f 补节假日、半年度等属性</span></div>
+   <div class="card fl" style="--c:#000"><b>查询（报表 / 后台）</b><span>ADS JOIN 时间表 → 当日、本周…近1年、节假日、自定义区间；再派生日均/环比/同比/占比</span></div>
   </div>
-  <h2><span class="no">3</span>ADS 指标 = 基础指标 × 统计周期 × 派生方式</h2>
+  <h2><span class="no">3</span>业务指标 = 基础指标 × 统计周期 × 派生方式（查询时生成）</h2>
   <div class="g3">
-   <div class="card box"><h4>统计周期 · ${ADS.periods.length} 种</h4><div class="big">${ADS.periods.filter(p=>p[6]).length} + 自定义</div><p>${ADS.periods.map(p=>esc(p[1])).join('、')}。周期是 ADS 表的行（period_type_code），新增周期只加一行配置。<a href="#/period/periods">看区间规则 →</a></p></div>
-   <div class="card box"><h4>派生方式 · ${ADS.derivs.length} 种</h4><div class="big">数 / 钱 / 率</div><p>${ADS.derivs.map(d=>esc(d[1])).join('、')}。按聚合方式自动适配：比率类用百分点差，去重类不做日均，占比只给带修饰词的指标。<a href="#/period/derivs">看规则 →</a></p></div>
-   <div class="card box" style="border-left:4px solid #9fcf1c"><h4>展开结果</h4><div class="big">${ADS.summary.biz.toLocaleString()}</div><p>原 ${ADS.summary.oldOffline} 个离线 ADS 指标 → ${ADS.summary.combos} 个基础指标 → ${ADS.summary.fields.toLocaleString()} 个 ADS 字段 → ${ADS.summary.biz.toLocaleString()} 个业务指标（字段 × 适用周期），逐条有编码、名称、单位、取数方式。<a href="#/period/biz">查清单 →</a></p></div>
+   <div class="card box"><h4>统计周期 · ${ADS.periods.length} 种</h4><div class="big">${ADS.periods.filter(p=>p[6]).length} + 自定义</div><p>${ADS.periods.map(p=>esc(p[1])).join('、')}。都是时间表里的行，加一种周期只是给时间表加数据，ADS 不动。<a href="#/period/periods">看时间表 →</a></p></div>
+   <div class="card box"><h4>派生方式 · ${ADS.derivs.length} 种</h4><div class="big">数 / 钱 / 率</div><p>${ADS.derivs.map(d=>esc(d[1])).join('、')}。查询时计算；比率类用百分点差，去重类不做日均，占比只给带修饰词的指标。<a href="#/period/derivs">看规则 →</a></p></div>
+   <div class="card box" style="border-left:4px solid #9fcf1c"><h4>覆盖的业务指标</h4><div class="big">${ADS.summary.biz.toLocaleString()}</div><p>${ADS.summary.combos} 个基础指标（ADS ${ADS.summary.store} 个日字段）→ ${ADS.summary.fields.toLocaleString()} 个查询指标 × 适用周期 = ${ADS.summary.biz.toLocaleString()} 个业务指标，逐条有编码、名称、单位和取数 SQL。<a href="#/period/biz">查清单 →</a></p></div>
   </div>
-  <p style="margin-top:10px">例：「近半年 小程序 支付金额 同比增长率」= ads_ord_channel_sales_structure_di 的 <code class="mono-s">mp_pay_yoy_rate</code>，条件 <code class="mono-s">period_type_code='N180'</code>；「2026 国庆 核销票数 日均」= <code class="mono-s">verify_ticket_daily_avg_qty</code>，条件 <code class="mono-s">period_type_code='HOL' AND holiday_period_code='2026_national_day'</code>。</p>
+  <p style="margin-top:10px">例：「近半年小程序支付金额同比增长率」= ads_ord_channel_sales_structure_di 的日字段 <code class="mono-s">mp_pay_amt</code> 关联时间表 <code class="mono-s">period_type_code='N180'</code>，(本期 SUM − 去年同期 SUM) × 100 ÷ 去年同期 SUM。</p>
   <h2><span class="no">4</span>每类口径怎样在任意区间上算</h2>
   <p>按「跨区间能否直接相加」把 ${CATALOG.length} 个 DWS 口径分类（由 checks.py 按公式与时间口径自动判定，可在 <a href="#/metrics/catalog">指标目录</a> 里逐个查看）。</p>
   <table class="st card" style="border-radius:10px;overflow:hidden"><thead><tr><th>聚合方式</th><th>口径数</th><th>区间计算规则</th><th>DWS 存储要求</th><th>例子</th></tr></thead><tbody>
@@ -715,23 +716,23 @@ function vPeriodPlan(v){
    <tr><td>${clsPill('snapshot')}</td><td><b>${cnt.snapshot||0}</b></td><td>取区间末日值；或区间日均</td><td>每天一行快照（现状即可）</td><td>在途票数、可用余额、库存</td></tr>
    ${cnt.window?`<tr><td>${clsPill('window')}</td><td><b>${cnt.window}</b></td><td>窗口改为区间参数</td><td>不再单独存「近30天」派生列</td><td>近30天支付金额、累计支付单数</td></tr>`:''}</tbody></table>
   <h2><span class="no">5</span>区间解析演示</h2>
-  <p>选择周期和指标，看指标服务会解析出的日期区间、对比区间和取数 SQL。节假日为 2024–2026 国务院放假安排样例数据。</p>
+  <p>选择周期和指标，看时间表会给出的日期区间、对比区间，以及 ADS 日数据的取数 SQL（演示用实际日期代替关联时间表）。节假日为 2024–2026 国务院放假安排样例数据。</p>
   <div class="rs"><div class="card ctl" id="pc"></div><div class="card out" id="po"></div></div>
   <h2><span class="no">6</span>改造清单</h2>
   <div class="g2">
    <div class="card box"><h4>① 日期维表与节假日区间表</h4><p>dim_opr_date_f 补字段：${(m6?.rows||[]).map(r=>`<code class="mono-s">${esc(r[0])}</code>`).join('、')||'—'}。新增节假日区间表（DDL 见下）。每年 12 月国务院公布次年安排后维护一次。</p></div>
    <div class="card box"><h4>② DWS 去重类加 BITMAP</h4><p>${cnt.distinct||0} 个去重口径落地的 DWS 表各加一列 BITMAP（如 pay_buyer_bitmap）。StarRocks 用 BITMAP_UNION 聚合模型；Hive 侧可存 ARRAY&lt;BIGINT&gt; 同步到 StarRocks 时转 BITMAP。dws_sup_tenant_trade_di 等由明细表向上卷时改为 BITMAP_UNION，不再 SUM。</p></div>
-   <div class="card box"><h4>③ 比率只存分子分母</h4><p>${cnt.ratio||0} 个计算指标在字典里补「分子口径 / 分母口径」两列，指标服务按 SUM(分子)/SUM(分母) 现算；DWS 里的比率列只做当日展示。</p></div>
-   <div class="card box"><h4>④ ADS 与字典</h4><p>ADS 宽表保留当日列与少量首页固定周期列（当缓存，标注「预计算」）；字典「ADS业务指标」的「统计周期」改为「支持周期：任意」，${A.rows.length} 个指标收敛回 ${CATALOG.length} 个口径 × 修饰词，新增周期不再改表。</p></div>
+   <div class="card box"><h4>③ ADS 按周期写死的列合并为日字段</h4><p>pay_1d_amt / pay_7d_amt / pay_30d_amt / pay_mtd_amt / pay_ytd_amt → pay_amt（日值）；比率列 → 分子、分母两个日字段；买家数 → 日位图。表粒度、分区不变，${ADS.summary.oldCols} 列 → ${ADS.summary.store} 列。</p></div>
+   <div class="card box"><h4>④ 时间表与字典</h4><p>新增 dim_opr_period_f（每年约 6 千行，脚本生成）；字典「ADS业务指标」按查询指标登记，统计周期写「查询时关联时间表」。周报、月报表可下线。</p></div>
   </div>
   <pre class="code sm" style="margin-top:12px">${esc(HOLDDL)}</pre>
   <h2><span class="no">7</span>实施顺序</h2>
   <table class="st card" style="border-radius:10px;overflow:hidden"><thead><tr><th>步骤</th><th>内容</th><th>说明</th></tr></thead><tbody>
-   <tr><td class="mono">1</td><td>修正去重类指标（H1）</td><td>数据正确性问题，先做：DWS 加 BITMAP、上卷改 BITMAP_UNION，ADS 近7/30日、本月/本年买家数重算</td></tr>
-   <tr><td class="mono">2</td><td>日期维表补字段 + 节假日区间表</td><td>一次性工作，后续每年维护一次假期</td></tr>
-   <tr><td class="mono">3</td><td>DWS 日表同步到 StarRocks，搭指标服务</td><td>按上面 6 类聚合规则生成 SQL；先接商户后台「经营概览」做自定义区间与同比</td></tr>
-   <tr><td class="mono">4</td><td>字典改造</td><td>口径补「聚合方式」「分子/分母」；ADS 指标不再按周期展开</td></tr>
-   <tr><td class="mono">5</td><td>逐页迁移报表</td><td>原 ADS 周期列在报表切换完成后再下线</td></tr></tbody></table>
+   <tr><td class="mono">1</td><td>修正去重类指标（H1）</td><td>数据正确性问题，先做：DWS 加 BITMAP、上卷改 BITMAP_UNION</td></tr>
+   <tr><td class="mono">2</td><td>建时间表</td><td>dim_opr_holiday_period_f 录入假期 → dim_opr_date_f 补字段 → 脚本生成 dim_opr_period_f</td></tr>
+   <tr><td class="mono">3</td><td>ADS 改日字段</td><td>周期列合并为日值 / 位图 / 分子分母；粒度、分区、调度不变</td></tr>
+   <tr><td class="mono">4</td><td>报表查询改为关联时间表</td><td>按「表结构与查询」里的 SQL 模板；先接商户后台「经营概览」的周期筛选与同比</td></tr>
+   <tr><td class="mono">5</td><td>下线旧列与周报/月报表</td><td>报表全部切换后删除原 *_7d_* / *_30d_* / *_mtd_* / *_ytd_* 列</td></tr></tbody></table>
   </div>`;
   periodForm();
 }
@@ -739,7 +740,7 @@ const HOLDDL=ADS.holidayDDL;
 function periodForm(){
   const c=$('#pc');const yrs=Object.keys(HOL);
   const opts=(a,v)=>a.map(([k,l])=>`<option value="${k}" ${String(k)===String(v)?'selected':''}>${esc(l)}</option>`).join('');
-  const mlist=CATALOG.filter(m=>m.cls&&m.cls!=='window');
+  const mlist=ADS.combos;
   const cmpOpts=PS.kind==='holiday'?[['','不对比'],['yoyh','同比：去年同一假期'],['yoy','同比：去年公历同期']]:[['','不对比'],['mom','环比'],['yoy','同比：去年公历同期'],['yoyw','同比：按星期对齐']];
   if(!cmpOpts.some(x=>x[0]===PS.cmp))PS.cmp='';
   c.innerHTML=`<label>周期类型<select class="sel" data-k="kind">${opts([['day','当日'],['lastN','近 N 日'],['nat','自然周期'],['todate','至今累计'],['holiday','节假日'],['custom','自定义起止日']],PS.kind)}</select></label>
@@ -750,98 +751,159 @@ function periodForm(){
    ${['nat','todate'].includes(PS.kind)?`<label>周期<select class="sel" data-k="unit">${opts([['week','周'],['month','月'],['quarter','季度'],['half','半年'],['year','年']],PS.unit)}</select></label>`:''}
    ${PS.kind==='nat'?`<label>哪一个<select class="sel" data-k="off">${opts([[0,'本期（参照日所在）'],[1,'上期']],PS.off)}</select></label>`:''}
    <label>对比<select class="sel" data-k="cmp">${opts(cmpOpts,PS.cmp)}</select></label>
-   <label>指标<select class="sel" data-k="metric">${mlist.map(m=>`<option value="${m.code}" ${m.code===PS.metric?'selected':''}>${esc(m.code+' '+m.cn+' · '+(CLS[m.cls]?.[0]||''))}</option>`).join('')}</select></label>`;
+   <label>指标（ADS 基础指标）<select class="sel" data-k="metric">${mlist.map(m=>`<option value="${m.mcode}" ${m.mcode===PS.metric?'selected':''}>${esc(m.mcode+' '+m.base_cn+' · '+(KIND[m.kind]?.[0]||'')+' · '+m.t)}</option>`).join('')}</select></label>`;
   c.oninput=c.onchange=e=>{const k=e.target.dataset.k;if(!k)return;let v=e.target.value;if(['n','off','year'].includes(k))v=+v||1;if(k==='off')v=+e.target.value;PS[k]=v;
     if(k==='year'&&!(HOL[v]||[]).some(h=>h[1]===PS.hol))PS.hol=HOL[v][0][1];
     if(k==='kind'){PS.cmp=v==='holiday'?'yoyh':'';periodForm();return}if(k==='year'){periodForm();return}periodOut()};
   periodOut();
 }
 function periodOut(){
-  const r=resolve(PS),m=CATALOG.find(x=>x.code===PS.metric)||CATALOG[0];
+  const r=resolve(PS),m=CM[PS.metric]||ADS.combos[0];
   // 日历条：显示覆盖区间与对比区间
   const lo=r.c&&r.c[0]<r.s?r.c[0]:r.s,hi=r.c&&r.c[1]>r.e?r.c[1]:r.e;const span=days(lo,hi);
   const hset=new Set();Object.values(HOL).flat().forEach(h=>{for(let d=dP(h[2]);d<=dP(h[3]);d=add(d,1))hset.add(dF(d))});
   const strip=(a,b)=>{let x='';for(let d=new Date(a);d<=b;d=add(d,1)){const on=d>=r.s&&d<=r.e,cc=r.c&&d>=r.c[0]&&d<=r.c[1];x+=`<i class="${on?'on':''} ${cc?'c':''} ${hset.has(dF(d))?'h':''}" title="${dF(d)}"></i>`}return x};
   // 两段相距太远时分开画，避免一长串空白
   let cal='';if(span<=120)cal=strip(lo,hi);else if(r.n<=400)cal=strip(r.s,r.e)+(r.c&&days(r.c[0],r.c[1])<=400?'<span style="width:100%;height:4px"></span>'+strip(r.c[0],r.c[1]):'');
-  const rr={s:dN(r.s),e:dN(r.e),sNo:dN(r.s),eNo:dN(r.e),kind:PS.kind,code:r.hol?`${PS.year}_${r.hol[1]}`:''};
-  let sql=periodSQL(m,rr);
-  if(r.c){const cr={s:dN(r.c[0]),e:dN(r.c[1]),sNo:dN(r.c[0]),eNo:dN(r.c[1]),kind:PS.cmp==='yoyh'?'holiday':'range',code:`${+PS.year-1}_${PS.hol}`};
-    sql+=`\n\n-- 对比区间（${r.cl}）\n`+periodSQL(m,cr).split('\n').filter(l=>!/^-- (需先|公式|分子|口径自带|A\d|C\d|D\d)/.test(l)).join('\n');}
+  // 本期 / 对比期都用实际日期；正式查询时由时间表 dim_opr_period_f 提供这些日期
+  const lr={mode:'lit',s:dN(r.s),e:dN(r.e),n:r.n,ps:r.c?dN(r.c[0]):'',pe:r.c?dN(r.c[1]):'',ls:r.c?dN(r.c[0]):'',le:r.c?dN(r.c[1]):'',w:''};
+  const d=r.c?(m.kind==='pct'?(PS.cmp==='mom'?'MOMD':'YOYD'):(PS.cmp==='mom'?'MOM':'YOY')):'VAL';
+  const fld=ADS.fields.find(x=>x.m===m.mcode&&x.d===d)||ADS.fields.find(x=>x.m===m.mcode);
+  if(r.c&&PS.cmp==='mom'){lr.ls=lr.ps;lr.le=lr.pe}
+  let sql=adsSQL(m,fld.d,lr,fld.f);
   $('#po').innerHTML=`<div class="rng"><div><small>本期 · ${esc(r.label)}</small><b>${dF(r.s)} ~ ${dF(r.e)}</b> <span class="pill">${r.n} 天</span></div>${r.c?`<div class="cmp"><small>${esc(r.cl)}</small><b>${dF(r.c[0])} ~ ${dF(r.c[1])}</b> <span class="pill">${days(r.c[0],r.c[1])} 天</span></div>`:''}</div>
    ${cal?`<div class="cal">${cal}</div><div class="legend" style="margin-bottom:12px"><span><i style="background:#3a5bd9"></i>本期</span>${r.c?'<span><i style="background:#f3b46b"></i>对比期</span>':''}<span><i style="background:#eef0f4;outline:1.5px solid #d92d78;outline-offset:-1.5px"></i>法定假日</span><span>（一格一天）</span></div>`:''}
-   <div class="sub">${esc(m.code+' '+m.cn)} · ${clsPill(m.cls)} ${esc(CLS[m.cls]?.[1]||'')}</div><pre class="code sm">${esc(sql)}</pre>`;
+   <div class="sub">${esc(m.mcode+' '+m.base_cn)} · ${kindPill(m.kind)} · ADS 日字段 <code class="mono-s">${esc(m.store.join('、'))}</code> · ${esc(DN[fld.d][1])}</div><pre class="code sm">${esc(sql)}</pre>`;
 }
 
 /* ---------- ADS 指标体系 ---------- */
 const KIND={additive:['可加','g'],once:['一次性事件','g'],distinct:['去重','r'],pct:['比率(%)','p'],avg:['均值/比值','p'],snapshot:['快照','o']};
 const kindPill=k=>KIND[k]?`<span class="pill ${KIND[k][1]}">${KIND[k][0]}</span>`:'';
 const PN=Object.fromEntries(ADS.periods.map(p=>[p[0],p[1]])),DN=Object.fromEntries(ADS.derivs.map(d=>[d[0],d]));
-let BIZ=null;const bizRows=()=>BIZ||(BIZ=ADS.fields.flatMap(f=>f.pers.map(p=>[`${f.m}-${p}-${f.d}`,PN[p]+f.nm,f.t,f.f,PN[p],DN[f.d][1],f.unit,f.type,KIND[f.kind]?.[0]||f.kind,p==='CUS'?'指标服务实时算':'预计算'])));
+const CM=Object.fromEntries(ADS.combos.map(c=>[c.mcode,c]));
+/* 取数 SQL：日粒度 ADS 关联时间表（或前端传入的起止日）按区间汇总 */
+function rngCond(c,role,r){
+  const snap=c.expr.snap;
+  if(r.mode==='tbl'){const P={cur:['p.start_date_no','p.end_date_no'],prev:['p.prev_start_date_no','p.prev_end_date_no'],ly:['p.ly_start_date_no','p.ly_end_date_no'],wow:['p.wow_date_no','p.wow_date_no']}[role];
+    return snap||role==='wow'?`a.travel_date = ${P[1]}`:`a.travel_date BETWEEN ${P[0]} AND ${P[1]}`}
+  const P={cur:[r.s,r.e],prev:[r.ps,r.pe],ly:[r.ls,r.le],wow:[r.w,r.w]}[role];
+  return snap||role==='wow'?`a.travel_date = '${P[1]}'`:`a.travel_date BETWEEN '${P[0]}' AND '${P[1]}'`;
+}
+const aggx=(c,role,r,sum)=>sum?`SUM(CASE WHEN ${rngCond({expr:{}},role,r)} THEN a.${c.store[0]} END)`:c.expr.v.replace(/\{C\}(\w+)/g,(_,x)=>`CASE WHEN ${rngCond(c,role,r)} THEN a.${x} END`);
+/* 两层写法：内层按区间汇总出 本期 / 上期 / 去年同期 / 上周同日，外层算日均、环比、同比、占比 */
+const NEED={VAL:['cur'],AVG:['cur'],PREV:['prev'],LYV:['ly'],MOM:['cur','prev'],MOMD:['cur','prev'],YOY:['cur','ly'],YOYD:['cur','ly'],WOW:['cur','wow'],WOWD:['cur','wow'],SHR:['cur','base']};
+const RN={cur:'本期',prev:'上期',ly:'去年同期',wow:'上周同日',base:'全量本期'};
+function outerExpr(c,d,v){const days='period_day_qty';
+  return {VAL:v('cur'),AVG:`${c.kind==='snapshot'?v('cur_sum'):v('cur')} / ${days}`,PREV:v('prev'),LYV:v('ly'),
+   MOM:`(${v('cur')} - ${v('prev')}) * 100 / NULLIF(${v('prev')}, 0)`,MOMD:`${v('cur')} - ${v('prev')}`,
+   YOY:`(${v('cur')} - ${v('ly')}) * 100 / NULLIF(${v('ly')}, 0)`,YOYD:`${v('cur')} - ${v('ly')}`,
+   WOW:`(${v('cur')} - ${v('wow')}) * 100 / NULLIF(${v('wow')}, 0)`,WOWD:`${v('cur')} - ${v('wow')}`,
+   SHR:`${v('cur')} * 100 / NULLIF(${v('base')}, 0)`}[d];}
+function innerCols(c,roles,r,pre){
+  const out=[];const nm=x=>`${pre}${x}`;
+  roles.forEach(x=>{if(x==='base'){const b=CM[c.share_base];out.push(`    ${b?aggx(b,'cur',r):'NULL /* 同口径不带修饰词的本期值 */'} AS ${nm('base')}`)}
+    else out.push(`    ${aggx(c,x,r)} AS ${nm(x)}`)});
+  return out;
+}
+function fromClause(c,r,ind){const keys=ADS.dims[c.t]||[];const k=keys[0];
+  if(r.mode==='tbl')return `${ind}FROM ads.${c.t} a\n${ind}JOIN dim.dim_opr_period_f p\n${ind}  ON p.anchor_date_no = '\${T}'\n${ind} AND p.period_type_code = '${r.p}'${r.p==='HOL'?`\n${ind} AND p.holiday_period_code = '\${holiday_period_code}'   -- 如 2026_national_day`:''}\n${ind} AND a.travel_date BETWEEN p.scan_start_date_no AND p.end_date_no${k?`\n${ind}WHERE a.${k} = \${${k}}`:''}`;
+  const lo=[r.s,r.ps,r.ls,r.w].filter(Boolean).sort()[0];
+  return `${ind}FROM ads.${c.t} a\n${ind}WHERE a.travel_date BETWEEN '${lo}' AND '${r.e}'${k?`\n${ind}  AND a.${k} = \${${k}}`:''}`;
+}
+function adsSQL(c,d,r,alias){
+  const roles=[...NEED[d]];if(d==='AVG'&&c.kind==='snapshot')roles.push('cur_sum');
+  const head=`-- ${c.mcode} ${c.base_cn}（${KIND[c.kind]?.[0]}）· ${DN[d][1]}\n-- ADS 只存日数据（${c.store.join('、')}）；${r.mode==='tbl'?'区间来自时间表 dim_opr_period_f':'区间由前端传入'}\n`;
+  const inner=roles.map(x=>x==='cur_sum'?`    ${aggx(c,'cur',r,1)} AS cur_sum`:innerCols(c,[x],r,'')[0]);
+  const days=r.mode==='tbl'?'    MAX(p.period_day_qty) AS period_day_qty':`    ${r.n} AS period_day_qty`;
+  if(d==='AVG')inner.push(days);
+  return head+`SELECT ${outerExpr(c,d,x=>x)} AS ${alias}\nFROM (\n  SELECT\n${inner.join(',\n')}\n${fromClause(c,r,'  ')}\n) x;`;
+}
+let BIZ=null;const bizRows=()=>BIZ||(BIZ=ADS.fields.flatMap(f=>f.pers.map(p=>[`${f.m}-${p}-${f.d}`,PN[p]+f.nm,f.t,f.f,PN[p],DN[f.d][1],f.unit,KIND[f.kind]?.[0]||f.kind,CM[f.m].store.join('、'),p==='CUS'?'前端传入起止日':'关联时间表'])));
 const AS={};
 function vPeriod(v,a){
-  const tabs=[['plan','方案'],['periods','统计周期',ADS.periods.length],['derivs','派生方式',ADS.derivs.length],['base','基础指标',ADS.summary.combos],['biz','业务指标清单',ADS.summary.biz],['ddl','表结构与 ETL',ADS.summary.tables]];
-  const tab=tabs.some(t=>t[0]===a)?a:'plan';
-  v.className='view'+(['plan','periods','derivs'].includes(tab)?' scroll':'');
-  v.innerHTML=`<div class="bar" style="margin-bottom:8px"><div class="chips">${tabs.map(([k,l,n])=>`<button class="chip ${tab===k?'on':''}" data-k="${k}" style="height:30px;padding:0 14px">${l}${n!=null?`<i>${n.toLocaleString()}</i>`:''}</button>`).join('')}</div><span class="grow"></span><a class="btn pri" href="ADS指标体系.xlsx" download style="display:inline-flex;align-items:center;text-decoration:none">下载 ADS指标体系.xlsx</a></div><div id="ah" style="${['plan','periods','derivs'].includes(tab)?'':'flex:1;min-height:0;display:flex;flex-direction:column'}"></div>`;
+  const s=ADS.summary;
+  const tabs=[['plan','方案'],['periods','时间表',ADS.periods.length],['derivs','派生方式',ADS.derivs.length],['base','基础指标',s.combos],['biz','业务指标清单',s.biz],['ddl','表结构与查询',s.tables]];
+  const tab=tabs.some(t=>t[0]===a)?a:'plan';const flow=!['plan','periods','derivs'].includes(tab);
+  v.className='view'+(flow?'':' scroll');
+  v.innerHTML=`<div class="bar" style="margin-bottom:8px"><div class="chips">${tabs.map(([k,l,n])=>`<button class="chip ${tab===k?'on':''}" data-k="${k}" style="height:30px;padding:0 14px">${l}${n!=null?`<i>${n.toLocaleString()}</i>`:''}</button>`).join('')}</div><span class="grow"></span><a class="btn pri" href="ADS指标体系.xlsx" download style="display:inline-flex;align-items:center;text-decoration:none">下载 ADS指标体系.xlsx</a></div><div id="ah" style="${flow?'flex:1;min-height:0;display:flex;flex-direction:column':''}"></div>`;
   v.querySelector('.chips').onclick=e=>{const b=e.target.closest('.chip');if(b)go('#/period/'+b.dataset.k)};
   const h=$('#ah');AS[tab]??={};
   if(tab==='plan')return vPeriodPlan(h);
   if(tab==='periods'){
-    h.innerHTML=`<div class="pd"><p class="lead">统计周期是 ADS 表的<b>行维度</b>（period_type_code）：每天 T+1 一个分区，分区里每种周期一行。17 种预计算，自定义区间由指标服务按相同规则实时计算。示例日期以 T = ${esc(ADS.anchor)} 计算。</p>
-    <table class="st card" style="border-radius:10px;overflow:hidden"><thead><tr><th>编码</th><th>名称</th><th>分组</th><th>本期区间</th><th>环比基期</th><th>同比基期</th><th>计算方式</th><th>示例：本期</th><th>示例：环比基期</th><th>示例：同比基期</th></tr></thead><tbody>${ADS.periodRows.map(r=>`<tr><td class="mono">${esc(r[0])}</td><td><b>${esc(r[1])}</b></td><td style="white-space:nowrap">${esc(r[2])}</td><td>${esc(r[3])}</td><td>${esc(r[4])}</td><td>${esc(r[5])}</td><td><span class="pill ${r[6]==='预计算'?'g':'o'}">${esc(r[6])}</span></td>${[7,8,9].map(i=>`<td class="mono" style="font-size:11.5px">${esc(r[i]).replace(' ~ ','<br>~ ')}</td>`).join('')}</tr>`).join('')}</tbody></table>
-    <h2 style="margin-top:22px">统计周期区间表 dim_opr_period_f</h2><p>每个截止日 × 每种周期一行，给出本期 / 环比基期 / 同比基期区间。ADS 的 ETL 只需关联这张表，不用在 SQL 里写日期计算；指标服务算自定义区间时用同一套规则。</p><pre class="code sm">${esc(ADS.periodDimDDL)}</pre></div>`;
+    h.innerHTML=`<div class="pd"><p class="lead">时间表 <b>dim_opr_period_f</b>：每个截止日 T × 每种统计周期一行，给出<b>本期、环比基期、同比基期</b>的起止日。ADS 只存日数据，查询时 <code class="mono-s">JOIN dim_opr_period_f ON travel_date BETWEEN start AND end</code> 汇总即可。每年约 6 千行，一次生成到 2035 年。示例日期按 T = ${esc(ADS.anchor)} 计算。</p>
+    <table class="st card" style="border-radius:10px;overflow:hidden"><thead><tr><th>编码</th><th>名称</th><th>分组</th><th>本期区间</th><th>环比基期</th><th>同比基期</th><th>来源</th><th>示例：本期</th><th>示例：环比基期</th><th>示例：同比基期</th></tr></thead><tbody>${ADS.periodRows.map(r=>`<tr><td class="mono">${esc(r[0])}</td><td><b>${esc(r[1])}</b></td><td style="white-space:nowrap">${esc(r[2])}</td><td>${esc(r[3])}</td><td>${esc(r[4])}</td><td>${esc(r[5])}</td><td><span class="pill ${r[0]==='CUS'?'o':'g'}">${esc(r[6])}</span></td>${[7,8,9].map(i=>`<td class="mono" style="font-size:11.5px">${esc(r[i]).replace(' ~ ','<br>~ ')}</td>`).join('')}</tr>`).join('')}</tbody></table>
+    <div class="g2" style="margin-top:14px"><div><h2>时间表 dim_opr_period_f</h2><pre class="code sm">${esc(ADS.periodDimDDL)}</pre></div>
+    <div><h2>节假日区间表 + 日期表补字段</h2><pre class="code sm">${esc(ADS.holidayDDL)}</pre></div></div>
+    <p style="margin-top:10px">日期表 dim_opr_date_f 用于<b>按周/月/季/半年/年分组看趋势</b>，以及按<b>周末、法定假日、寒暑假、旺淡季</b>过滤；时间表 dim_opr_period_f 用于<b>某个统计周期的汇总和环比/同比</b>。两张表都只在查询时关联，不改变 ADS 数据量。</p></div>`;
     return;
   }
   if(tab==='derivs'){
-    const ks=['additive','once','distinct','pct','avg','snapshot'];
-    const ok=(d,k)=>d[5]==='all'||d[5].split(',').includes(k);
-    h.innerHTML=`<div class="pd"><p class="lead">每个基础指标按<b>聚合方式</b>展开成若干列。「数 / 钱」是本期值、日均、上期值、去年同期值；「率」是环比、同比、周同比、占比，比率类指标的环比/同比用百分点差。</p>
-    <table class="st card" style="border-radius:10px;overflow:hidden"><thead><tr><th>编码</th><th>派生方式</th><th>字段写法</th><th>单位</th><th>计算方式</th><th>适用周期</th>${ks.map(k=>`<th style="text-align:center">${kindPill(k)}</th>`).join('')}</tr></thead><tbody>${ADS.derivs.map(d=>`<tr><td class="mono">${esc(d[0])}</td><td><b>${esc(d[1])}</b></td><td class="mono">${esc(d[2])}</td><td>${esc(d[3])}</td><td>${esc(d[4])}</td><td style="white-space:nowrap">${d[6]==='all'?'全部':d[6]==='D1'?'仅当日':'多日周期'}</td>${ks.map(k=>`<td style="text-align:center">${ok(d,k)?'<span class="dot"></span>':''}</td>`).join('')}</tr>`).join('')}</tbody></table>
-    <p style="margin-top:10px">{s} = 字段主干（如 pay、pay_ticket、mp_pay_ticket），{k} = 规范关键字（amt / qty / rate）。占比只用于带修饰词的指标（如 小程序支付金额占比）。字段名里不再带周期，周期由 period_type_code 区分。</p>
-    <h2 style="margin-top:20px">示例：支付金额（GMV）在 ads_ord_tenant_trade_overview_di 中</h2>${exampleMatrix('ads_ord_tenant_trade_overview_di','pay')}</div>`;
+    const ks=['additive','once','distinct','pct','avg','snapshot'];const ok=(d,k)=>d[5]==='all'||d[5].split(',').includes(k);
+    h.innerHTML=`<div class="pd"><p class="lead">派生方式都在<b>查询时</b>计算，不落 ADS。「数 / 钱」= 本期值、日均、上期值、去年同期值；「率」= 环比、同比、周同比、占比（比率类指标的环比/同比用百分点差）。</p>
+    <table class="st card" style="border-radius:10px;overflow:hidden"><thead><tr><th>编码</th><th>派生方式</th><th>查询结果列名</th><th>单位</th><th>计算方式</th><th>适用周期</th>${ks.map(k=>`<th style="text-align:center">${kindPill(k)}</th>`).join('')}</tr></thead><tbody>${ADS.derivs.map(d=>`<tr><td class="mono">${esc(d[0])}</td><td><b>${esc(d[1])}</b></td><td class="mono">${esc(d[2])}</td><td>${esc(d[3])}</td><td>${esc(d[4])}</td><td style="white-space:nowrap">${d[6]==='all'?'全部':d[6]==='D1'?'仅当日':'多日周期'}</td>${ks.map(k=>`<td style="text-align:center">${ok(d,k)?'<span class="dot"></span>':''}</td>`).join('')}</tr>`).join('')}</tbody></table>
+    <h2 style="margin-top:20px">ADS 日字段怎样支持任意周期</h2>
+    <table class="st card" style="border-radius:10px;overflow:hidden"><thead><tr><th>聚合方式</th><th>ADS 存什么（日）</th><th>区间汇总</th><th>例子</th></tr></thead><tbody>
+     <tr><td>${kindPill('additive')} ${kindPill('once')}</td><td>日值</td><td class="mono">SUM(pay_amt)</td><td>支付金额、核销票数、新注册游客</td></tr>
+     <tr><td>${kindPill('distinct')}</td><td>日去重位图 *_bitmap</td><td class="mono">BITMAP_UNION_COUNT(pay_buyer_bitmap)</td><td>支付买家数、老客买家数</td></tr>
+     <tr><td>${kindPill('pct')} ${kindPill('avg')}</td><td>日分子 *_numerator_*、日分母 *_denominator_*</td><td class="mono">SUM(分子) * 100 / SUM(分母)</td><td>转化率、退票率、客单价（分母为买家位图）</td></tr>
+     <tr><td>${kindPill('snapshot')}</td><td>日快照</td><td class="mono">取区间末日；日均 = SUM ÷ 天数</td><td>在途票数、可用余额、库存、上座率</td></tr></tbody></table>
+    <h2 style="margin-top:20px">示例：支付金额（GMV）· 商户经营概览</h2>${exampleMatrix('ads_ord_tenant_trade_overview_di','pay')}</div>`;
     return;
   }
   if(tab==='base'){
-    const cols=['基础指标','ADS表','口径','修饰词','指标名','聚合方式','单位','派生字段数','原有周期','派生字段'];
-    const rows=ADS.combos.map(c=>[c.mcode,c.t,c.code,c.mod,c.base_cn,KIND[c.kind]?.[0]||c.kind,c.unit,c.fields.length,c.old_periods.join('、'),c.fields.join('、')]);
-    grid(h,{state:AS[tab],cols,rows,wide:true,filters:[1,5,6],searchPh:'搜索指标名 / 字段 / 口径…',csvName:'基础指标',cls:['c-s','c-id','c-s','c-m','c-m','c-s','c-s','c-n','c-m','c-xl'],
-      extra:`<div class="sub" style="margin:-2px 0 8px">基础指标 = ADS 表 × 口径 × 修饰词。原 ${ADS.summary.oldOffline} 个离线 ADS 指标按周期归并为 ${ADS.summary.combos} 个基础指标（另 ${ADS.summary.skipped} 个不按周期展开，见下方说明）。点行看该指标在各周期下的全部业务指标。</div>`,
-      cell:(i,v,q)=>i===1?tlink(v,q):i===5?kindPill(ADS.combos.find(c=>KIND[c.kind]?.[0]===v)?.kind):i===9?`<span class="mono-s">${hl(esc(v),q)}</span>`:hl(esc(v),q),
-      onRow:r=>baseDrawer(ADS.combos.find(c=>c.mcode===r[0]))});
+    const cols=['基础指标','ADS表','口径','修饰词','指标名','聚合方式','单位','ADS 日字段','合并的原字段','可查询指标'];
+    const rows=ADS.combos.map(c=>[c.mcode,c.t,c.code,c.mod,c.base_cn,KIND[c.kind]?.[0]||c.kind,c.unit,c.store.join('、'),c.old_fields.join('、'),c.fields.length]);
+    grid(h,{state:AS[tab],cols,rows,wide:true,filters:[1,5,6],searchPh:'搜索指标名 / 字段 / 口径…',csvName:'基础指标',cls:['c-s','c-id','c-s','c-m','c-m','c-s','c-s','c-l','c-l','c-n'],
+      extra:`<div class="sub" style="margin:-2px 0 8px">基础指标 = ADS 表 × 口径 × 修饰词。原来按周期写死的 ${s.oldCols} 个 ADS 指标列合并为 ${s.combos} 个基础指标、${s.store} 个日字段（另 ${s.skipped} 个原指标不改造，见「表结构与查询」底部）。点行看可查询的指标与周期。</div>`,
+      cell:(i,v,q)=>i===1?tlink(v,q):i===5?kindPill(Object.keys(KIND).find(k=>KIND[k][0]===v)):i===7||i===8?`<span class="mono-s">${hl(esc(v),q)}</span>`:hl(esc(v),q),
+      onRow:r=>baseDrawer(CM[r[0]])});
     return;
   }
   if(tab==='biz'){
-    const cols=['业务指标编码','业务指标名','ADS表','字段名','统计周期','派生方式','单位','数据类型','聚合方式','计算方式'];
-    grid(h,{state:AS[tab],cols,rows:bizRows(),wide:true,filters:[2,4,5,6],searchPh:'按业务名称搜，如 近半年 支付金额 同比…',csvName:'业务指标清单',pageSize:200,cls:['c-id','c-m','c-id','c-id','c-s','c-s','c-s','c-s','c-s','c-s'],
-      extra:`<div class="sub" style="margin:-2px 0 8px">${ADS.summary.biz.toLocaleString()} 个业务指标 = ${ADS.summary.fields.toLocaleString()} 个 ADS 字段 × 适用统计周期。取数：<code class="mono-s">SELECT 字段名 FROM ads.表 WHERE travel_date='\${T}' AND period_type_code='周期编码'</code>。完整清单（含计算方式）见 Excel。</div>`,
-      cell:(i,v,q)=>i===2?tlink(v,q):i===9?`<span class="pill ${v==='预计算'?'g':'o'}">${esc(v)}</span>`:i===3||i===0?`<span class="c-id">${hl(esc(v),q)}</span>`:hl(esc(v),q),
-      onRow:r=>{const[m,p,d]=r[0].split('-');const c=ADS.combos.find(x=>x.mcode===m);const pr=ADS.periodRows.find(x=>x[0]===p);
-        drawer(r[1],r[0],kvHtml([['ADS 表',linksHtml(r[2])],['字段名',`<span class="c-id">${esc(r[3])}</span>`],['统计周期',`${esc(r[4])}（${esc(p)}）· 本期 ${esc(pr[3])}`],['环比基期',esc(pr[4])],['同比基期',esc(pr[5])],['派生方式',esc(DN[d][1])+' · '+esc(DN[d][4])],['单位',esc(r[6])],['聚合方式',kindPill(c.kind)],['基础口径',esc(c.code+' '+c.base_cn)],['业务口径',esc(c.kou)],['口径公式',esc(c.calc)]])+
-          `<div class="sub">取数</div><pre class="code sm">${esc(p==='CUS'?`-- 自定义区间：由指标服务按起止日实时计算（规则同预计算周期）\n`+periodSQL(CATALOG.find(x=>x.code===c.code)||CATALOG[0],{s:'${start_date}',e:'${end_date}',kind:'range'}):`SELECT ${r[3]}\nFROM ads.${r[2]}\nWHERE travel_date = '\${T}'\n  AND period_type_code = '${p}'${p==='HOL'?`\n  AND holiday_period_code = '\${holiday_period_code}'   -- 如 2026_national_day`:''};`)}</pre>`)}});
+    const cols=['业务指标编码','业务指标名','ADS表','查询列名','统计周期','派生方式','单位','聚合方式','ADS 日字段','时间关联'];
+    grid(h,{state:AS[tab],cols,rows:bizRows(),wide:true,filters:[2,4,5,6],searchPh:'按业务名称搜，如 近半年 支付金额 同比…',csvName:'业务指标清单',pageSize:200,cls:['c-id','c-m','c-id','c-id','c-s','c-s','c-s','c-s','c-id','c-s'],
+      extra:`<div class="sub" style="margin:-2px 0 8px">${s.biz.toLocaleString()} 个业务指标 = ${s.fields.toLocaleString()} 个查询指标 × 适用统计周期，全部由 ADS 日字段关联时间表算出，不落表。点行看取数 SQL。</div>`,
+      cell:(i,v,q)=>i===2?tlink(v,q):i===9?`<span class="pill ${v==='关联时间表'?'g':'o'}">${esc(v)}</span>`:[0,3,8].includes(i)?`<span class="c-id">${hl(esc(v),q)}</span>`:hl(esc(v),q),
+      onRow:r=>{const[m,p,d]=r[0].split('-');const c=CM[m];const pr=ADS.periodRows.find(x=>x[0]===p);
+        const sql=p==='CUS'?adsSQL(c,d,{mode:'lit',s:'${start_date}',e:'${end_date}',ps:'${prev_start}',pe:'${prev_end}',ls:'${ly_start}',le:'${ly_end}',w:'',n:'${day_qty}'},r[3]):adsSQL(c,d,{mode:'tbl',p},r[3]);
+        drawer(r[1],r[0],kvHtml([['ADS 表',linksHtml(r[2])],['ADS 日字段',`<span class="c-id">${esc(c.store.join('、'))}</span>`],['统计周期',`${esc(r[4])}（${esc(p)}）· 本期 ${esc(pr[3])}`],['环比基期',esc(pr[4])],['同比基期',esc(pr[5])],['派生方式',esc(DN[d][1])+' · '+esc(DN[d][4])],['单位',esc(r[6])],['聚合方式',kindPill(c.kind)],['基础口径',esc(c.code+' '+c.base_cn)],['业务口径',esc(c.kou)],['口径公式',esc(c.calc)]])+
+          `<div class="sub">取数 SQL</div><pre class="code sm">${esc(sql)}</pre>`)}});
     return;
   }
-  // 表结构与 ETL
-  const ts=Object.keys(ADS.ddl);AS.ddl.t??=ts[0];
-  h.innerHTML=`<div class="bar"><select class="sel" id="at" style="max-width:420px">${ts.map(t=>`<option ${t===AS.ddl.t?'selected':''}>${t}</option>`).join('')}</select><div class="chips" id="am"><button class="chip ${AS.ddl.m!=='etl'?'on':''}" data-m="ddl">DDL（改造后）</button><button class="chip ${AS.ddl.m==='etl'?'on':''}" data-m="etl">ETL 示例</button></div><span class="cnt" id="ac"></span><span class="grow"></span><button class="btn pri" id="acp">复制</button></div><pre class="code" id="ap"></pre>
-   ${ADS.skipped.length?`<details style="margin-top:10px"><summary class="sub" style="cursor:pointer">不按统计周期展开的 ${ADS.skipped.length} 个原指标</summary><table class="st"><thead><tr><th>原编码</th><th>原指标</th><th>ADS 表</th><th>字段</th><th>处理</th></tr></thead><tbody>${ADS.skipped.map(r=>`<tr><td class="mono">${esc(r[0])}</td><td>${esc(r[1])}</td><td class="mono">${esc(r[2])}</td><td class="mono">${esc(r[3])}</td><td>${esc(r[4])}</td></tr>`).join('')}</tbody></table></details>`:''}`;
-  const draw=()=>{const t=AS.ddl.t,txt=AS.ddl.m==='etl'?ADS.etl[t]:ADS.ddl[t];$('#ap').innerHTML=esc(txt).replace(/('(?:[^'\\]|\\.)*')/g,'<span class="st">$1</span>').replace(/^(\s*--.*)$/gm,'<span class="cm">$1</span>');
-    $('#ac').textContent=`${ADS.combos.filter(c=>c.t===t).length} 个基础指标 · ${ADS.fields.filter(f=>f.t===t).length} 个指标字段`};
-  $('#at').onchange=e=>{AS.ddl.t=e.target.value;draw()};
+  // 表结构与查询
+  const ts=Object.keys(ADS.ddl);AS.ddl.t??=ts[0];AS.ddl.p??='N180';
+  h.innerHTML=`<div class="bar"><select class="sel" id="at" style="max-width:380px">${ts.map(t=>`<option ${t===AS.ddl.t?'selected':''}>${t}</option>`).join('')}</select><div class="chips" id="am"><button class="chip ${AS.ddl.m!=='q'?'on':''}" data-m="ddl">DDL（日粒度）</button><button class="chip ${AS.ddl.m==='q'?'on':''}" data-m="q">查询示例</button></div><select class="sel" id="apq" style="${AS.ddl.m==='q'?'':'display:none'}">${ADS.periods.filter(p=>p[6]).map(p=>`<option value="${p[0]}" ${p[0]===AS.ddl.p?'selected':''}>${p[0]} ${p[1]}</option>`).join('')}</select><span class="cnt" id="ac"></span><span class="grow"></span><button class="btn pri" id="acp">复制</button></div><pre class="code" id="ap"></pre>
+   ${ADS.skipped.length?`<details style="margin-top:10px"><summary class="sub" style="cursor:pointer">不改造的 ${ADS.skipped.length} 个原指标</summary><table class="st"><thead><tr><th>原编码</th><th>原指标</th><th>ADS 表</th><th>字段</th><th>处理</th></tr></thead><tbody>${ADS.skipped.map(r=>`<tr><td class="mono">${esc(r[0])}</td><td>${esc(r[1])}</td><td class="mono">${esc(r[2])}</td><td class="mono">${esc(r[3])}</td><td>${esc(r[4])}</td></tr>`).join('')}</tbody></table></details>`:''}`;
+  const draw=()=>{const t=AS.ddl.t,txt=AS.ddl.m==='q'?tableQuery(t,AS.ddl.p):ADS.ddl[t];$('#ap').innerHTML=esc(txt).replace(/('(?:[^'\\]|\\.)*')/g,'<span class="st">$1</span>').replace(/^(\s*--.*)$/gm,'<span class="cm">$1</span>');
+    const cs=ADS.combos.filter(c=>c.t===t);$('#ac').textContent=`${cs.length} 个基础指标 · ${ADS.store.filter(x=>x.t===t).length} 个日字段（原 ${cs.reduce((a,c)=>a+c.old_fields.length,0)} 列）`;$('#apq').style.display=AS.ddl.m==='q'?'':'none'};
+  $('#at').onchange=e=>{AS.ddl.t=e.target.value;draw()};$('#apq').onchange=e=>{AS.ddl.p=e.target.value;draw()};
   $('#am').onclick=e=>{const b=e.target.closest('.chip');if(!b)return;AS.ddl.m=b.dataset.m;$('#am').querySelectorAll('.chip').forEach(x=>x.classList.toggle('on',x===b));draw()};
   $('#acp').onclick=e=>copy($('#ap').textContent,e.target);
   draw();
 }
+function tableQuery(t,p){
+  const cs=ADS.combos.filter(c=>c.t===t).slice(0,8),keys=ADS.dims[t]||[],r={mode:'tbl',p};
+  const inner=[],outer=[];
+  cs.forEach(c=>{const s=c.stem,k=c.kw,pre=`${s}_`;
+    const ds=(c.kind==='pct'?['VAL','PREV','LYV','MOMD','YOYD']:['VAL',...(['additive','once','snapshot'].includes(c.kind)&&p!=='D1'?['AVG']:[]),'PREV','LYV','MOM','YOY']).filter(d=>ADS.fields.some(x=>x.m===c.mcode&&x.d===d));
+    const roles=[...new Set(ds.flatMap(d=>NEED[d]))];
+    inner.push(`    -- ${c.mcode} ${c.base_cn}（${KIND[c.kind][0]}）`);
+    roles.forEach(x=>inner.push(`    ${aggx(c,x,r)} AS ${pre}${x},`));
+    if(ds.includes('AVG')&&c.kind==='snapshot')inner.push(`    ${aggx(c,'cur',r,1)} AS ${pre}cur_sum,`);
+    ds.forEach(d=>{const f=ADS.fields.find(x=>x.m===c.mcode&&x.d===d);outer.push(`  ${outerExpr(c,d,x=>pre+x)} AS ${f.f},`)})});
+  return `-- ${t}：ADS 日数据关联时间表，按「${PN[p]}」汇总，并算出日均 / 上期 / 去年同期 / 环比 / 同比\n-- 换周期只改 period_type_code；节假日加 holiday_period_code；自定义区间把 p.* 换成前端传入的起止日\n-- 展示前 ${cs.length} 个基础指标，其余写法相同\nSELECT\n  start_date, end_date${keys.map(k=>`, ${k}`).join('')},\n${outer.join('\n').replace(/,$/,'')}\nFROM (\n  SELECT\n    p.start_date, p.end_date, MAX(p.period_day_qty) AS period_day_qty${keys.map(k=>`, a.${k}`).join('')},\n${inner.join('\n').replace(/,$/,'')}\n  FROM ads.${t} a\n  JOIN dim.dim_opr_period_f p\n    ON p.anchor_date_no = '\${T}'\n   AND p.period_type_code = '${p}'${p==='HOL'?`\n   AND p.holiday_period_code = '\${holiday_period_code}'`:''}\n   AND a.travel_date BETWEEN p.scan_start_date_no AND p.end_date_no   -- 只扫本期、上期、去年同期覆盖的分区\n  GROUP BY p.start_date, p.end_date${keys.map(k=>`, a.${k}`).join('')}\n) x;\n\n-- 按月看趋势（也可按周/季/半年/年、节假日、周末分组）：关联日期表 dim_opr_date_f\nSELECT d.month_start_date,\n${cs.slice(0,3).map(c=>`  ${c.expr.v.replace(/\{C\}/g,'a.')} AS ${c.stem}_${c.kw}`).join(',\n')}\nFROM ads.${t} a\nJOIN dim.dim_opr_date_f d ON d.date_no = a.travel_date\nWHERE a.travel_date BETWEEN '\${start_date}' AND '\${end_date}'\n  -- AND d.holiday_type = 2     -- 只看法定节假日\n  -- AND d.vacation_type = 2    -- 只看暑假\nGROUP BY d.month_start_date\nORDER BY d.month_start_date;`;
+}
 function exampleMatrix(t,stem){
-  const fs=ADS.fields.filter(f=>f.t===t&&f.f.startsWith(stem+'_')&&ADS.combos.find(c=>c.mcode===f.m)?.stem===stem);
-  const ps=ADS.periods.map(p=>p[0]);
-  return `<div style="overflow:auto" class="card"><table class="st"><thead><tr><th>字段</th><th>派生方式</th>${ps.map(p=>`<th style="text-align:center">${esc(PN[p])}</th>`).join('')}</tr></thead><tbody>${fs.map(f=>`<tr><td class="mono">${esc(f.f)}</td><td style="white-space:nowrap">${esc(DN[f.d][1])}</td>${ps.map(p=>`<td style="text-align:center">${f.pers.includes(p)?'<span class="dot"></span>':''}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
-  <p style="margin-top:8px">一个口径在这张表里展开成 ${fs.length} 列，乘以统计周期得到 ${fs.reduce((a,f)=>a+f.pers.length,0)} 个业务指标，如「近半年支付金额（GMV）同比增长率」= pay_yoy_rate WHERE period_type_code='N180'。</p>`;
+  const c=ADS.combos.find(x=>x.t===t&&x.stem===stem);if(!c)return'';
+  const fs=ADS.fields.filter(f=>f.m===c.mcode),ps=ADS.periods.map(p=>p[0]);
+  return `<p>ADS 里只有一个日字段 <code class="mono-s">${esc(c.store.join('、'))}</code>（原来是 ${esc(c.old_fields.join('、'))} 共 ${c.old_fields.length} 列）。查询时关联时间表，得到下面 ${fs.reduce((a,f)=>a+f.pers.length,0)} 个业务指标：</p>
+  <div style="overflow:auto" class="card"><table class="st"><thead><tr><th>查询列</th><th>派生方式</th>${ps.map(p=>`<th style="text-align:center">${esc(PN[p])}</th>`).join('')}</tr></thead><tbody>${fs.map(f=>`<tr><td class="mono">${esc(f.f)}</td><td style="white-space:nowrap">${esc(DN[f.d][1])}</td>${ps.map(p=>`<td style="text-align:center">${f.pers.includes(p)?'<span class="dot"></span>':''}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+  <p style="margin-top:8px">例：「近半年支付金额（GMV）同比增长率」= 关联时间表 <code class="mono-s">period_type_code='N180'</code>，(本期 SUM(pay_amt) − 去年同期 SUM(pay_amt)) × 100 ÷ 去年同期。</p>`;
 }
 function baseDrawer(c){
   const fs=ADS.fields.filter(f=>f.m===c.mcode),ps=ADS.periods.map(p=>p[0]);
-  drawer(c.base_cn,`${c.mcode} · ${c.t}`,kvHtml([['ADS 表',linksHtml(c.t)],['口径',esc(c.code)],['修饰词',esc(c.mod)],['聚合方式',kindPill(c.kind)],['单位',esc(c.unit)],['业务口径',esc(c.kou)],['口径公式',esc(c.calc)],['原有周期',esc(c.old_periods.join('、'))]])+
-   `<div class="sub">派生字段 × 统计周期（${fs.reduce((a,f)=>a+f.pers.length,0)} 个业务指标）</div><div style="overflow:auto"><table class="st"><thead><tr><th>字段</th><th>派生</th>${ps.map(p=>`<th style="text-align:center;font-size:11px">${esc(PN[p])}</th>`).join('')}</tr></thead><tbody>${fs.map(f=>`<tr><td class="mono">${esc(f.f)}</td><td style="white-space:nowrap">${esc(DN[f.d][1])}</td>${ps.map(p=>`<td style="text-align:center">${f.pers.includes(p)?'<span class="dot"></span>':''}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`);
+  drawer(c.base_cn,`${c.mcode} · ${c.t}`,kvHtml([['ADS 表',linksHtml(c.t)],['口径',esc(c.code)],['修饰词',esc(c.mod)],['聚合方式',kindPill(c.kind)],['单位',esc(c.unit)],['ADS 日字段',`<span class="c-id">${esc(c.store.join('、'))}</span>`],['区间汇总',`<span class="c-id">${esc(c.expr.v.replace(/\{C\}/g,''))}</span>${c.expr.snap?'（取区间末日）':''}`],['合并的原字段',`<span class="mono-s">${esc(c.old_fields.join('、'))}</span>`],['业务口径',esc(c.kou)],['口径公式',esc(c.calc)]])+
+   `<div class="sub">可查询指标 × 统计周期（${fs.reduce((a,f)=>a+f.pers.length,0)} 个业务指标）</div><div style="overflow:auto"><table class="st"><thead><tr><th>查询列</th><th>派生</th>${ps.map(p=>`<th style="text-align:center;font-size:11px">${esc(PN[p])}</th>`).join('')}</tr></thead><tbody>${fs.map(f=>`<tr><td class="mono">${esc(f.f)}</td><td style="white-space:nowrap">${esc(DN[f.d][1])}</td>${ps.map(p=>`<td style="text-align:center">${f.pers.includes(p)?'<span class="dot"></span>':''}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`);
 }
 
 // 自定义悬浮提示：仅当内容被截断时显示
