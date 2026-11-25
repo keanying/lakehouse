@@ -6,9 +6,9 @@
 
 INSERT INTO dws.dws_ord_verify_point_flow_rt
 SELECT
+  u.travel_date,
   u.window_start_time,
   u.window_end_time,
-  u.travel_date,
   u.seller_tenant_id,
   u.verify_point_id,
   SUM(u.verify_person_qty) AS verify_person_qty,

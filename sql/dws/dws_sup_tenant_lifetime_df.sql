@@ -10,11 +10,11 @@ SELECT
   u.seller_tenant_id,
   MIN(u.first_pay_date) AS first_pay_date,
   MAX(u.last_pay_date) AS last_pay_date,
-  SUM(u.active_tenant_qty) AS active_tenant_qty,
-  BITMAP_UNION(u.active_tenant_bitmap) AS active_tenant_bitmap,
   NULL AS total_pay_amt,  -- 待确认：sum(pay_amt) 全历史
   NULL AS pay_30d_amt,  -- 待确认：sum(pay_amt) 近30天
   NULL AS active_day_30d_qty,  -- 待确认：count(distinct travel_date) where pay_amt>0 近30天
+  SUM(u.active_tenant_qty) AS active_tenant_qty,
+  BITMAP_UNION(u.active_tenant_bitmap) AS active_tenant_bitmap,
   CURRENT_TIMESTAMP() AS etl_time
 FROM (
   -- 来源：dws_cus_customer_trade_di

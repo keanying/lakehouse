@@ -57,4 +57,4 @@ python3 dw-dict/build.py
 - **待确认**：加工说明是业务描述（递归层级、证件号映射、定价规则计算等）或引用了上游不存在的字段，SQL 里该行带 `-- 待确认：原说明`，给出可运行的占位写法，上线前需人工补齐。
 
 参数：`${bizdate}`（YYYYMMDD）、`${bizdate_dash}`（yyyy-MM-dd）、`${bizdate_prev}` / `${bizdate_prev_dash}`（前一天），周报 / 月报用 `${last_week_*}` / `${last_month_*}`。
-全部脚本已用 sqlglot 做过语法检查（Spark / StarRocks 方言；Flink 专有语法替换后检查）。
+全部脚本已用 sqlglot 做过两项检查：语法（Spark / StarRocks 方言；Flink 专有语法替换后检查），以及最外层输出列的名称和顺序与字段清单一致（INSERT 按位置写入）。

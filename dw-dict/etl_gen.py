@@ -71,6 +71,17 @@ def jc(lines):
     return '\n'.join(out)
 
 
+def col_name(line):
+    m = re.search(r'\bAS (\w+)\s*(,|$|  --)', line) or re.search(r'(?:^|\s)(?:\w+\.)?(\w+)\s*(,|$|  --)', line.strip())
+    return m.group(1) if m else ''
+
+
+def reorder(lines, order):
+    """按目标表字段顺序排列 SELECT 列（INSERT 按位置写入）"""
+    pos = {n: i for i, n in enumerate(order)}
+    return sorted(lines, key=lambda l: pos.get(col_name(l), len(pos)))
+
+
 def sn(s):
     return re.sub(r'^\w+\.', '', str(s or '').strip())
 
@@ -594,6 +605,7 @@ def gen_agg(D, t, ads_store=None):
     """DWS / ADS（日粒度、实时 DWS）：按来源表分别汇总后 UNION ALL，再按粒度键合并"""
     m = D.t[t]
     flink = m['rt'] and m['layer'] == 'DWS'
+    win = flink and any(x['n'] == 'window_start_time' for x in D.f[t])   # 有窗口字段才做滚动窗口
     fs = [x for x in D.f[t] if not (x['cat'] == '分区' and not m['rt'])]
     keys = [x for x in fs if x['cat'] == '粒度键' and x['n'] not in ('window_start_time', 'window_end_time')]
     wins = [x for x in fs if x['n'] in ('window_start_time', 'window_end_time')]
@@ -691,7 +703,7 @@ def gen_agg(D, t, ads_store=None):
             kx.append(f"    {e} AS {k['n']}")
             if not e.startswith('CAST(NULL'):
                 gb.append(e)
-        if flink:
+        if win:
             kx = ['    window_start AS window_start_time', '    window_end AS window_end_time'] + kx
             gb = ['window_start', 'window_end'] + gb
         ex = []
@@ -706,7 +718,7 @@ def gen_agg(D, t, ads_store=None):
             else:
                 ex.append(f"    {'CAST(NULL AS BINARY)' if agg_of[n] == 'BITMAP_UNION' else 'NULL'} AS {n}")
         db = D.db(s)
-        if flink:
+        if win:
             ts = 'event_time'
             frm = f"  FROM TABLE(TUMBLE(TABLE {db}.{s}, DESCRIPTOR({ts}), INTERVAL '1' MINUTE)) s"
             wh = ''
@@ -720,7 +732,7 @@ def gen_agg(D, t, ads_store=None):
         unions.append(f"  -- 来源：{s}\n  SELECT\n" + jc(kx + ex) + f"\n{frm}" + (f"\n{wh}" if wh else '') +
                       (f"\n  GROUP BY {', '.join(gb)}" if gb else ''))
     kn = [k['n'] for k in keys]
-    if flink:
+    if win:
         kn = ['window_start_time', 'window_end_time'] + kn
     out_cols = [f'  u.{k}' for k in kn]
     for n in ordered:
@@ -733,6 +745,7 @@ def gen_agg(D, t, ads_store=None):
             ee = re.sub(rf'(?<![\w.]){nm}\b', f'{agg_of[nm]}(u.{nm})', ee)
         out_cols.append(f'  {ee} AS {n}' + (f'  -- 待确认：{note}' if st == 'review' else ''))
     attr_join = []
+    order = [x['n'] for x in fs if x['cat'] != '分区' or m['rt']]
     for a in attrs:
         r = REF.search(a['p'])
         if r and r.group(1).startswith('dim_'):
@@ -750,6 +763,7 @@ def gen_agg(D, t, ads_store=None):
             stats['review'] += 1
     for e in etl:
         out_cols.append(f"  CURRENT_TIMESTAMP{'' if flink else '()'} AS {e['n']}")
+    out_cols = reorder(out_cols, order)
     body_union = '\n  UNION ALL\n'.join(unions)
     grp = f"\nGROUP BY {', '.join('u.' + k for k in kn)}" if kn else ''
     if attr_join:
@@ -763,7 +777,7 @@ def gen_agg(D, t, ads_store=None):
         final = 'SELECT\n' + jc(out_cols) + f"\nFROM (\n{body_union}\n) u{grp}"
     target = f'{D.db(t)}.{t}'
     if flink:
-        kind = 'Flink SQL（1 分钟滚动窗口聚合 → StarRocks 主键模型表）'
+        kind = 'Flink SQL（' + ('1 分钟滚动窗口聚合' if win else '持续聚合（快照类，按主键更新）') + ' → StarRocks 主键模型表）'
         sql = f'INSERT INTO {target}\n{final};'
     else:
         part = '' if t.endswith('_f') else f" PARTITION (travel_date = '{BIZ}')"
@@ -908,13 +922,16 @@ def gen_ads_legacy(D, t):
         unions.append(f"  -- 来源：{s_}\n  SELECT\n" + ',\n'.join(kx + cols) + f"\n  FROM dws.{s_} s" +
                       (f"\n  WHERE {wh}" if wh else '') + (f"\n  GROUP BY {', '.join(gb)}" if gb else ''))
     sel = [f'  u.{k}' for k in kn] + outs + [f"  {'NOW()' if rt else 'CURRENT_TIMESTAMP()'} AS {e['n']}" for e in fs if e['cat'] == 'ETL']
+    sel = reorder(sel, [x['n'] for x in fs])
     for e in fs:
         if e['cat'] == 'ETL':
             stats['auto'] += 1
     stats['auto'] += len(keys)
     inner = 'SELECT\n' + jc(sel) + "\nFROM (\n" + '\n  UNION ALL\n'.join(unions) + "\n) u" + (f"\nGROUP BY {', '.join('u.' + k for k in kn)}" if kn else '')
     if attrs:
-        names = [(re.search(r'AS (\w+)', l) or re.search(r'u\.(\w+)', l)).group(1) for l in sel]
+        attr_names = {a[0]['n'] for a in attrs}
+        sel = [l for l in sel if col_name(l) not in attr_names]
+        names = [col_name(l) for l in sel]
         aj, ac = [], []
         for i_, (x, r) in enumerate(attrs, 1):
             hk = re.search(r'按\s*(\w+)', x['p'])
@@ -923,7 +940,7 @@ def gen_ads_legacy(D, t):
             pf = part_filter(D, r.group(1), f'd{i_}') if not rt else (f"d{i_}.end_date = '9999-12-31'" if r.group(1).endswith('_zip') else '')
             aj.append(f'LEFT JOIN dim.{r.group(1)} d{i_} ON d{i_}.{dk} = x.{k}' + (f' AND {pf}' if pf else ''))
             ac.append(f'  d{i_}.{r.group(2)} AS {x["n"]}')
-        final = 'SELECT\n' + jc([f'  x.{k}' for k in kn] + ac + [f'  x.{n}' for n in names[len(kn):]]) + f"\nFROM (\n{inner}\n) x\n" + '\n'.join(aj)
+        final = 'SELECT\n' + jc(reorder([f'  x.{n}' for n in names] + ac, [x['n'] for x in fs])) + f"\nFROM (\n{inner}\n) x\n" + '\n'.join(aj)
     else:
         final = inner
     if rt:

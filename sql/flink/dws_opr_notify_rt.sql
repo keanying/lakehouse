@@ -5,9 +5,9 @@
 
 INSERT INTO dws.dws_opr_notify_rt
 SELECT
+  u.travel_date,
   u.window_start_time,
   u.window_end_time,
-  u.travel_date,
   u.tenant_id,
   u.notify_channel_type,
   SUM(u.notify_send_qty) AS notify_send_qty,

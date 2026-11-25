@@ -38,6 +38,6 @@ LEFT JOIN dim.dim_trf_distribution_relation_zip j3
   ON j3.relation_id = j2.relation_id
  AND j3.travel_date = '${bizdate}' AND j3.end_date = '9999-12-31'
 LEFT JOIN dwd.dwd_fin_frozen_di j4
-  ON j4.ticket_no = a.ticket_no AND j4.account_no = a.payer_account_no
+  ON j4.ticket_no = a.ticket_no AND j4.account_no = a.payee_account_no
  AND j4.travel_date = '${bizdate}'
 WHERE a.travel_date = '${bizdate}';

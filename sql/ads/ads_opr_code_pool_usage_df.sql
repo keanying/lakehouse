@@ -8,8 +8,8 @@ INSERT OVERWRITE TABLE ads.ads_opr_code_pool_usage_df PARTITION (travel_date = '
 SELECT
   x.tenant_id,
   x.code_pool_id,
-  d2.pool_no AS code_pool_no,
   d1.tenant_name AS tenant_name,
+  d2.pool_no AS code_pool_no,
   x.code_capacity_qty,
   x.code_allocated_qty,
   x.code_recycled_qty,

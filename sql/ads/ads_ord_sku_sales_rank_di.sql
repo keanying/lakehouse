@@ -8,8 +8,8 @@ INSERT OVERWRITE TABLE ads.ads_ord_sku_sales_rank_di PARTITION (travel_date = '$
 SELECT
   x.seller_tenant_id,
   x.sku_id,
-  d2.sku_name AS sku_name,
   d1.tenant_name AS seller_tenant_name,
+  d2.sku_name AS sku_name,
   x.pay_amt,
   x.pay_ticket_qty,
   x.net_pay_amt,

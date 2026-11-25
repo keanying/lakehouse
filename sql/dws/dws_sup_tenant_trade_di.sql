@@ -12,8 +12,10 @@ SELECT
   SUM(u.pay_ticket_qty) AS pay_ticket_qty,
   SUM(u.pay_amt) AS pay_amt,
   SUM(u.refund_amt) AS refund_amt,
+  SUM(u.pay_amt) - SUM(u.refund_amt) AS net_pay_amt,
   SUM(u.verify_ticket_qty) AS verify_ticket_qty,
   SUM(u.verify_amt) AS verify_amt,
+  BITMAP_COUNT(BITMAP_UNION(u.pay_buyer_bitmap)) AS pay_buyer_qty,
   BITMAP_UNION(u.pay_buyer_bitmap) AS pay_buyer_bitmap,
   SUM(u.new_customer_qty) AS new_customer_qty,
   SUM(u.on_sale_sku_qty) AS on_sale_sku_qty,
@@ -24,8 +26,6 @@ SELECT
   SUM(u.pay_order_group_qty) AS pay_order_group_qty,
   SUM(u.refund_ticket_qty) AS refund_ticket_qty,
   SUM(u.order_qty) AS order_qty,
-  SUM(u.pay_amt) - SUM(u.refund_amt) AS net_pay_amt,
-  BITMAP_COUNT(BITMAP_UNION(u.pay_buyer_bitmap)) AS pay_buyer_qty,
   SUM(u.pay_order_qty) * 100 / NULLIF(SUM(u.order_qty), 0) AS pay_conversion_rate,
   CURRENT_TIMESTAMP() AS etl_time
 FROM (

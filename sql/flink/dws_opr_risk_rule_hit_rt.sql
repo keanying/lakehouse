@@ -6,9 +6,9 @@
 
 INSERT INTO dws.dws_opr_risk_rule_hit_rt
 SELECT
+  u.travel_date,
   u.window_start_time,
   u.window_end_time,
-  u.travel_date,
   u.rule_id,
   u.action_type,
   SUM(u.risk_hit_qty) AS risk_hit_qty,

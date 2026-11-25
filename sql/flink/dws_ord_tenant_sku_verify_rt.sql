@@ -6,9 +6,9 @@
 
 INSERT INTO dws.dws_ord_tenant_sku_verify_rt
 SELECT
+  u.travel_date,
   u.window_start_time,
   u.window_end_time,
-  u.travel_date,
   u.seller_tenant_id,
   u.sku_id,
   SUM(u.verify_ticket_qty) AS verify_ticket_qty,

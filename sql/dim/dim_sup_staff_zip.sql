@@ -30,10 +30,10 @@ WITH src AS (                       -- 今日最新状态
     ON j2.position_id = a.position_id
    AND j2.travel_date = '${bizdate}'
   LEFT JOIN ods.ods_sup_sys_role_df j3
-    ON j3.id = a.org_id
+    ON j3.id = a.tenant_id
    AND j3.travel_date = '${bizdate}'
   LEFT JOIN ods.ods_sup_sys_user_role_df j4
-    ON j4.id = a.org_id
+    ON j4.id = a.tenant_id
    AND j4.travel_date = '${bizdate}'
   LEFT JOIN dim.dim_sup_role_df j5
     ON j5.tenant_id = a.tenant_id

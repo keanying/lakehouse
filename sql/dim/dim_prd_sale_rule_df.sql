@@ -13,13 +13,16 @@ SELECT
   a.create_time       AS create_time,
   a.update_time       AS update_time,
   j1.rule_no          AS rule_no,
-  j1.sku_id           AS sku_id,
-  j1.effective_from   AS effective_start_time,
-  j1.effective_to     AS effective_end_time,
-  j1.rule_status      AS rule_status,
+  j2.sku_id           AS sku_id,
+  j2.effective_from   AS effective_start_time,
+  j2.effective_to     AS effective_end_time,
+  j2.rule_status      AS rule_status,
   CURRENT_TIMESTAMP() AS etl_time
 FROM ods.ods_prd_sale_rule_item_df a
 LEFT JOIN ods.ods_prd_sale_rule_df j1
   ON j1.id = a.rule_id
  AND j1.travel_date = '${bizdate}'
+LEFT JOIN ods.ods_prd_sale_rule_df j2
+  ON j2.id = a.tenant_id
+ AND j2.travel_date = '${bizdate}'
 WHERE a.travel_date = '${bizdate}';

@@ -11,11 +11,11 @@ SELECT
   u.price_channel_code,
   SUM(u.list_price_amt) AS list_price_amt,
   SUM(u.price_change_qty) AS price_change_qty,
+  SUM(u.pay_amt) / NULLIF(SUM(u.pay_ticket_qty), 0) AS avg_deal_price_amt,
+  avg_deal_price_amt * 100 / NULLIF(SUM(u.list_price_amt), 0) AS discount_rate,
   SUM(u.pay_amt) AS pay_amt,
   SUM(u.pay_ticket_qty) AS pay_ticket_qty,
   SUM(u.sku_change_qty) AS sku_change_qty,
-  SUM(u.pay_amt) / NULLIF(SUM(u.pay_ticket_qty), 0) AS avg_deal_price_amt,
-  avg_deal_price_amt * 100 / NULLIF(SUM(u.list_price_amt), 0) AS discount_rate,
   CURRENT_TIMESTAMP() AS etl_time
 FROM (
   -- 来源：dwd_prd_sku_price_calendar_df

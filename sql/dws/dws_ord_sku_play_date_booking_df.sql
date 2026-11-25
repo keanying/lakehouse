@@ -12,10 +12,10 @@ SELECT
   u.time_slot_code,
   SUM(u.pay_ticket_qty) AS pay_ticket_qty,
   SUM(u.refund_ticket_qty) AS refund_ticket_qty,
+  SUM(u.pay_ticket_qty) - SUM(u.refund_ticket_qty) AS net_pay_ticket_qty,
   SUM(u.verify_ticket_qty) AS verify_ticket_qty,
   SUM(u.advance_book_day_qty) AS advance_book_day_qty,
   SUM(u.stock_available_qty) AS stock_available_qty,
-  SUM(u.pay_ticket_qty) - SUM(u.refund_ticket_qty) AS net_pay_ticket_qty,
   CURRENT_TIMESTAMP() AS etl_time
 FROM (
   -- 来源：dwd_ord_order_di

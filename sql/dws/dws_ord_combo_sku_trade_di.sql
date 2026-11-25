@@ -39,7 +39,7 @@ FROM (
   SELECT
     sku_id AS combo_sku_id,
     sku_id AS sub_sku_id,
-    tenant_id AS sub_seller_tenant_id,
+    seller_tenant_id AS sub_seller_tenant_id,
     NULL AS combo_order_qty,
     COUNT(DISTINCT CASE WHEN after_status='PAID' THEN order_no END) AS pay_order_qty,
     NULL AS pay_amt,
@@ -49,7 +49,7 @@ FROM (
     NULL AS pay_ticket_qty
   FROM dwd.dwd_ord_order_status_log_di s
   WHERE s.travel_date = '${bizdate}'
-  GROUP BY sku_id, sku_id, tenant_id
+  GROUP BY sku_id, sku_id, seller_tenant_id
   UNION ALL
   -- 来源：dwd_ord_refund_ticket_di
   SELECT

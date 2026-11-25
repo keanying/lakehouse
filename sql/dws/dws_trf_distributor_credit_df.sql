@@ -10,8 +10,8 @@ SELECT
   u.relation_no,
   SUM(u.credit_limit_amt) AS credit_limit_amt,
   SUM(u.credit_used_amt) AS credit_used_amt,
-  SUM(u.new_distribution_relation_qty) AS new_distribution_relation_qty,
   SUM(u.credit_used_amt) * 100 / NULLIF(SUM(u.credit_limit_amt), 0) AS credit_usage_rate,
+  SUM(u.new_distribution_relation_qty) AS new_distribution_relation_qty,
   CURRENT_TIMESTAMP() AS etl_time
 FROM (
   -- 来源：dim_trf_distribution_relation_zip

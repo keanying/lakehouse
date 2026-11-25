@@ -16,9 +16,9 @@ SELECT
   SUM(u.register_pay_customer_qty) AS register_pay_customer_qty,
   SUM(u.repeat_buyer_qty) AS repeat_buyer_qty,
   BITMAP_UNION(u.repeat_buyer_bitmap) AS repeat_buyer_bitmap,
+  BITMAP_COUNT(BITMAP_UNION(u.pay_buyer_bitmap)) AS pay_buyer_qty,
   BITMAP_UNION(u.pay_buyer_bitmap) AS pay_buyer_bitmap,
   SUM(u.identity_bind_qty) AS identity_bind_qty,
-  BITMAP_COUNT(BITMAP_UNION(u.pay_buyer_bitmap)) AS pay_buyer_qty,
   CURRENT_TIMESTAMP() AS etl_time
 FROM (
   -- 来源：dwd_cus_customer_register_di

@@ -8,8 +8,8 @@ INSERT OVERWRITE TABLE ads.ads_ord_trade_efficiency_di PARTITION (travel_date = 
 SELECT
   x.seller_tenant_id,
   x.sku_id,
-  d2.sku_name AS sku_name,
   d1.tenant_name AS seller_tenant_name,
+  d2.sku_name AS sku_name,
   x.avg_pay_minute_numerator_qty,
   x.avg_pay_minute_denominator_qty,
   x.avg_refund_process_hour_numerator_qty,

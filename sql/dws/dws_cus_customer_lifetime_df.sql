@@ -11,15 +11,15 @@ SELECT
   u.seller_tenant_id,
   MIN(u.first_pay_date) AS first_pay_date,
   MAX(u.last_pay_date) AS last_pay_date,
-  SUM(u.pay_buyer_qty) AS pay_buyer_qty,
-  BITMAP_UNION(u.pay_buyer_bitmap) AS pay_buyer_bitmap,
-  SUM(u.repeat_buyer_qty) AS repeat_buyer_qty,
-  BITMAP_UNION(u.repeat_buyer_bitmap) AS repeat_buyer_bitmap,
   NULL AS total_pay_order_qty,  -- 待确认：sum(pay_order_qty) 全历史
   NULL AS total_pay_amt,  -- 待确认：sum(pay_amt) 全历史
   NULL AS pay_order_30d_qty,  -- 待确认：sum(pay_order_qty) 近30天
   NULL AS pay_30d_amt,  -- 待确认：sum(pay_amt) 近30天
   NULL AS buyer_type,  -- 待确认：case when pay_order_30d_qty>=2 then 1 else 0 end
+  SUM(u.pay_buyer_qty) AS pay_buyer_qty,
+  BITMAP_UNION(u.pay_buyer_bitmap) AS pay_buyer_bitmap,
+  SUM(u.repeat_buyer_qty) AS repeat_buyer_qty,
+  BITMAP_UNION(u.repeat_buyer_bitmap) AS repeat_buyer_bitmap,
   CURRENT_TIMESTAMP() AS etl_time
 FROM (
   -- 来源：dws_cus_customer_trade_di

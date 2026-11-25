@@ -6,9 +6,9 @@
 
 INSERT INTO dws.dws_cus_tenant_growth_rt
 SELECT
+  u.travel_date,
   u.window_start_time,
   u.window_end_time,
-  u.travel_date,
   u.tenant_id,
   u.register_channel_id,
   SUM(u.new_customer_qty) AS new_customer_qty,

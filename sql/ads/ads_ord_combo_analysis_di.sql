@@ -7,8 +7,8 @@ INSERT OVERWRITE TABLE ads.ads_ord_combo_analysis_di PARTITION (travel_date = '$
 SELECT
   x.combo_sku_id,
   x.sub_sku_id,
-  d2.sku_name AS sub_sku_name,
   d1.sku_name AS combo_sku_name,
+  d2.sku_name AS sub_sku_name,
   x.combo_order_qty,
   x.pay_amt,
   x.pay_ticket_qty,

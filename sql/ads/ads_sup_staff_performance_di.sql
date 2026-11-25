@@ -7,8 +7,8 @@ INSERT OVERWRITE TABLE ads.ads_sup_staff_performance_di PARTITION (travel_date =
 SELECT
   x.tenant_id,
   x.staff_id,
-  d2.staff_name AS staff_name,
   d1.tenant_name AS tenant_name,
+  d2.staff_name AS staff_name,
   x.staff_order_qty,
   x.staff_pay_amt,
   x.staff_verify_qty,

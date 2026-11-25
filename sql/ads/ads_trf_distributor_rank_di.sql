@@ -9,8 +9,8 @@ INSERT OVERWRITE TABLE ads.ads_trf_distributor_rank_di PARTITION (travel_date = 
 SELECT
   x.supplier_tenant_id,
   x.distributor_tenant_id,
-  d2.tenant_name AS distributor_tenant_name,
   d1.tenant_name AS supplier_tenant_name,
+  d2.tenant_name AS distributor_tenant_name,
   x.distribution_ticket_qty,
   x.distribution_sale_amt,
   x.distribution_profit_amt,

@@ -7,8 +7,8 @@ INSERT OVERWRITE TABLE ads.ads_trf_chain_profit_di PARTITION (travel_date = '${b
 SELECT
   x.supplier_tenant_id,
   x.sku_id,
-  d2.sku_name AS sku_name,
   d1.tenant_name AS supplier_tenant_name,
+  d2.sku_name AS sku_name,
   x.l1_distribution_purchase_amt,
   x.l2_distribution_purchase_amt,
   x.l3_distribution_purchase_amt,

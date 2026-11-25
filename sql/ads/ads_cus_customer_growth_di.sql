@@ -7,8 +7,8 @@ INSERT OVERWRITE TABLE ads.ads_cus_customer_growth_di PARTITION (travel_date = '
 SELECT
   x.tenant_id,
   x.register_channel_id,
-  d2.channel_name AS register_channel_name,
   d1.tenant_name AS tenant_name,
+  d2.channel_name AS register_channel_name,
   x.new_customer_qty,
   x.first_pay_customer_qty,
   x.face_register_qty,

@@ -7,9 +7,9 @@
 
 INSERT INTO dws.dws_ord_tenant_sku_trade_rt
 SELECT
+  u.travel_date,
   u.window_start_time,
   u.window_end_time,
-  u.travel_date,
   u.seller_tenant_id,
   u.sku_id,
   u.channel_id,
