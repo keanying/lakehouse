@@ -273,7 +273,8 @@ def build(sheets, chk, anchor=None):
         'fields': out_fields, 'skipped': skipped, 'problems': problems, 'ddl': ddl, 'etl': etl,
         'summary': {'combos': len(combos), 'fields': len(out_fields), 'biz': n_biz, 'tables': len(tables),
                     'oldOffline': sum(1 for r in A['rows'] if r[ai['离线/实时']] == '离线'), 'skipped': len(skipped)},
-        'periodDimDDL': PERIOD_DIM_DDL,
+        'periodDimDDL': PERIOD_DIM_DDL, 'holidayDDL': HOLIDAY_DDL,
+        '_int': {'combos': combos, 'tables': tables, 'out_fields': out_fields, 'n_biz': n_biz},
     }
 
 
@@ -352,6 +353,33 @@ def etl_sql(t, cs, dims, fi, fl, dcode, di):
             f"\n  FROM dws.{main} f\n  JOIN dim.dim_opr_period_f p\n    ON p.anchor_date_no = '${{bizdate}}'\n"
             "   AND f.travel_date BETWEEN p.scan_start_date_no AND p.end_date_no   -- 只扫描本期、上期、去年同期覆盖的分区\n"
             f"  GROUP BY p.period_type_code, p.start_date, p.end_date, p.period_day_qty, p.holiday_period_code{k_grp}\n) x;")
+
+
+HOLIDAY_DDL = """CREATE TABLE IF NOT EXISTS dim.dim_opr_holiday_period_f (
+  holiday_period_code      STRING  COMMENT '节假日区间编码，如 2026_national_day',
+  year_no                  INT     COMMENT '年份，如 2026',
+  holiday_code             STRING  COMMENT '节假日编码：new_year-元旦，spring_festival-春节，qingming-清明，labour_day-劳动节，dragon_boat-端午，mid_autumn-中秋，national_day-国庆',
+  holiday_name             STRING  COMMENT '节假日名称，如 国庆节；与中秋合并放假时写 国庆节·中秋节',
+  start_date               STRING  COMMENT '放假首日，格式 YYYYMMDD',
+  end_date                 STRING  COMMENT '放假末日，格式 YYYYMMDD',
+  holiday_day_qty          INT     COMMENT '放假天数',
+  adjust_workday_desc      STRING  COMMENT '调休上班日，多个用逗号分隔，格式 YYYYMMDD',
+  last_year_period_code    STRING  COMMENT '同比对齐的去年区间编码；去年无同名独立假期时为空',
+  etl_time                 STRING  COMMENT 'ETL 加载时间，格式 yyyy-MM-dd HH:mm:ss'
+)
+COMMENT '节假日放假区间（每年按国务院放假安排维护）'
+STORED AS ORC;
+
+-- dim_opr_date_f 补充字段
+ALTER TABLE dim.dim_opr_date_f ADD COLUMNS (
+  half_year_no             INT     COMMENT '半年：1-上半年，2-下半年',
+  quarter_start_date       STRING  COMMENT '所在季度第一天，格式 yyyy-MM-dd',
+  year_start_date          STRING  COMMENT '所在年第一天，格式 yyyy-MM-dd',
+  holiday_period_code      STRING  COMMENT '所属节假日区间编码，关联 dim_opr_holiday_period_f；非假期为空',
+  holiday_day_no           INT     COMMENT '节假日第 N 天（从 1 开始）；非假期为空',
+  lunar_date_code          STRING  COMMENT '农历日期，如 正月初一（春节同比对齐用）',
+  last_year_same_day_date  STRING  COMMENT '同比对齐日：假期内取去年同一假期第 N 天，否则取 364 天前（同星期），格式 yyyy-MM-dd'
+);"""
 
 
 PERIOD_DIM_DDL = """CREATE TABLE IF NOT EXISTS dim.dim_opr_period_f (
@@ -437,3 +465,246 @@ def to_xlsx(model, path, xlsx_name):
             c.alignment = Alignment(wrap_text=True, vertical='top')
     wb.save(path)
     return len(rows)
+
+
+# ---------------------------------------------------------------- 写回字典
+def _ddl_cols(ddl):
+    """从 CREATE TABLE / ALTER TABLE ADD COLUMNS 文本里取 (字段, 类型, 注释)"""
+    return re.findall(r"^\s+(\w+)\s+([A-Z]+(?:\([\d,]+\))?)\s+COMMENT '([^']*)'", ddl, re.M)
+
+
+def apply_to_dictionary(sheets, model, chk):
+    """返回改造后的字典（深拷贝）：ADS 表改为多统计周期结构、DWS 去重类补 BITMAP、新增周期维表。
+    同时返回 changed = {表名: 改造说明}，页面据此显示「改造前」对照。"""
+    import copy
+    S = copy.deepcopy(sheets)
+    it = model['_int']
+    combos, tables, out_fields = it['combos'], it['tables'], it['out_fields']
+    T, F, A, D, L = S['表清单'], S['字段清单'], S['ADS业务指标'], S['DWS口径'], S['分层汇总']
+    ti = {c: i for i, c in enumerate(T['cols'])}
+    fi = {c: i for i, c in enumerate(F['cols'])}
+    ai = {c: i for i, c in enumerate(A['cols'])}
+    di = {c: i for i, c in enumerate(D['cols'])}
+    sn = lambda s: re.sub(r'^\w+\.', '', str(s or '').strip())
+    changed = {}
+    dn = {d[0]: d for d in DERIVS}
+
+    def frow(layer, t, cn, no, name, typ, cat, cmt, proc, up):
+        r = [''] * len(F['cols'])
+        for k, v in (('分层', layer), ('表名（库.表）', t), ('表中文名', cn), ('序号', no), ('字段名', name), ('类型', typ),
+                     ('字段类别', cat), ('字段注释', cmt), ('加工 / 来源', proc), ('上游字段', up)):
+            r[fi[k]] = v
+        return r
+
+    trow = {sn(r[ti['表名（库.表）']]): r for r in T['rows']}
+    by_t = collections.OrderedDict()
+    for r in F['rows']:
+        by_t.setdefault(sn(r[fi['表名（库.表）']]), []).append(r)
+
+    # ---- 1. DWS 去重类口径补 BITMAP 列，SUM 上卷改 BITMAP_UNION
+    for r in D['rows']:
+        if chk['mclass'].get(r[di['口径编码']]) != 'distinct':
+            continue
+        en = r[di['英文名']]
+        bm = re.sub(r'_qty$', '', en) + '_bitmap'
+        for t in re.split(r'[、,，\s]+', str(r[di['落地 DWS 表']])):
+            t = sn(t)
+            if not t or t.endswith('_rt') or t not in by_t:
+                continue
+            rows = by_t[t]
+            k = next((i for i, x in enumerate(rows) if x[fi['字段名']] == en), None)
+            if k is None or any(x[fi['字段名']] == bm for x in rows):
+                continue
+            q = rows[k]
+            proc = str(q[fi['加工 / 来源']])
+            summed = '汇总' in proc or 'SUM' in proc.upper()
+            src_t = proc.split('.')[0] if summed else ''
+            new = frow(q[fi['分层']], q[fi['表名（库.表）']], q[fi['表中文名']], 0, bm, 'BITMAP', '指标',
+                       f"{r[di['中文名']]}去重位图：{r[di['业务口径']]}；任意周期用 BITMAP_UNION_COUNT 去重，单位：人",
+                       f'BITMAP_UNION({src_t}.{bm})' if summed else re.sub(r'count\(distinct ([^)]+)\)', r'BITMAP_UNION(TO_BITMAP(\1))', proc, flags=re.I),
+                       q[fi['上游字段']].replace(en, bm) if summed else q[fi['上游字段']])
+            if summed:
+                q[fi['加工 / 来源']] = f'BITMAP_UNION_COUNT({bm})（原为 {proc}；改为位图后可跨周期、跨维度去重）'
+                q[fi['上游字段']] = f'{q[fi["表名（库.表）"]]}.{bm}'
+            rows.insert(k + 1, new)
+            tr = trow[t]
+            if '_bitmap' not in str(tr[ti['备注']]):
+                tr[ti['备注']] = (str(tr[ti['备注']]) + '；' if tr[ti['备注']] else '') + '【改造】去重类指标新增 *_bitmap 列，支持任意统计周期去重'
+            changed.setdefault(t, '去重类指标新增 BITMAP 列（任意周期去重）；SUM 上卷改为 BITMAP_UNION')
+
+    # ---- 2. ADS 表改为多统计周期
+    pdesc = PERIOD_CODE_DESC
+    for t, cs in tables.items():
+        old = by_t.get(t, [])
+        if not old:
+            continue
+        L0, full, cn = old[0][fi['分层']], old[0][fi['表名（库.表）']], old[0][fi['表中文名']]
+        rows = [frow(L0, full, cn, 0, 'period_type_code', 'STRING', '粒度键', pdesc, 'dim_opr_period_f.period_type_code', 'dim.dim_opr_period_f.period_type_code'),
+                frow(L0, full, cn, 0, 'period_start_date', 'STRING', '维度属性', '统计区间开始日期，格式 yyyy-MM-dd', 'dim_opr_period_f.start_date', 'dim.dim_opr_period_f.start_date'),
+                frow(L0, full, cn, 0, 'period_end_date', 'STRING', '维度属性', '统计区间结束日期，格式 yyyy-MM-dd', 'dim_opr_period_f.end_date', 'dim.dim_opr_period_f.end_date'),
+                frow(L0, full, cn, 0, 'period_day_qty', 'INT', '维度属性', '统计区间天数，单位：天', 'dim_opr_period_f.period_day_qty', 'dim.dim_opr_period_f.period_day_qty'),
+                frow(L0, full, cn, 0, 'holiday_period_code', 'STRING', '维度属性', '节假日区间编码，如 2026_national_day；period_type_code=HOL 时有值，否则为空',
+                     'dim_opr_period_f.holiday_period_code', 'dim.dim_opr_period_f.holiday_period_code')]
+        rows += [list(r) for r in old if r[fi['字段类别']] in ('粒度键', '维度属性')]
+        cmap = {c['mcode']: c for c in cs}
+        for f in [x for x in out_fields if x['t'] == t]:
+            c = cmap[f['m']]
+            s, k = c['stem'], c['kw']
+            v, pv, lv = f'{s}_{k}', f'{s}_prev_{k}', f'{s}_ly_{k}'
+            ups = str(c['ups'])
+            if c['kind'] == 'distinct':
+                ups = re.sub(r'\.(\w+)_qty\b', r'.\1_bitmap', ups)
+            src = '、'.join(sn(u) for u in ups.split('、') if u.strip())
+            agg = {'additive': 'SUM', 'once': 'SUM', 'distinct': 'BITMAP_UNION_COUNT', 'snapshot': '取区间末日快照',
+                   'pct': 'SUM(分子)×100/SUM(分母)', 'avg': 'SUM(分子)/SUM(分母)'}[c['kind']]
+            proc = {'VAL': f'{src}：本期区间内 {agg}' + (f'，条件 {c["mod"]}' if c['mod'] else ''),
+                    'AVG': f'{v} ÷ period_day_qty' if c['kind'] != 'snapshot' else f'{src}：本期区间内每日快照求平均',
+                    'PREV': f'{src}：环比基期区间内 {agg}（区间取 dim_opr_period_f.prev_*）',
+                    'LYV': f'{src}：去年同期区间内 {agg}（区间取 dim_opr_period_f.ly_*）',
+                    'MOM': f'({v} − {pv}) × 100 ÷ {pv}，{pv}=0 时为空', 'MOMD': f'{v} − {pv}',
+                    'YOY': f'({v} − {lv}) × 100 ÷ {lv}，{lv}=0 时为空', 'YOYD': f'{v} − {lv}',
+                    'WOW': f'(当日 {v} − 上周同日 {v}) × 100 ÷ 上周同日值（仅 D1）', 'WOWD': f'当日 {v} − 上周同日 {v}（仅 D1）',
+                    'SHR': f'{v} × 100 ÷ 不带修饰词的同口径本期值'}[f['d']]
+            desc = (str(c['kou']) + '；统计区间由 period_type_code 决定') if f['d'] == 'VAL' else dn[f['d']][4]
+            rows.append(frow(L0, full, cn, 0, f['f'], f['type'], '指标', f"{f['nm']}：{desc}，单位：{f['unit']}", proc, ups))
+        rows.append(frow(L0, full, cn, 0, 'etl_time', 'STRING', 'ETL', 'ETL 加载时间，格式 yyyy-MM-dd HH:mm:ss', '系统生成', ''))
+        rows.append(frow(L0, full, cn, 0, 'travel_date', 'STRING', '分区', '数据日期（统计截止日 T），格式 YYYYMMDD', '${bizdate}', ''))
+        by_t[t] = rows
+        tr = trow[t]
+        nb = sum(len(x['pers']) for x in out_fields if x['t'] == t)
+        tr[ti['粒度']] = str(tr[ti['粒度']]).replace('travel_date', 'travel_date × period_type_code（× holiday_period_code）', 1)
+        tr[ti['度量 / 口径 / 关键字段']] = (f'基础指标 {len(cs)} 个 × 统计周期（18 种）× 派生方式 → 指标字段 '
+                                           f'{sum(1 for x in out_fields if x["t"] == t)} 个、业务指标 {nb:,} 个（见 ADS 指标体系）')
+        ups = [x for x in re.split(r'[、,，\s]+', str(tr[ti['上游表']])) if x]
+        if 'dim_opr_period_f' not in ups:
+            tr[ti['上游表']] = '、'.join(ups + ['dim_opr_period_f'])
+        tr[ti['备注']] = (str(tr[ti['备注']]) + '；' if tr[ti['备注']] else '') + '【改造】统计周期改为行维度 period_type_code，指标按派生方式展开'
+        changed[t] = '多统计周期改造：周期由列改为行（period_type_code），指标展开为本期值/日均/上期/环比/去年同期/同比/周同比/占比'
+    for r in model['skipped']:
+        t = r[2]
+        if t in ('ads_sup_tenant_trade_wk', 'ads_sup_tenant_trade_mo') and t in trow and '建议下线' not in str(trow[t][ti['备注']]):
+            trow[t][ti['备注']] = (str(trow[t][ti['备注']]) + '；' if trow[t][ti['备注']] else '') + f'【改造】建议下线：{r[4]}'
+            changed.setdefault(t, '建议下线（由多周期 ADS 的 LW/LM 周期替代）')
+
+    # ---- 3. 新增 / 扩展日期类维表
+    def add_table(name, cn, grain, src, keys, down, ddl):
+        cols = _ddl_cols(ddl)
+        r = [''] * len(T['cols'])
+        for k, v in (('分层', 'DIM'), ('业务域', 'opr'), ('表名（库.表）', f'dim.{name}'), ('表中文名', cn), ('粒度', grain),
+                     ('后缀含义', '非分区全量'), ('分区', '无分区'), ('来源', src), ('度量 / 口径 / 关键字段', keys),
+                     ('上游表', ''), ('下游表', down), ('备注', '【新增】支持多统计周期（当日/周/月/季/半年/年/近N日/节假日）')):
+            r[ti[k]] = v
+        last_dim = max(i for i, x in enumerate(T['rows']) if x[ti['分层']] == 'DIM')
+        T['rows'].insert(last_dim + 1, r)
+        trow[name] = r
+        by_t[name] = [frow('DIM', f'dim.{name}', cn, 0, c, ty, 'ETL' if c == 'etl_time' else ('粒度键' if c in keys else '维度属性'),
+                           cm, '脚本生成' if 'period' in name else '人工维护（国务院放假安排）', '') for c, ty, cm in cols]
+        changed[name] = '新增表'
+
+    ads_ts = '、'.join(tables)
+    add_table('dim_opr_holiday_period_f', '节假日放假区间', '1行=1个年度×1个节假日', '人工维护（每年 12 月按国务院放假安排录入次年）',
+              'holiday_period_code', 'dim_opr_period_f、dim_opr_date_f', HOLIDAY_DDL.split('-- dim_opr_date_f')[0])
+    add_table('dim_opr_period_f', '统计周期区间', '1行=1个截止日×1种统计周期', '脚本生成（dim_opr_date_f + dim_opr_holiday_period_f）',
+              'anchor_date_no、period_type_code、holiday_period_code', ads_ts, PERIOD_DIM_DDL)
+    trow['dim_opr_holiday_period_f'][ti['上游表']] = ''
+    trow['dim_opr_period_f'][ti['上游表']] = 'dim_opr_date_f、dim_opr_holiday_period_f'
+    if 'dim_opr_date_f' in by_t:
+        extra = _ddl_cols(HOLIDAY_DDL.split('-- dim_opr_date_f')[1])
+        have = {x[fi['字段名']] for x in by_t['dim_opr_date_f']}
+        o = by_t['dim_opr_date_f'][0]
+        rows = by_t['dim_opr_date_f']
+        pos = next((i for i, x in enumerate(rows) if x[fi['字段名']] == 'etl_time'), len(rows))
+        for c, ty, cm in extra:
+            if c not in have:
+                rows.insert(pos, frow('DIM', o[fi['表名（库.表）']], o[fi['表中文名']], 0, c, ty, '维度属性', cm, '脚本生成（含 dim_opr_holiday_period_f）', ''))
+                pos += 1
+        tr = trow['dim_opr_date_f']
+        tr[ti['下游表']] = '、'.join([x for x in re.split(r'[、,，\s]+', str(tr[ti['下游表']])) if x] + ['dim_opr_period_f'])
+        tr[ti['备注']] = (str(tr[ti['备注']]) + '；' if tr[ti['备注']] else '') + '【改造】补半年度、节假日区间、节假日第N天、农历、同比对齐日等 7 个字段'
+        changed['dim_opr_date_f'] = '补 7 个统计周期字段（半年度、节假日区间、同比对齐日等）'
+
+    # 字段清单按表顺序重排、重新编号
+    F['rows'] = []
+    for r in T['rows']:
+        t = sn(r[ti['表名（库.表）']])
+        for i, x in enumerate(by_t.get(t, []), 1):
+            x[fi['序号']] = i
+            F['rows'].append(x)
+    for i, r in enumerate(T['rows'], 1):
+        r[ti['序号']] = i
+
+    # ---- 4. ADS业务指标：改造表按「指标字段」登记（周期见「支持周期」），其余保留原样
+    new = []
+    pn = {p[0]: p[1] for p in PERIODS}
+    for f in out_fields:
+        c = combos[next(k for k, v in combos.items() if v['mcode'] == f['m'])]
+        r0 = list(c['old'][0])
+        tr = trow[f['t']]
+        per = '全部 18 种' if len(f['pers']) == len(PERIODS) else ('仅当日' if f['pers'] == ['D1'] else f'{len(f["pers"])} 种（不含当日）')
+        frm_row = next(x for x in by_t[f['t']] if x[fi['字段名']] == f['f'])
+        vals = {'指标编码': f"{f['m']}-{f['d']}", '业务指标名': f['nm'], '字段名': f['f'],
+                '业务口径': c['kou'] if f['d'] == 'VAL' else dn[f['d']][4],
+                '计算公式': (str(c['calc']) + '；统计区间由 period_type_code 决定') if f['d'] == 'VAL' else frm_row[fi['加工 / 来源']],
+                '单位': f['unit'], '统计周期': per, '修饰词': c['mod'] or '—', '数据类型': f['type'],
+                '精度/展示': '百分数数值（已乘 100），保留 6 位小数' if f['unit'] == '%' else ('百分点，保留 6 位小数' if f['unit'] == '百分点' else r0[ai['精度/展示']]),
+                '更新频率': '每日 T+1（每种统计周期一行）', '口径类型': r0[ai['口径类型']] if f['d'] == 'VAL' else '派生指标',
+                '分析粒度': tr[ti['粒度']]}
+        for k, v in vals.items():
+            if k in ai:
+                r0[ai[k]] = v
+        new.append(r0)
+    # 实时指标、不按周期展开的表保留原样；改造表上原有的日环比/周同比/月环比口径已并入派生方式
+    keep = [r for r in A['rows'] if r[ai['离线/实时']] != '离线' or sn(r[ai['ADS表']]) not in tables]
+    A['rows'] = new + keep
+
+    # ---- 5. 分层汇总
+    li = {c: i for i, c in enumerate(L['cols'])}
+    for r in L['rows']:
+        if r[0] == 'ADS':
+            r[li['指标产出']] = f'基础指标 {model["summary"]["combos"]} 个 × 统计周期 18 种 × 派生方式 = 业务指标 {model["summary"]["biz"]:,} 个（离线，改造后）'
+            r[li['说明']] = str(r[li['说明']]) + '；统计周期为行维度（period_type_code）'
+        if r[0] == 'DIM':
+            r[li['表数']] = sum(1 for x in T['rows'] if x[ti['分层']] == 'DIM')
+            r[li['说明']] = str(r[li['说明']]) + '；新增统计周期区间表、节假日区间表'
+    # 分层汇总里的「统计周期」说明换成新的周期编码
+    rows = L['rows']
+    k = next((i for i, r in enumerate(rows) if r[0] == '统计周期'), None)
+    if k is not None:
+        e = next((i for i in range(k + 1, len(rows)) if rows[i][0] in ('修饰词', '业务域前缀')), len(rows))
+        rt = [r for r in rows[k + 1:e] if 'today' in str(r[0])]
+        blank = lambda a, b: [a, b] + [''] * (len(L['cols']) - 2)
+        new = [blank(p[0], f'{p[1]}：{p[3]}' + ('（指标服务实时计算）' if not p[6] else '')) for p in PERIODS]
+        rows[k + 1:e] = new + rt
+        rows[k][1] = '含义（ADS 中为行维度 period_type_code）'
+    return S, changed
+
+
+def dict_xlsx(sheets, changed, path):
+    """改造后的完整字典（与客户原 Excel 同样的工作表和表头），改动行标黄"""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)
+    hfill, hfont, mark = PatternFill('solid', fgColor='1F2937'), Font(color='FFFFFF', bold=True), PatternFill('solid', fgColor='FFF4CC')
+    for name, d in sheets.items():
+        ws = wb.create_sheet(name)
+        ws.append(d['cols'])
+        for c in ws[1]:
+            c.fill, c.font = hfill, hfont
+        tcol = next((i for i, c in enumerate(d['cols']) if c in ('表名（库.表）', 'ADS表', '表名')), None)
+        for r in d['rows']:
+            ws.append(['' if v is None else v for v in r])
+            if tcol is not None and str(r[tcol]).split('.', 1)[-1] in changed:
+                for c in ws[ws.max_row]:
+                    c.fill = mark
+        ws.freeze_panes = 'A2'
+        for i, c in enumerate(d['cols'], 1):
+            ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = 14 if len(str(c)) < 6 else 24
+    ws = wb.create_sheet('改造说明', 0)
+    ws.append(['表名', '改造内容'])
+    for c in ws[1]:
+        c.fill, c.font = hfill, hfont
+    for k, v in changed.items():
+        ws.append([k, v])
+    ws.column_dimensions['A'].width, ws.column_dimensions['B'].width = 40, 100
+    wb.save(path)

@@ -35,16 +35,28 @@ def main():
     data = load_sheets(xlsx)
     res = checks.run(data, DOCS / 'source')
     model = ads_model.build(data, res)
+    data2, changed = ads_model.apply_to_dictionary(data, model, res)
+    model.pop('_int')
+    # 改造前的原版（供页面对照）：被改动表的表清单行、字段，以及原 ADS业务指标
+    ti = data['表清单']['cols'].index('表名（库.表）'); fi = data['字段清单']['cols'].index('表名（库.表）')
+    short = lambda s: str(s).split('.', 1)[-1]
+    orig = {'changed': changed,
+            '表清单': {'cols': data['表清单']['cols'], 'rows': [r for r in data['表清单']['rows'] if short(r[ti]) in changed]},
+            '字段清单': {'cols': data['字段清单']['cols'], 'rows': [r for r in data['字段清单']['rows'] if short(r[fi]) in changed]},
+            'ADS业务指标': data['ADS业务指标']}
     meta = {'xlsx': xlsx.name, 'built': datetime.date.today().isoformat()}
     js = lambda o: json.dumps(o, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/')
     tpl = (ROOT / 'src' / 'template.html').read_text(encoding='utf-8')
-    html = tpl.replace('__DATA__', js(data)).replace('__CHECKS__', js(res)).replace('__META__', js(meta)).replace('__ADS__', js(model))
+    html = tpl.replace('__DATA__', js(data2)).replace('__ORIG__', js(orig)).replace('__CHECKS__', js(res)).replace('__META__', js(meta)).replace('__ADS__', js(model))
     (ROOT / 'dist').mkdir(exist_ok=True)
     (ROOT / 'dist' / 'index.html').write_text(html, encoding='utf-8')
     DOCS.mkdir(exist_ok=True)
     (DOCS / '核对报告.md').write_text(checks.to_markdown(res, xlsx.name), encoding='utf-8')
     print('OK ->', ROOT / 'dist' / 'index.html', {k: len(v['rows']) for k, v in data.items()})
     n = ads_model.to_xlsx(model, ROOT / 'dist' / 'ADS指标体系.xlsx', xlsx.name)
+    out = ROOT / 'dist' / (xlsx.stem + '_改造版.xlsx')
+    ads_model.dict_xlsx(data2, changed, out)
+    print('改造版字典 ->', out.name, '改动表', len(changed))
     print('核对：', res['summary'])
     print('ADS 指标体系：', model['summary'], '业务指标行', n, '字段冲突', len(model['problems']))
 
