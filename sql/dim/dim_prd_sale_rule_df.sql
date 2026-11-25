@@ -3,26 +3,23 @@
 -- 来源：ods_prd_sale_rule_df + ods_prd_sale_rule_item_df
 -- 生成方式：Spark SQL / Hive；字段 13 个：直接翻译 13 · 规则翻译 0 · 待确认 0
 
-INSERT OVERWRITE TABLE dim.dim_prd_sale_rule_df PARTITION (travel_date = '${bizdate}')
+INSERT OVERWRITE TABLE dim.dim_prd_sale_rule_df PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
 SELECT
-  a.id                AS sale_rule_item_id,
-  a.rule_id           AS rule_id,
-  a.rule_type         AS rule_type,
-  a.rule_value        AS rule_value_desc,
-  a.tenant_id         AS tenant_id,
-  a.create_time       AS create_time,
-  a.update_time       AS update_time,
-  j1.rule_no          AS rule_no,
-  j2.sku_id           AS sku_id,
-  j2.effective_from   AS effective_start_time,
-  j2.effective_to     AS effective_end_time,
-  j2.rule_status      AS rule_status,
-  CURRENT_TIMESTAMP() AS etl_time
-FROM ods.ods_prd_sale_rule_item_df a
-LEFT JOIN ods.ods_prd_sale_rule_df j1
-  ON j1.id = a.rule_id
- AND j1.travel_date = '${bizdate}'
-LEFT JOIN ods.ods_prd_sale_rule_df j2
-  ON j2.id = a.tenant_id
- AND j2.travel_date = '${bizdate}'
-WHERE a.travel_date = '${bizdate}';
+  a.id                AS sale_rule_item_id,   -- 售卖条件项ID（源表主键 id）
+  a.rule_id           AS rule_id,             -- 归属售卖规则ID
+  a.rule_type         AS rule_type,           -- 条件类型
+  a.rule_value        AS rule_value_desc,     -- 条件值（按rule_type结构化
+  a.tenant_id         AS tenant_id,           -- 租户ID
+  a.create_time       AS create_time,         -- 创建时间
+  a.update_time       AS update_time,         -- 更新时间
+  j1.rule_no          AS rule_no,             -- 售卖规则编号
+  j1.sku_id           AS sku_id,              -- SKU ID
+  j1.effective_from   AS effective_start_time,  -- 规则生效开始时间
+  j1.effective_to     AS effective_end_time,  -- 规则生效结束时间
+  j1.rule_status      AS rule_status,         -- 规则状态
+  CURRENT_TIMESTAMP() AS etl_time             -- ETL 加载时间
+FROM ods.ods_prd_sale_rule_item_df a          -- 主表「售卖条件项」
+LEFT JOIN ods.ods_prd_sale_rule_df j1         -- 关联「售卖规则」，取 售卖规则编号、SKU ID、规则生效开始时间、规则生效结束时间、规则状态
+  ON j1.id = a.rule_id                        -- 按 rule_id→id 关联
+ AND j1.travel_date = '${bizdate}'            -- 只取当日分区
+WHERE a.travel_date = '${bizdate}';           -- 只取当日分区

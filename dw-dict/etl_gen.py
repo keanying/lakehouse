@@ -1067,6 +1067,117 @@ AS v(holiday_period_code, year_no, holiday_code, holiday_name, start_date, end_d
     return out
 
 
+# ---------------------------------------------------------------- 行内注释
+def short_cmt(c):
+    """字段注释取中文名：冒号或逗号前的部分"""
+    c = str(c or '').strip()
+    m = re.match(r'^([^：:，,；;]+)', c)
+    v = (m.group(1) if m else c).strip()
+    if len(v) > 20 and '（' in v:
+        v = v[:v.index('（')]
+    return v if len(v) <= 28 else v[:27] + '…'
+
+
+def annotate(sql, t, D):
+    """给加工 SQL 逐行加中文注释：字段中文名、关联表与取用字段、主表/去重/分区/分组说明"""
+    fcm = {x['n']: short_cmt(x['cmt']) for x in D.f.get(t, [])}
+    lines = sql.split('\n')
+    # 别名 → 关联表；别名 → 用到的目标字段
+    alias_t, alias_use = {}, collections.defaultdict(list)
+    for l in lines:
+        m = re.search(r'\bJOIN\s+(?:\w+)\.(\w+)\s+(?:FOR SYSTEM_TIME AS OF \S+ AS\s+)?(\w+)\s*$', l.split('  --')[0])
+        if m:
+            alias_t[m.group(2)] = m.group(1)
+        m = re.search(r'\bJOIN\s+\(SELECT .*? FROM (\w+)\.(\w+).*\)\s+(\w+)\s*$', l.split('  --')[0])
+        if m:
+            alias_t[m.group(3)] = m.group(2) + '#agg'
+        m = re.search(r'\bFROM\s+(?:\w+)\.(\w+)\s+(a|s)\s*$', l.split('  --')[0])
+        if m:
+            alias_t[m.group(2)] = m.group(1)
+    for l in lines:
+        code = l.split('  --')[0]
+        am = re.search(r'\bAS (\w+),?\s*$', code)
+        if am:
+            for al in set(re.findall(r'\b(j\d+|d\d+)\.', code)):
+                alias_use[al].append(am.group(1))
+    tcn = lambda x: D.t.get(x.split('#')[0], {}).get('cn', '')
+    out, width = [], 0
+    cmts = []
+    for l in lines:
+        code, sep, old = l.partition('  -- ')
+        st = code.strip()
+        new = ''
+        if st.startswith('--') or not st:
+            cmts.append((l, None))
+            continue
+        name = None
+        am = re.search(r'\bAS (\w+),?\s*$', code)
+        if am:
+            name = am.group(1)
+        elif re.fullmatch(r'(?:[ux]\.)?(\w+),?', st) and st.rstrip(',').split('.')[-1] in fcm:
+            name = st.rstrip(',').split('.')[-1]
+        if name and name in fcm and not re.match(r'(SELECT|FROM|WITH|INSERT)\b', st):
+            new = fcm[name]
+        elif re.match(r'(INSERT OVERWRITE TABLE|INSERT INTO)\b', st):
+            new = '写入当日分区' if 'PARTITION' in st else ('写入 StarRocks 目标表' if st.startswith('INSERT INTO') else '整表覆盖写入')
+        elif st.startswith('CREATE MATERIALIZED VIEW'):
+            new = '异步物化视图，StarRocks 定时刷新'
+        elif re.match(r'(LEFT JOIN|JOIN)\b', st):
+            m = re.search(r'(\w+)\s*$', st)
+            al = m.group(1) if m else ''
+            tt = alias_t.get(al, '')
+            us = list(dict.fromkeys(fcm.get(n, n) for n in alias_use.get(al, [])))
+            use = '、'.join(us[:5]) + (f' 等 {len(us)} 个字段' if len(us) > 5 else '')
+            if tt.endswith('#agg'):
+                new = f'关联「{tcn(tt)}」按键聚合' + (f'，得到 {use}' if use else '')
+            elif tt:
+                new = f'关联「{tcn(tt)}」' + (f'，取 {use}' if use else '')
+            m2 = re.search(r'JOIN dim\.(\w+) (d\d+|ch) ON', st)
+            if m2:
+                new = f'关联「{tcn(m2.group(1))}」' + ('，取维度名称' if m2.group(2).startswith('d') else '，取渠道类型（修饰词条件用）')
+        elif re.match(r'FROM\s+\w+\.\w+\s+(a|s)$', st):
+            tt = re.search(r'FROM\s+\w+\.(\w+)', st).group(1)
+            new = ('主表' if st.endswith(' a') else '来源表') + f'「{tcn(tt)}」'
+        elif re.match(r'FROM TABLE\(TUMBLE', st):
+            new = '按事件时间切 1 分钟滚动窗口'
+        elif st == ') a':
+            new = '主表当日增量，按主键取最新一条'
+        elif re.search(r'ROW_NUMBER\(\) OVER', st):
+            new = '同一主键多次变更，按 binlog 时间倒序编号'
+        elif re.match(r'WHERE a\.rn = 1', st):
+            new = '只保留每个主键的最新一条'
+        elif "binlog_op_type <> 'DELETE'" in st:
+            new = '剔除源库已删除的记录'
+        elif re.search(r"travel_date <= '\$\{bizdate\}'", st):
+            new = '累计口径：取截至统计日的全部分区'
+        elif re.search(r"end_date = '9999-12-31'", st) and re.match(r'(WHERE|AND)\b', st):
+            new = '取当日分区里的拉链当前有效版本' if 'travel_date' in st else '只取拉链当前有效版本'
+        elif re.search(r"travel_date = '\$\{bizdate\}'", st) and re.match(r'(WHERE|AND)\b', st):
+            new = '只取当日分区'
+        elif re.match(r'ON\b', st):
+            ks = re.findall(r'\w+\.(\w+)\s*=\s*\w+\.(\w+)', st)
+            new = '按 ' + '、'.join(a_ if a_ == b_ else f'{b_}→{a_}' for a_, b_ in ks) + ' 关联' if ks else ''
+        elif "CURDATE()" in st and re.match(r'WHERE\b', st):
+            new = '只取今日数据'
+        elif re.match(r'GROUP BY\b', st):
+            new = '按粒度键汇总'
+        elif st == 'UNION ALL':
+            new = '合并各来源'
+        elif re.match(r'\) (u|x);?$', st):
+            new = {'u': '各来源合并后的明细', 'x': '汇总结果，外层再补维度名称'}[st[2]]
+        if old:
+            new = (new + '｜' if new and new not in old else '') + old
+        cmts.append((code.rstrip() if (new or old) else l, new or None))
+    ls = sorted(len(c) for c, n in cmts if n)
+    w = min(ls[int(len(ls) * 0.85)] if ls else 0, 80)   # 按大多数行对齐，超长行不拉宽
+    for c, n in cmts:
+        if n is None:
+            out.append(c)
+        else:
+            out.append(f'{c.ljust(w)}  -- {n}')
+    return '\n'.join(out)
+
+
 # ---------------------------------------------------------------- 主入口
 def generate(sheets, ads_model=None):
     D = Dict(sheets)
@@ -1097,6 +1208,8 @@ def generate(sheets, ads_model=None):
         if not r:
             continue
         sql, stats, _ = r
+        if t not in hand:
+            sql = annotate(sql, t, D)
         if t == 'dim_opr_date_f':
             sql += DATE_EXTRA
         path = {'hive': f'sql/{L.lower()}/{t}.sql', 'flink': f'sql/flink/{t}.sql', 'starrocks': f'sql/starrocks/{t}.sql'}[kind]

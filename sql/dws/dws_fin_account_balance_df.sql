@@ -5,35 +5,35 @@
 -- 多来源：每个来源表按粒度键先汇总，UNION ALL 后再合并；快照/累计表：增量来源取截至统计日的全部分区
 -- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
-INSERT OVERWRITE TABLE dws.dws_fin_account_balance_df PARTITION (travel_date = '${bizdate}')
+INSERT OVERWRITE TABLE dws.dws_fin_account_balance_df PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
 SELECT
-  u.account_no,
-  SUM(u.available_balance_amt) AS available_balance_amt,
-  SUM(u.frozen_balance_amt) AS frozen_balance_amt,
-  SUM(u.opening_balance_amt) AS opening_balance_amt,
-  SUM(u.closing_balance_amt) AS closing_balance_amt,
-  CURRENT_TIMESTAMP() AS etl_time
+  u.account_no,                                       -- 账户编号
+  SUM(u.available_balance_amt) AS available_balance_amt,  -- 可用余额
+  SUM(u.frozen_balance_amt) AS frozen_balance_amt,    -- 冻结余额
+  SUM(u.opening_balance_amt) AS opening_balance_amt,  -- 期初余额
+  SUM(u.closing_balance_amt) AS closing_balance_amt,  -- 期末余额
+  CURRENT_TIMESTAMP() AS etl_time                     -- ETL 加载时间
 FROM (
   -- 来源：dwd_fin_account_balance_df
   SELECT
-    account_no AS account_no,
-    NULL AS available_balance_amt,  -- 待确认：available_balance/100
-    NULL AS frozen_balance_amt,  -- 待确认：frozen_balance/100
-    NULL AS opening_balance_amt,
-    NULL AS closing_balance_amt
-  FROM dwd.dwd_fin_account_balance_df s
-  WHERE s.travel_date = '${bizdate}'
-  GROUP BY account_no
-  UNION ALL
+    account_no AS account_no,                         -- 账户编号
+    NULL AS available_balance_amt,                    -- 可用余额｜待确认：available_balance/100
+    NULL AS frozen_balance_amt,                       -- 冻结余额｜待确认：frozen_balance/100
+    NULL AS opening_balance_amt,                      -- 期初余额
+    NULL AS closing_balance_amt                       -- 期末余额
+  FROM dwd.dwd_fin_account_balance_df s               -- 来源表「账户余额日快照」
+  WHERE s.travel_date = '${bizdate}'                  -- 只取当日分区
+  GROUP BY account_no                                 -- 按粒度键汇总
+  UNION ALL                                           -- 合并各来源
   -- 来源：dwd_fin_fund_flow_di
   SELECT
-    account_no AS account_no,
-    NULL AS available_balance_amt,
-    NULL AS frozen_balance_amt,
-    NULL AS opening_balance_amt,  -- 待确认：first(balance_before)
-    NULL AS closing_balance_amt  -- 待确认：last(balance_after)
-  FROM dwd.dwd_fin_fund_flow_di s
-  WHERE s.travel_date <= '${bizdate}'
-  GROUP BY account_no
-) u
-GROUP BY u.account_no;
+    account_no AS account_no,                         -- 账户编号
+    NULL AS available_balance_amt,                    -- 可用余额
+    NULL AS frozen_balance_amt,                       -- 冻结余额
+    NULL AS opening_balance_amt,                      -- 期初余额｜待确认：first(balance_before)
+    NULL AS closing_balance_amt                       -- 期末余额｜待确认：last(balance_after)
+  FROM dwd.dwd_fin_fund_flow_di s                     -- 来源表「资金流水明细」
+  WHERE s.travel_date <= '${bizdate}'                 -- 累计口径：取截至统计日的全部分区
+  GROUP BY account_no                                 -- 按粒度键汇总
+) u                                                   -- 各来源合并后的明细
+GROUP BY u.account_no;                                -- 按粒度键汇总
