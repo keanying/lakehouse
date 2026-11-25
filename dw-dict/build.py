@@ -30,20 +30,23 @@ def load_sheets(xlsx):
 
 
 def main():
-    import checks
+    import checks, ads_model
     xlsx = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else next((ROOT / 'data').glob('*.xlsx')))
     data = load_sheets(xlsx)
     res = checks.run(data, DOCS / 'source')
+    model = ads_model.build(data, res)
     meta = {'xlsx': xlsx.name, 'built': datetime.date.today().isoformat()}
     js = lambda o: json.dumps(o, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/')
     tpl = (ROOT / 'src' / 'template.html').read_text(encoding='utf-8')
-    html = tpl.replace('__DATA__', js(data)).replace('__CHECKS__', js(res)).replace('__META__', js(meta))
+    html = tpl.replace('__DATA__', js(data)).replace('__CHECKS__', js(res)).replace('__META__', js(meta)).replace('__ADS__', js(model))
     (ROOT / 'dist').mkdir(exist_ok=True)
     (ROOT / 'dist' / 'index.html').write_text(html, encoding='utf-8')
     DOCS.mkdir(exist_ok=True)
     (DOCS / '核对报告.md').write_text(checks.to_markdown(res, xlsx.name), encoding='utf-8')
     print('OK ->', ROOT / 'dist' / 'index.html', {k: len(v['rows']) for k, v in data.items()})
+    n = ads_model.to_xlsx(model, ROOT / 'dist' / 'ADS指标体系.xlsx', xlsx.name)
     print('核对：', res['summary'])
+    print('ADS 指标体系：', model['summary'], '业务指标行', n, '字段冲突', len(model['problems']))
 
 
 if __name__ == '__main__':

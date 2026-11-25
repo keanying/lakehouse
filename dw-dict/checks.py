@@ -80,6 +80,8 @@ def metric_class(row, S):
                                str(S.get(row, '时间口径')), str(S.get(row, '业务口径')))
     if '快照' in tcal or '截至' in kou[:6]:
         return 'snapshot'
+    if typ == '计算指标' and '/' not in formula.split('=', 1)[-1]:
+        return 'additive'  # 差值类（净成交额、毛利额）按天可加
     if typ == '计算指标' or re.search(r'率|均|占比|客单价|/', str(S.get(row, '中文名'))) and typ != '原子指标':
         return 'ratio'
     if DISTINCT_ENTITY.search(formula):
@@ -162,7 +164,7 @@ def run(sheets, docs_dir=None):
             '同一个游客 7 天里买 3 次会被算 3 次，同一游客在两个 SKU/渠道下单也会被算 2 次。'
             '公式写的是 COUNT(DISTINCT)，但上游数据做不出这个结果。「质量体检」页没有发现这个问题。',
             'DWS 去重类指标改存 BITMAP（StarRocks BITMAP_UNION / Hive 侧存 id 数组），区间查询时 BITMAP_UNION_COUNT；'
-            '或在 ADS 直接回 DWD 明细按区间 COUNT(DISTINCT)。详见「时间周期方案」。',
+            '或在 ADS 直接回 DWD 明细按区间 COUNT(DISTINCT)。详见「ADS 指标体系」。',
             ['对象', '字段', '问题', '上游'],
             [[a, b, 'SUM 上卷去重计数（跨 SKU/渠道重复计人）', d] for a, b, c, d in summed] +
             [[f'{x[0]} {x[1]}', x[2], f'{x[3]}：由按天去重计数得出，跨天重复计人', x[4]] for x in period_distinct],
@@ -177,7 +179,7 @@ def run(sheets, docs_dir=None):
         f'实际只用到 {base_cnt} 个基础口径。文旅行业常按「国庆 7 天」「暑期」「Q3」「上半年」「任意起止日」看数，'
         '每加一种周期就要给每张 ADS 表加一批列、改一次 SQL；自定义区间则根本做不到。',
         '改成「口径 × 时间区间参数」：DWS 只存日粒度原子数据，时间区间在查询时由指标服务解析成 travel_date 范围；'
-        '日期维表补齐节假日/季度/半年度/同比对齐字段。详见「时间周期方案」。',
+        '日期维表补齐节假日/季度/半年度/同比对齐字段；ADS 改为「统计周期做行维度」，17 种预计算周期 × 本期值/日均/上期/环比/去年同期/同比/占比。详见「ADS 指标体系」与 dist/ADS指标体系.xlsx。',
         ['统计周期', '离线指标数'], [[k, v] for k, v in per_cnt.most_common()], key='H2')
 
     # ---------- 3. 分区字段未进字段清单
