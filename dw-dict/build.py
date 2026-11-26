@@ -47,12 +47,11 @@ def main():
         f = ROOT.parent / e['path']
         f.parent.mkdir(parents=True, exist_ok=True)
         f.write_text(e['sql'] + '\n', encoding='utf-8')
-    # 改造前的原版（供页面对照）：被改动表的表清单行、字段，以及原 ADS业务指标
-    ti = data['表清单']['cols'].index('表名（库.表）'); fi = data['字段清单']['cols'].index('表名（库.表）')
+    # 改造前的原版（供页面对照）：被改动表的表清单行，以及原 ADS业务指标
+    ti = data['表清单']['cols'].index('表名（库.表）')
     short = lambda s: str(s).split('.', 1)[-1]
     orig = {'changed': changed,
             '表清单': {'cols': data['表清单']['cols'], 'rows': [r for r in data['表清单']['rows'] if short(r[ti]) in changed]},
-            '字段清单': {'cols': data['字段清单']['cols'], 'rows': [r for r in data['字段清单']['rows'] if short(r[fi]) in changed]},
             'ADS业务指标': data['ADS业务指标']}
     meta = {'xlsx': xlsx.name, 'built': datetime.date.today().isoformat(), 'dict2': xlsx.stem + '_改造版.xlsx'}
     js = lambda o: json.dumps(o, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/')
