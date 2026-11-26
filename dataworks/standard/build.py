@@ -10,7 +10,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parent
 sys.path[:0] = [str(ROOT), str(HERE)]
 import parse, catalog, audit  # noqa: E402
-import rules, model, names  # noqa: E402
+import rules, model, names, exports  # noqa: E402
 
 sh = catalog.sh
 LAYER_CN = {'ODS': '原始数据层', 'DIM': '维度层', 'DWD': '明细层', 'DWS': '汇总层', 'ADS': '应用层'}
@@ -586,10 +586,55 @@ def legacy_src(C, logical, ods_of_source, fcols, tcols):
     return {'tables': trows, 'fields': frows, 'ddl': ddl, 'info': {}, 'ddlNote': '业务库表结构，取自同步任务配置'}
 
 
+def ads_specs():
+    """模型里 ADS 表 → 字段名集合（粒度键 + 指标）"""
+    return {sp['name']: {f[0] for f in sp['fields']} for sp in model.T if sp['name'].startswith('ads_') and isinstance(sp['fields'], list)}
+
+
+def fill_gaps(gaps):
+    """把导出模型需要、而标准 ADS 缺的指标 / 维度补进模型（DWS 交易表同步补指标）"""
+    added = collections.defaultdict(list)
+    by = {sp['name']: sp for sp in model.T}
+    for t, items in gaps.items():
+        sp = by.get(t)
+        if not sp or not isinstance(sp['fields'], list):
+            continue
+        have = {f[0] for f in sp['fields']}
+        nd = [x[4:] for x in items if x.startswith('dim:') and x[4:] in model.D and x[4:] not in have]
+        nm = [x for x in items if not x.startswith('dim:') and x in model.M and x not in have]
+        k = max([i for i, f in enumerate(sp['fields']) if f[2] == '粒度键'] or [-1]) + 1
+        sp['fields'][k:k] = model.dims(*nd)
+        sp['fields'] += model.mets(*nm)
+        added[t] += nd + nm
+        for up in re.split('、', sp['up']):
+            u = by.get(up.strip())
+            if u and isinstance(u['fields'], list) and up.startswith('dws_'):
+                uh = {f[0] for f in u['fields']}
+                kk = max([i for i, f in enumerate(u['fields']) if f[2] == '粒度键'] or [-1]) + 1
+                u['fields'][kk:kk] = model.dims(*[x for x in nd if x not in uh and x not in DERIVED_DIMS])
+                u['fields'] += model.mets(*[x for x in nm if x not in uh])
+    return added
+
+
+DERIVED_DIMS = {'product_type'}
+
+
 def main():
     nodes, C, tables, fields, mrows, logical, ods_of_source = build()
+    # 导出（hive_to_db）应用层模型：先核对覆盖，缺的指标 / 维度补进标准 ADS，再重新生成
+    _, _, _, gaps = exports.analyse(nodes, C, mrows, ads_specs(), model.M)
+    added = fill_gaps(gaps)
+    nodes, C, tables, fields, mrows, logical, ods_of_source = build()
+    cover, unify, mnotes, gaps2 = exports.analyse(nodes, C, mrows, ads_specs(), model.M)
+    print('导出模型补全：', {k: len(v) for k, v in added.items()}, '仍缺：', {k: len(v) for k, v in gaps2.items()})
     findings, stats = audit.analyse(nodes)
     sh_ = sheets(tables, fields, mrows, findings)
+    D_ = sh_['DWS口径']
+    D_['cols'] = D_['cols'] + ['旧系统口径差异']
+    for r in D_['rows']:
+        r.append(mnotes.get(r[1], ''))
+    sh_['导出模型覆盖'] = {'cols': ['导出目标表', '导出字段', '来源 Hive 表', '来源字段', '标准指标', '字段类型', '标准 ADS', '覆盖情况', '维度取值', '旧口径', '旧公式（底层）'], 'rows': cover}
+    sh_['口径统一'] = {'cols': ['口径编码', '英文名', '中文名', '旧口径数', '旧口径', '旧口径说明', '使用处数', '使用的导出字段', '标准口径', '与标准的差异'], 'rows': unify}
     res0, model_ = ads_storage(sh_)
     ads_query_rows(sh_, model_)
     out = ROOT / 'dist'
@@ -621,7 +666,7 @@ def main():
     sys.path.insert(0, str(ROOT.parent / 'dw-dict'))
     import checks, ads_model, etl_gen
     import datetime
-    disp = {k: v for k, v in sh_.items() if k not in ('旧表映射', '现状问题')}
+    disp = {k: v for k, v in sh_.items() if k not in ('旧表映射', '现状问题', '导出模型覆盖', '口径统一')}
     res = checks.run(disp, None)
     res['mclass'].update(res0['mclass'])
     res['verify'], res['after'] = [], None
@@ -639,8 +684,14 @@ def main():
                    'rows': [[n['ws'], n['path'], n['name'], n['type'], n['cron'], '、'.join(sh(t) for t, k in n['writes'] if k != 'ddl'), '、'.join(sh(t) for t in n['reads'])[:300],
                              next((x[6] for x in mrows if n['writes'] and x[0] == sh(n['writes'][0][0])), '')] for n in nodes if n['type'] != 'WORKFLOW'],
                    'filters': [0, 3, 7], 'note': '全部旧节点（不含工作流容器）；「处理」取其写入表在旧表映射中的处理方式'},
+         'cover': {'cols': sh_['导出模型覆盖']['cols'], 'rows': [[str(x) for x in r] for r in sh_['导出模型覆盖']['rows']], 'filters': [5, 7, 6],
+                   'note': f"旧系统 {len({r[0] for r in sh_['导出模型覆盖']['rows']})} 个导出（hive_to_db）应用层模型、{len(sh_['导出模型覆盖']['rows'])} 个字段逐个对到标准 ADS；缺的指标 / 维度已补进标准 ADS"},
+         'unify': {'cols': sh_['口径统一']['cols'], 'rows': [[str(x) for x in r] for r in sh_['口径统一']['rows']], 'filters': [1, 3],
+                   'note': '同一指标在旧系统的不同算法（按 时间口径 / 计数方式 / 过滤条件 / 来源 归纳），统一为标准口径，差异逐条说明'},
          'tips': {'issues': '<div style="font-weight:600;color:var(--text)">现状问题</div><div>客户现有 DataWorks 全部任务的自动诊断：架构分层、重复开发、指标冗余、性能、调度依赖、数据质量、安全。每条可展开明细。</div>',
                   'map': '<div style="font-weight:600;color:var(--text)">旧表 → 标准表</div><div>每张旧 Hive 表与回流表归到哪张标准表：合并 / 改名 / 回流改造 / 移出数仓 / 下线。迁移时按此逐张切换并对数。</div>',
+                  'cover': '<div style="font-weight:600;color:var(--text)">导出模型覆盖</div><div>客户导出到 MySQL / Oracle / SelectDB 等的应用层模型，每个字段对到标准指标与标准 ADS：已覆盖 / 时间表派生（年 / 月 / 周、累计列）/ 已补全。</div>',
+                  'unify': '<div style="font-weight:600;color:var(--text)">口径统一</div><div>同一个指标在旧系统有多种算法时逐个列出（Vn），说明与标准口径的差异；标准口径见「指标口径 · 口径字典」。</div>',
                   'nodes': '<div style="font-weight:600;color:var(--text)">旧节点清单</div><div>导出包里的全部节点（同步、SQL、Python），可按工作空间、类型、处理方式筛选。</div>'},
          'reportHref': '../docs/问题清单.md'}
     meta = {'mode': 'legacy', 'xlsx': xlsx.name, 'built': datetime.date.today().isoformat(), 'dict2': xlsx.name,
