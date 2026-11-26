@@ -57,4 +57,4 @@ LEFT JOIN ticket_dtl                                          -- 关联「票明
 LEFT JOIN distribution_relation_cur                           -- 关联「分销关系维度」，取 分销关系编号
   ON distribution_relation_cur.relation_id = payment_dtl.id   -- 按 id→relation_id 关联｜待确认：关联键
 LEFT JOIN frozen_dtl                                          -- 关联「冻结/解冻明细」，取 冻结类型
-  ON frozen_dtl.ticket_no = payment_dtl.ticket_no AND frozen_dtl.account_no = payment_dtl.payer_account_no;  -- 按 ticket_no、payer_account_no→account_no 关联
+  ON frozen_dtl.ticket_no = payment_dtl.ticket_no AND frozen_dtl.account_no = payment_dtl.payee_account_no;  -- 按 ticket_no、payee_account_no→account_no 关联
