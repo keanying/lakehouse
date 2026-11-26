@@ -29,3 +29,7 @@ ODS（同步）→ `dim_opr_dict_f`、地区 / 号段 / 证件地区码表 → `
 → `dwd_ord_order_di` → 轨迹 / 核销 / 游客 / 分销 → `dim_sup_member_relation_zip` → `dim_sup_supplier_df`、`dim_cus_tourist_df` → `dim_cus_user_df` → DWS → ADS。
 
 每张表上线后与它替代的旧任务并行跑 7 天、按日对数（脚本头部列出了替代的旧任务），一致后下线旧任务。
+
+## 其他
+
+- `report/industry_report.sql`：行业报告取数（手写，不由 build 生成），方案见 `dataworks/docs/行业报告取数方案.md`。

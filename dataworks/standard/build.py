@@ -567,8 +567,9 @@ def write_sql(etl, tables):
     """加工逻辑落盘：dataworks/sql/<层>/<表>.sql（ODS 为数据集成脚本模式 .json），可直接导入 DataWorks"""
     import shutil
     base = ROOT / 'sql'
-    if base.exists():
-        shutil.rmtree(base)
+    for sub in ('ods', 'dim', 'dwd', 'dws', 'ads'):      # 只清生成的分层目录；report/ 等手写目录保留
+        if (base / sub).exists():
+            shutil.rmtree(base / sub)
     layer = {t['name']: t['layer'].lower() for t in tables}
     cnt, todo = collections.Counter(), collections.Counter()
     for name, e in sorted(etl.items()):
@@ -611,6 +612,10 @@ ODS（同步）→ `dim_opr_dict_f`、地区 / 号段 / 证件地区码表 → `
 → `dwd_ord_order_di` → 轨迹 / 核销 / 游客 / 分销 → `dim_sup_member_relation_zip` → `dim_sup_supplier_df`、`dim_cus_tourist_df` → `dim_cus_user_df` → DWS → ADS。
 
 每张表上线后与它替代的旧任务并行跑 7 天、按日对数（脚本头部列出了替代的旧任务），一致后下线旧任务。
+
+## 其他
+
+- `report/industry_report.sql`：行业报告取数（手写，不由 build 生成），方案见 `dataworks/docs/行业报告取数方案.md`。
 """, encoding='utf-8')
 
 
