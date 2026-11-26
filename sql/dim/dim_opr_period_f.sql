@@ -1,76 +1,97 @@
 -- dim.dim_opr_period_f  统计周期时间表
 -- 每个截止日 T × 每种统计周期一行：本期 / 环比基期 / 同比基期区间。一次生成 2020–2035 年，之后每年 12 月补一年。
--- 依赖 dim_opr_date_f（日期属性）与 dim_opr_holiday_period_f（节假日放假区间）
-INSERT OVERWRITE TABLE dim.dim_opr_period_f
-SELECT
-  DATE_FORMAT(x.t, 'yyyyMMdd')                     AS anchor_date_no,
-  x.period_type_code,
-  x.period_name,
-  x.holiday_period_code,
-  DATE_FORMAT(x.s, 'yyyyMMdd')                     AS start_date_no,
-  DATE_FORMAT(x.e, 'yyyyMMdd')                     AS end_date_no,
-  DATEDIFF(x.e, x.s) + 1                           AS period_day_qty,
-  DATE_FORMAT(x.ps, 'yyyyMMdd')                    AS prev_start_date_no,
-  DATE_FORMAT(x.pe, 'yyyyMMdd')                    AS prev_end_date_no,
-  DATE_FORMAT(x.ls, 'yyyyMMdd')                    AS ly_start_date_no,
-  DATE_FORMAT(x.le, 'yyyyMMdd')                    AS ly_end_date_no,
-  IF(x.period_type_code = 'D1', DATE_FORMAT(DATE_SUB(x.t, 7), 'yyyyMMdd'), NULL) AS wow_date_no,
-  DATE_FORMAT(LEAST(x.s, x.ps, x.ls), 'yyyyMMdd')  AS scan_start_date_no,
-  DATE_FORMAT(x.s, 'yyyy-MM-dd')                   AS start_date,
-  DATE_FORMAT(x.e, 'yyyy-MM-dd')                   AS end_date,
-  CURRENT_TIMESTAMP()                              AS etl_time
-FROM (
-  -- 当日、滚动 N 日
-  SELECT t, p.code AS period_type_code, p.name AS period_name, CAST(NULL AS STRING) AS holiday_period_code,
-         DATE_SUB(t, p.n - 1) AS s, t AS e,
-         DATE_SUB(t, 2 * p.n - 1) AS ps, DATE_SUB(t, p.n) AS pe,
-         ADD_MONTHS(DATE_SUB(t, p.n - 1), -12) AS ls, ADD_MONTHS(t, -12) AS le
-  FROM (SELECT TO_DATE(date_code) AS t FROM dim.dim_opr_date_f) d
-  CROSS JOIN (SELECT 'D1' code, '当日' name, 1 n UNION ALL SELECT 'N7', '近7日', 7 UNION ALL SELECT 'N30', '近30日', 30
+-- 依赖 dim_opr_date_f（日期）与 dim_opr_holiday_period_f（节假日放假区间）；每类周期一个 WITH 逻辑块，最后合并
+WITH
+anchor_day AS (            -- 全部截止日 T，并预先算好周/月/季/半年/年的首日
+  SELECT TO_DATE(date_code)                                                      AS t,
+         DATE_SUB(TO_DATE(date_code), PMOD(DATEDIFF(TO_DATE(date_code), '1900-01-01'), 7)) AS week_start,   -- 本周一
+         TRUNC(TO_DATE(date_code), 'MM')                                         AS month_start,
+         TRUNC(TO_DATE(date_code), 'Q')                                          AS quarter_start,
+         IF(MONTH(TO_DATE(date_code)) <= 6, TRUNC(TO_DATE(date_code), 'YYYY'),
+            ADD_MONTHS(TRUNC(TO_DATE(date_code), 'YYYY'), 6))                    AS half_start,
+         TRUNC(TO_DATE(date_code), 'YYYY')                                       AS year_start
+  FROM dim.dim_opr_date_f
+),
+period_rolling AS (        -- 当日、近 N 日：环比 = 前 N 天，同比 = 去年同期
+  SELECT d.t, p.code AS period_type_code, p.name AS period_name, CAST(NULL AS STRING) AS holiday_period_code,
+         DATE_SUB(d.t, p.n - 1) AS s, d.t AS e,
+         DATE_SUB(d.t, 2 * p.n - 1) AS ps, DATE_SUB(d.t, p.n) AS pe,
+         ADD_MONTHS(DATE_SUB(d.t, p.n - 1), -12) AS ls, ADD_MONTHS(d.t, -12) AS le
+  FROM anchor_day d
+  CROSS JOIN (SELECT 'D1' AS code, '当日' AS name, 1 AS n UNION ALL SELECT 'N7', '近7日', 7 UNION ALL SELECT 'N30', '近30日', 30
               UNION ALL SELECT 'N90', '近90日', 90 UNION ALL SELECT 'N180', '近半年', 180 UNION ALL SELECT 'N365', '近1年', 365) p
+),
+period_start AS (          -- 自然周期的首日与月数步长（周按 7 天单独处理）
+  SELECT t, 'MTD' AS td_code, '本月' AS td_name, 'LM' AS full_code, '上月' AS full_name, month_start AS s, 1 AS k FROM anchor_day
+  UNION ALL SELECT t, 'QTD', '本季度', 'LQ', '上季度', quarter_start, 3 FROM anchor_day
+  UNION ALL SELECT t, 'HTD', '本半年', 'LH', '上半年度', half_start, 6 FROM anchor_day
+  UNION ALL SELECT t, 'YTD', '本年', 'LY', '上年度', year_start, 12 FROM anchor_day
+),
+period_to_date AS (        -- 本月/本季度/本半年/本年（至今）：环比取上一周期相同天数，同比取去年同期
+  SELECT t, td_code AS period_type_code, td_name AS period_name, CAST(NULL AS STRING) AS holiday_period_code,
+         s, t AS e,
+         IF(td_code = 'YTD', ADD_MONTHS(s, -12), ADD_MONTHS(s, -k)) AS ps,
+         IF(td_code = 'YTD', ADD_MONTHS(t, -12), LEAST(DATE_ADD(ADD_MONTHS(s, -k), DATEDIFF(t, s)), DATE_SUB(s, 1))) AS pe,
+         ADD_MONTHS(s, -12) AS ls, ADD_MONTHS(t, -12) AS le
+  FROM period_start
+),
+period_full AS (           -- 上月/上季度/上半年度/上年度（完整周期）
+  SELECT t, full_code AS period_type_code, full_name AS period_name, CAST(NULL AS STRING) AS holiday_period_code,
+         ADD_MONTHS(s, -k) AS s, DATE_SUB(s, 1) AS e,
+         ADD_MONTHS(s, -2 * k) AS ps, DATE_SUB(ADD_MONTHS(s, -k), 1) AS pe,
+         ADD_MONTHS(s, -k - 12) AS ls, DATE_SUB(ADD_MONTHS(s, -12), 1) AS le
+  FROM period_start
+),
+period_week AS (           -- 本周（至今）与上周（完整）：同比按 52 周对齐（同星期）
+  SELECT t, 'WTD' AS period_type_code, '本周' AS period_name, CAST(NULL AS STRING) AS holiday_period_code,
+         week_start AS s, t AS e, DATE_SUB(week_start, 7) AS ps, DATE_SUB(t, 7) AS pe,
+         DATE_SUB(week_start, 364) AS ls, DATE_SUB(t, 364) AS le
+  FROM anchor_day
   UNION ALL
-  -- 本周 / 本月 / 本季度 / 本半年 / 本年（至今）：环比取上一周期相同天数，同比取去年同期（周按 52 周对齐）
-  SELECT t, code, name, NULL, s, t,
-         CASE WHEN code = 'YTD' THEN ADD_MONTHS(s, -12) ELSE ADD_MONTHS(s, -k) END AS ps,
-         CASE WHEN code = 'YTD' THEN ADD_MONTHS(t, -12) ELSE LEAST(DATE_ADD(ADD_MONTHS(s, -k), DATEDIFF(t, s)), DATE_SUB(s, 1)) END AS pe,
-         ADD_MONTHS(s, -12), ADD_MONTHS(t, -12)
-  FROM (
-    SELECT t, 'MTD' code, '本月' name, TRUNC(t, 'MM') s, 1 k FROM (SELECT TO_DATE(date_code) t FROM dim.dim_opr_date_f) d
-    UNION ALL SELECT t, 'QTD', '本季度', TRUNC(t, 'Q'), 3 FROM (SELECT TO_DATE(date_code) t FROM dim.dim_opr_date_f) d
-    UNION ALL SELECT t, 'HTD', '本半年', IF(MONTH(t) <= 6, TRUNC(t, 'YYYY'), ADD_MONTHS(TRUNC(t, 'YYYY'), 6)), 6 FROM (SELECT TO_DATE(date_code) t FROM dim.dim_opr_date_f) d
-    UNION ALL SELECT t, 'YTD', '本年', TRUNC(t, 'YYYY'), 12 FROM (SELECT TO_DATE(date_code) t FROM dim.dim_opr_date_f) d
-  ) q
-  UNION ALL
-  SELECT t, 'WTD', '本周', NULL, DATE_SUB(t, DAYOFWEEK(t) - 2 + IF(DAYOFWEEK(t) = 1, 7, 0)) s, t,
-         DATE_SUB(DATE_SUB(t, DAYOFWEEK(t) - 2 + IF(DAYOFWEEK(t) = 1, 7, 0)), 7), DATE_SUB(t, 7),
-         DATE_SUB(DATE_SUB(t, DAYOFWEEK(t) - 2 + IF(DAYOFWEEK(t) = 1, 7, 0)), 364), DATE_SUB(t, 364)
-  FROM (SELECT TO_DATE(date_code) t FROM dim.dim_opr_date_f) d
-  UNION ALL
-  -- 上周 / 上月 / 上季度 / 上半年度 / 上年度（完整周期）
-  SELECT t, code, name, NULL, s, e, ADD_MONTHS(s, -k), DATE_SUB(s, 1), ADD_MONTHS(s, -12), DATE_SUB(ADD_MONTHS(s, k - 12), 1)
-  FROM (
-    SELECT t, 'LM' code, '上月' name, ADD_MONTHS(TRUNC(t, 'MM'), -1) s, DATE_SUB(TRUNC(t, 'MM'), 1) e, 1 k FROM (SELECT TO_DATE(date_code) t FROM dim.dim_opr_date_f) d
-    UNION ALL SELECT t, 'LQ', '上季度', ADD_MONTHS(TRUNC(t, 'Q'), -3), DATE_SUB(TRUNC(t, 'Q'), 1), 3 FROM (SELECT TO_DATE(date_code) t FROM dim.dim_opr_date_f) d
-    UNION ALL SELECT t, 'LH', '上半年度', ADD_MONTHS(IF(MONTH(t) <= 6, TRUNC(t, 'YYYY'), ADD_MONTHS(TRUNC(t, 'YYYY'), 6)), -6),
-                     DATE_SUB(IF(MONTH(t) <= 6, TRUNC(t, 'YYYY'), ADD_MONTHS(TRUNC(t, 'YYYY'), 6)), 1), 6 FROM (SELECT TO_DATE(date_code) t FROM dim.dim_opr_date_f) d
-    UNION ALL SELECT t, 'LY', '上年度', ADD_MONTHS(TRUNC(t, 'YYYY'), -12), DATE_SUB(TRUNC(t, 'YYYY'), 1), 12 FROM (SELECT TO_DATE(date_code) t FROM dim.dim_opr_date_f) d
-  ) q
-  UNION ALL
-  SELECT t, 'LW', '上周', NULL, DATE_SUB(t, DAYOFWEEK(t) + 5 + IF(DAYOFWEEK(t) = 1, 7, 0)) s, DATE_SUB(t, DAYOFWEEK(t) - 1 + IF(DAYOFWEEK(t) = 1, 7, 0)) e,
-         DATE_SUB(t, DAYOFWEEK(t) + 12 + IF(DAYOFWEEK(t) = 1, 7, 0)), DATE_SUB(t, DAYOFWEEK(t) + 6 + IF(DAYOFWEEK(t) = 1, 7, 0)),
-         DATE_SUB(t, DAYOFWEEK(t) + 369 + IF(DAYOFWEEK(t) = 1, 7, 0)), DATE_SUB(t, DAYOFWEEK(t) + 363 + IF(DAYOFWEEK(t) = 1, 7, 0))
-  FROM (SELECT TO_DATE(date_code) t FROM dim.dim_opr_date_f) d
-  UNION ALL
-  -- 节假日：截止日 T 已开始的每个假期（本年及上年），本期 = 假期首日 ~ min(假期末日, T)；环比 = 节前同等天数；同比 = 去年同一假期对应天数
-  SELECT d.t, 'HOL', CONCAT(h.year_no, ' ', h.holiday_name), h.holiday_period_code,
-         TO_DATE(h.start_date, 'yyyyMMdd') s, LEAST(TO_DATE(h.end_date, 'yyyyMMdd'), d.t) e,
-         DATE_SUB(TO_DATE(h.start_date, 'yyyyMMdd'), DATEDIFF(LEAST(TO_DATE(h.end_date, 'yyyyMMdd'), d.t), TO_DATE(h.start_date, 'yyyyMMdd')) + 1),
-         DATE_SUB(TO_DATE(h.start_date, 'yyyyMMdd'), 1),
-         COALESCE(TO_DATE(ly.start_date, 'yyyyMMdd'), ADD_MONTHS(TO_DATE(h.start_date, 'yyyyMMdd'), -12)),
-         COALESCE(LEAST(TO_DATE(ly.end_date, 'yyyyMMdd'), DATE_ADD(TO_DATE(ly.start_date, 'yyyyMMdd'), DATEDIFF(LEAST(TO_DATE(h.end_date, 'yyyyMMdd'), d.t), TO_DATE(h.start_date, 'yyyyMMdd')))),
-                  ADD_MONTHS(LEAST(TO_DATE(h.end_date, 'yyyyMMdd'), d.t), -12))
-  FROM (SELECT TO_DATE(date_code) t FROM dim.dim_opr_date_f) d
+  SELECT t, 'LW', '上周', NULL,
+         DATE_SUB(week_start, 7), DATE_SUB(week_start, 1), DATE_SUB(week_start, 14), DATE_SUB(week_start, 8),
+         DATE_SUB(week_start, 371), DATE_SUB(week_start, 365)
+  FROM anchor_day
+),
+period_holiday AS (        -- 节假日：截止日已开始的假期（本年及上年）；本期 = 首日 ~ min(末日, T)，环比 = 节前同等天数，同比 = 去年同一假期对应天数
+  SELECT d.t, 'HOL' AS period_type_code, CONCAT(h.year_no, ' ', h.holiday_name) AS period_name, h.holiday_period_code,
+         TO_DATE(h.start_date, 'yyyyMMdd') AS s,
+         LEAST(TO_DATE(h.end_date, 'yyyyMMdd'), d.t) AS e,
+         DATE_SUB(TO_DATE(h.start_date, 'yyyyMMdd'), DATEDIFF(LEAST(TO_DATE(h.end_date, 'yyyyMMdd'), d.t), TO_DATE(h.start_date, 'yyyyMMdd')) + 1) AS ps,
+         DATE_SUB(TO_DATE(h.start_date, 'yyyyMMdd'), 1) AS pe,
+         COALESCE(TO_DATE(ly.start_date, 'yyyyMMdd'), ADD_MONTHS(TO_DATE(h.start_date, 'yyyyMMdd'), -12)) AS ls,
+         COALESCE(LEAST(TO_DATE(ly.end_date, 'yyyyMMdd'),
+                        DATE_ADD(TO_DATE(ly.start_date, 'yyyyMMdd'), DATEDIFF(LEAST(TO_DATE(h.end_date, 'yyyyMMdd'), d.t), TO_DATE(h.start_date, 'yyyyMMdd')))),
+                  ADD_MONTHS(LEAST(TO_DATE(h.end_date, 'yyyyMMdd'), d.t), -12)) AS le
+  FROM anchor_day d
   JOIN dim.dim_opr_holiday_period_f h
     ON TO_DATE(h.start_date, 'yyyyMMdd') <= d.t AND h.year_no >= YEAR(d.t) - 1
-  LEFT JOIN dim.dim_opr_holiday_period_f ly ON ly.holiday_period_code = h.last_year_period_code
-) x;
+  LEFT JOIN dim.dim_opr_holiday_period_f ly
+    ON ly.holiday_period_code = h.last_year_period_code
+),
+all_period AS (            -- 合并全部周期
+  SELECT * FROM period_rolling
+  UNION ALL SELECT * FROM period_to_date
+  UNION ALL SELECT * FROM period_full
+  UNION ALL SELECT * FROM period_week
+  UNION ALL SELECT * FROM period_holiday
+)
+INSERT OVERWRITE TABLE dim.dim_opr_period_f
+SELECT
+  DATE_FORMAT(t, 'yyyyMMdd')                     AS anchor_date_no,       -- 统计截止日 T
+  period_type_code,                                                       -- 统计周期编码
+  period_name,                                                            -- 统计周期名称
+  holiday_period_code,                                                    -- 节假日区间编码
+  DATE_FORMAT(s, 'yyyyMMdd')                     AS start_date_no,        -- 本期开始日
+  DATE_FORMAT(e, 'yyyyMMdd')                     AS end_date_no,          -- 本期结束日
+  DATEDIFF(e, s) + 1                             AS period_day_qty,       -- 本期天数
+  DATE_FORMAT(ps, 'yyyyMMdd')                    AS prev_start_date_no,   -- 环比基期开始日
+  DATE_FORMAT(pe, 'yyyyMMdd')                    AS prev_end_date_no,     -- 环比基期结束日
+  DATE_FORMAT(ls, 'yyyyMMdd')                    AS ly_start_date_no,     -- 同比基期开始日
+  DATE_FORMAT(le, 'yyyyMMdd')                    AS ly_end_date_no,       -- 同比基期结束日
+  IF(period_type_code = 'D1', DATE_FORMAT(DATE_SUB(t, 7), 'yyyyMMdd'), NULL) AS wow_date_no,  -- 周同比基准日（仅当日）
+  DATE_FORMAT(LEAST(s, ps, ls), 'yyyyMMdd')      AS scan_start_date_no,   -- 查询需扫描的最早分区
+  DATE_FORMAT(s, 'yyyy-MM-dd')                   AS start_date,           -- 本期开始日（展示）
+  DATE_FORMAT(e, 'yyyy-MM-dd')                   AS end_date,             -- 本期结束日（展示）
+  CURRENT_TIMESTAMP()                            AS etl_time              -- ETL 加载时间
+FROM all_period;

@@ -56,5 +56,12 @@ python3 dw-dict/build.py
 - **规则翻译**：前后差（LAG）、JSON 展开、状态变更时间、聚合 where 条件、修饰词条件（如 渠道类型=小程序 → `channel_type='MP'`）等；
 - **待确认**：加工说明是业务描述（递归层级、证件号映射、定价规则计算等）或引用了上游不存在的字段，SQL 里该行带 `-- 待确认：原说明`，给出可运行的占位写法，上线前需人工补齐。
 
+脚本结构（不写嵌套子查询，每一步是一个有名字的 WITH 逻辑块，便于阅读和修改）：
+
+- **DWD / DIM**：主表一个块（ODS 增量拆成 `xxx_rn` 编号 → `xxx_latest` 取最新两步）、每张关联表一个块（`xxx_latest` / `xxx_dim` / `xxx_cur` 当前版本 / `xxx_hist` 历史版本 / `xxx_count` 预聚合），最后 `INSERT … SELECT … FROM 主表块 LEFT JOIN 关联块`；拉链表再接 `src` → `src_hash` → `his` 三块做闭链 / 开链；
+- **DWS / ADS**：每个来源一个 `src_xxx` 预聚合块 → `all_src` UNION ALL 合并 → （需要补维度名称时）`merged` 汇总 → 关联 `xxx_cur` 维度块输出；
+- **性能**：每个块只读用到的列、先过滤分区再关联；被关联的 ODS 增量表先按主键去重（避免关联后行数翻倍）；码表 / 配置类小维表加 `/*+ BROADCAST(...) */`；多来源先预聚合再 UNION ALL，不用多表 FULL JOIN；单一来源不再做第二次聚合；
+- 实时 DWD 的 Flink SQL 保持单层（维表时态关联 `FOR SYSTEM_TIME AS OF` 需要直接引用表）。
+
 参数：`${bizdate}`（YYYYMMDD）、`${bizdate_dash}`（yyyy-MM-dd）、`${bizdate_prev}` / `${bizdate_prev_dash}`（前一天），周报 / 月报用 `${last_week_*}` / `${last_month_*}`。
 全部脚本已用 sqlglot 做过两项检查：语法（Spark / StarRocks 方言；Flink 专有语法替换后检查），以及最外层输出列的名称和顺序与字段清单一致（INSERT 按位置写入）。
