@@ -11,12 +11,7 @@ sale_rule_item_src AS (                                  -- 主表「售卖条�
   WHERE travel_date = '${bizdate}'                       -- 只取当日分区
 ),
 sale_rule_src AS (                                       -- 「售卖规则」当日数据，只取用到的列
-  SELECT id, rule_no
-  FROM ods.ods_prd_sale_rule_df
-  WHERE travel_date = '${bizdate}'                       -- 只取当日分区
-),
-sale_rule_src_2 AS (                                     -- 「售卖规则」当日数据，只取用到的列
-  SELECT effective_from, effective_to, id, rule_status, sku_id
+  SELECT effective_from, effective_to, id, rule_no, rule_status, sku_id
   FROM ods.ods_prd_sale_rule_df
   WHERE travel_date = '${bizdate}'                       -- 只取当日分区
 )
@@ -30,13 +25,11 @@ SELECT
   sale_rule_item_src.create_time AS create_time,         -- 创建时间
   sale_rule_item_src.update_time AS update_time,         -- 更新时间
   sale_rule_src.rule_no          AS rule_no,             -- 售卖规则编号
-  sale_rule_src_2.sku_id         AS sku_id,              -- SKU ID
-  sale_rule_src_2.effective_from AS effective_start_time,  -- 规则生效开始时间
-  sale_rule_src_2.effective_to   AS effective_end_time,  -- 规则生效结束时间
-  sale_rule_src_2.rule_status    AS rule_status,         -- 规则状态
+  sale_rule_src.sku_id           AS sku_id,              -- SKU ID
+  sale_rule_src.effective_from   AS effective_start_time,  -- 规则生效开始时间
+  sale_rule_src.effective_to     AS effective_end_time,  -- 规则生效结束时间
+  sale_rule_src.rule_status      AS rule_status,         -- 规则状态
   CURRENT_TIMESTAMP()            AS etl_time             -- ETL 加载时间
 FROM sale_rule_item_src
-LEFT JOIN sale_rule_src                                  -- 关联「售卖规则」，取 售卖规则编号
-  ON sale_rule_src.id = sale_rule_item_src.rule_id       -- 按 rule_id→id 关联
-LEFT JOIN sale_rule_src_2                                -- 关联「售卖规则」，取 SKU ID、规则生效开始时间、规则生效结束时间、规则状态
-  ON sale_rule_src_2.id = sale_rule_item_src.tenant_id;  -- 按 tenant_id→id 关联
+LEFT JOIN sale_rule_src                                  -- 关联「售卖规则」，取 售卖规则编号、SKU ID、规则生效开始时间、规则生效结束时间、规则状态
+  ON sale_rule_src.id = sale_rule_item_src.rule_id;      -- 按 rule_id→id 关联

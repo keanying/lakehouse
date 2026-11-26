@@ -56,6 +56,9 @@ table.t{border-collapse:separate;border-spacing:0;width:100%}
 .t td{padding:9px 12px;border-bottom:1px solid var(--line2);vertical-align:top;font-size:12.5px;background:#fff}
 .t tbody tr:hover td{background:#f5f8ff}
 .t tbody tr.sel td{background:var(--brand-soft)}
+.t tbody tr.gk td{background:#fff6d9}.t tbody tr.gk:hover td{background:#ffefc0}.t tbody tr.gk td:first-child{box-shadow:inset 3px 0 0 #f0b429}
+.mc.gk{background:#fff6d9;border-color:#f3d27a}.mc.gk:hover{background:#ffefc0}
+.gk-mark{background:#fff0c2;color:#8a5a00;border-radius:4px;padding:0 6px}
 .t tbody tr{cursor:pointer}
 .t.wide{width:max-content;min-width:100%}
 .t.wide th:first-child,.t.wide td:first-child{position:sticky;left:0;z-index:1;box-shadow:inset -1px 0 0 var(--line)}
@@ -261,7 +264,8 @@ function parseCmt(c){c=String(c||'');let name='',kou=c,unit='';
   const u=kou.match(/[，,]\s*单位[：:]\s*([^，,；;]+)\s*$/);if(u){unit=u[1].trim();kou=kou.slice(0,u.index)}
   return{name,kou,unit}}
 const MLAY=['DIM','DWD','DWS','ADS'];const MET={DIM:[],DWD:[],DWS:[],ADS:[]};
-TB.forEach(t=>{if(!MET[t.b])return;t.metrics=[];t.fields.filter(f=>f.k==='度量'||f.k==='指标').forEach(f=>{const p=parseCmt(f.c);const o=[t.short,t.cn,f.n,p.name||'',p.kou,p.unit,f.t,f.s,f.u,t.rt?'实时':'离线',f.k];t.metrics.push(o);MET[t.b].push(o)})});
+TB.forEach(t=>{if(!MET[t.b])return;t.metrics=[];t.fields.forEach(f=>{const p=parseCmt(f.c);const o=[t.short,t.cn,f.n,p.name||'',p.kou,p.unit,f.t,f.s,f.u,t.rt?'实时':'离线',f.k];MET[t.b].push(o);if(['粒度键','度量','指标'].includes(f.k))t.metrics.push(o)})});
+const isGK=k=>k==='粒度键';
 const ADSK={},DWSK={};
 {const R=RAW['ADS业务指标'],c=R.cols,a=c.indexOf('ADS表'),f=c.indexOf('字段名'),k=c.indexOf('业务口径'),g=c.indexOf('计算公式');R.rows.forEach(r=>ADSK[shortN(r[a])+'|'+r[f]]={kou:r[k],calc:r[g]})}
 {const R=RAW['DWS口径'],c=R.cols,e=c.indexOf('英文名'),k=c.indexOf('业务口径'),g=c.indexOf('计算公式');R.rows.forEach(r=>DWSK[r[e]]={kou:r[k],calc:r[g]})}
@@ -335,7 +339,7 @@ function grid(host,cfg){
     host.querySelectorAll('th').forEach(th=>th.querySelector('.ar').textContent=st.sort&&st.sort[0]==th.dataset.i?(st.sort[1]>0?' ▲':' ▼'):'');
     const pages=Math.max(1,Math.ceil(rows.length/PS));st.page=Math.min(st.page,pages-1);
     const sl=rows.slice(st.page*PS,st.page*PS+PS);
-    tb.innerHTML=sl.length?sl.map((r,k)=>`<tr data-k="${k}">${r.map((v,i)=>`<td class="${cls[i]}"><div class="cl">${cfg.cell?cfg.cell(i,v,st.q,r):hl(esc(v),st.q)}</div></td>`).join('')}</tr>`).join(''):`<tr><td colspan="${cfg.cols.length}" class="empty">没有匹配的数据</td></tr>`;
+    tb.innerHTML=sl.length?sl.map((r,k)=>`<tr data-k="${k}" class="${cfg.rowCls?cfg.rowCls(r):''}">${r.map((v,i)=>`<td class="${cls[i]}"><div class="cl">${cfg.cell?cfg.cell(i,v,st.q,r):hl(esc(v),st.q)}</div></td>`).join('')}</tr>`).join(''):`<tr><td colspan="${cfg.cols.length}" class="empty">没有匹配的数据</td></tr>`;
     host.querySelector('#g-c').textContent=`${rows.length} / ${cfg.rows.length} 行`;
     host.querySelector('.pager').innerHTML=pages>1?`<button class="btn" id="pp" ${st.page?'':'disabled'}>上一页</button><span>第 <b>${st.page+1}</b> / ${pages} 页 · 每页 ${PS} 行</span><button class="btn" id="np" ${st.page<pages-1?'':'disabled'}>下一页</button>`:'';
     const pp=host.querySelector('#pp');if(pp){pp.onclick=()=>{st.page--;draw();tw.scrollTop=0};host.querySelector('#np').onclick=()=>{st.page++;draw();tw.scrollTop=0}}
@@ -372,7 +376,7 @@ const ICON={
 const NAV=[['overview','总览','home'],['layers','分层','layers'],['tables','表清单','table'],['fields','字段','cols'],['metrics','指标口径','sigma'],['period','ADS 指标体系','clock'],['gov','调度与治理','shield'],['review','核对报告','check']];
 $('#rail').innerHTML='<div class="lg"></div>'+NAV.map(([k,l,i])=>`<a href="#/${k}" data-k="${k}" ><svg viewBox="0 0 24 24">${ICON[i]}</svg><span>${l}</span></a>`).join('');
 const go=h=>{location.hash=h};
-const META={overview:['总览','PFT3.0 数仓分层架构与资产概览'],layers:['分层汇总','各层定位、表数、拆分规则，及统计周期 / 修饰词 / 业务域口径说明'],tables:['表清单','左侧选表，右侧查看概览、字段与 DDL'],fields:['字段清单','全部分层表的字段明细，点表名跳转到表详情'],metrics:['指标口径','按口径归并的指标目录 · DIM / DWD 度量 · DWS / ADS 指标 · 口径与指标字典'],
+const META={overview:['总览','PFT3.0 数仓分层架构与资产概览'],layers:['分层汇总','各层定位、表数、拆分规则，及统计周期 / 修饰词 / 业务域口径说明'],tables:['表清单','左侧选表，右侧查看概览、字段与 DDL'],fields:['字段清单','全部分层表的字段明细，点表名跳转到表详情'],metrics:['指标口径','按口径归并的指标目录 · DIM / DWD / DWS / ADS 各层全部字段（粒度键黄色标出）· 口径与指标字典'],
  period:['ADS 指标体系','基础指标 × 统计周期（当日/周/月/季/半年/年/近N日/节假日/自定义）× 派生方式（数/钱/率/日均/环比/同比/占比）'],
  gov:['调度与治理','调度工作流 · 质量规则 · 一致性维度总线矩阵 · 质量体检 · 待确认事项'],
  review:['核对报告','对照命名规范、业务库 DDL 与字典内部一致性的自动核对结果']};
@@ -468,9 +472,9 @@ function vTables(v,a,b){
       const F=t.fields.map(f=>[f.no,f.n,f.t,f.k,shortCmt(f),caliber(t,f),f.s]);
       const H=['#','字段名','类型','类别','中文名','口径说明','加工 / 来源'];
       body.innerHTML='';const box=document.createElement('div');box.style.cssText='flex:1;min-height:0;display:flex;flex-direction:column';body.appendChild(box);
-      grid(box,{cols:H,rows:F,cls:['c-n','c-id','c-s','c-s','c-cm','c-kou','c-src'],filters:[3],searchPh:'筛选字段名 / 注释…',pageSize:200,csvName:t.short+'_fields',state:{q:TS.fq,f:{},sort:null,page:0},cell:(i,v,q)=>i===3?catPill(v):i===5?(v?`<span class="kou">${hl(esc(v),q)}</span>`:'<span style="color:#c3c8d3">—</span>'):hl(esc(v),q),onRow:r=>{const f=t.fields.find(x=>x.no===r[0]&&x.n===r[1]);drawer(f.n,t.name,(caliber(t,f)?`<div class="sub">口径说明</div><div class="formula" style="font-family:inherit">${esc(caliber(t,f))}</div>`:'')+kvHtml([['序号',f.no],['类型',esc(f.t)],['类别',catPill(f.k)],['字段注释',esc(f.c)],['加工 / 来源',esc(f.s)],['上游字段',esc(f.u)]]))}});
+      grid(box,{cols:H,rows:F,cls:['c-n','c-id','c-s','c-s','c-cm','c-kou','c-src'],filters:[3],searchPh:'筛选字段名 / 注释…',pageSize:200,csvName:t.short+'_fields',rowCls:r=>isGK(r[3])?'gk':'',state:{q:TS.fq,f:{},sort:null,page:0},cell:(i,v,q)=>i===3?catPill(v):i===5?(v?`<span class="kou">${hl(esc(v),q)}</span>`:'<span style="color:#c3c8d3">—</span>'):hl(esc(v),q),onRow:r=>{const f=t.fields.find(x=>x.no===r[0]&&x.n===r[1]);drawer(f.n,t.name,(caliber(t,f)?`<div class="sub">口径说明</div><div class="formula" style="font-family:inherit">${esc(caliber(t,f))}</div>`:'')+kvHtml([['序号',f.no],['类型',esc(f.t)],['类别',catPill(f.k)],['字段注释',esc(f.c)],['加工 / 来源',esc(f.s)],['上游字段',esc(f.u)]]))}});
     }else if(TS.tab==='met'){
-      body.innerHTML=`<div class="mcards">${t.metrics.map((r,k)=>`<div class="mc" data-k="${k}"><div class="mh"><span class="c-id">${esc(r[2])}</span>${r[3]?`<b>${esc(r[3])}</b>`:''}<span class="grow"></span>${r[5]?`<span class="pill">${esc(r[5])}</span>`:''}<span class="pill">${esc(r[6])}</span>${catPill(r[10])}</div><div class="mk">${esc(r[4])}</div><div class="ml"><span>计算</span><code>${esc(r[7])}</code></div></div>`).join('')}</div>`;
+      body.innerHTML=`<div class="mcards">${t.metrics.map((r,k)=>`<div class="mc ${isGK(r[10])?'gk':''}" data-k="${k}"><div class="mh"><span class="c-id">${esc(r[2])}</span>${r[3]?`<b>${esc(r[3])}</b>`:''}<span class="grow"></span>${r[5]?`<span class="pill">${esc(r[5])}</span>`:''}<span class="pill">${esc(r[6])}</span>${catPill(r[10])}</div><div class="mk">${esc(r[4])}</div><div class="ml"><span>计算</span><code>${esc(r[7])}</code></div></div>`).join('')}</div>`;
       body.onclick=e=>{const c=e.target.closest('.mc');if(c)metDrawer(t.metrics[+c.dataset.k])};
     }else if(TS.tab==='etl'){
       const e=ETL[t.short],st=e.stats;const KN={hive:'Spark SQL / Hive（离线日调度）',flink:'Flink SQL（实时）',starrocks:'StarRocks 物化视图（实时）'};
@@ -506,7 +510,7 @@ function vFields(v){
   const R=RAW['字段清单'];let cols=R.cols;
   const rows=R.rows.map(r=>{const t=TBM[shortN(r[1])];const f={n:r[4],k:r[6],c:r[7]};const x=r.slice(0,7);x.push(shortCmt(f),t?caliber(t,f):String(r[7]||''),r[8],r[9]);return x});
   cols=[...R.cols.slice(0,7),'字段中文名','口径说明',R.cols[8],R.cols[9]];
-  grid(v,{state:FS,cols,rows,wide:true,filters:[0,6,5],searchPh:'搜索表名 / 字段名 / 注释 / 口径 / 来源…',csvName:'字段清单',cls:['c-s','c-id','c-m','c-n','c-id','c-s','c-s','c-m','c-l','c-l','c-l'],
+  grid(v,{state:FS,cols,rows,wide:true,filters:[0,6,5],rowCls:r=>isGK(r[6])?'gk':'',searchPh:'搜索表名 / 字段名 / 注释 / 口径 / 来源…',csvName:'字段清单',cls:['c-s','c-id','c-m','c-n','c-id','c-s','c-s','c-m','c-l','c-l','c-l'],
    cell:(i,v,q)=>i===0?ltag(v):i===1?tlink(shortN(v),q).replace(/>([^<]*)</,'>'+esc(shortN(v))+'<'):i===6?catPill(v):hl(esc(v),q)});
 }
 
@@ -527,7 +531,7 @@ function coverage(L){
 }
 function vMetrics(v,a){
   const keys=['catalog','dim','dwd','dws','ads','dwsdict','adsdict'];const tab=keys.includes(a)?a:'catalog';
-  const T=[['dim','DIM 度量',MET.DIM.length],['dwd','DWD 度量',MET.DWD.length],['dws','DWS 指标',MET.DWS.length],['ads','ADS 指标',MET.ADS.length]];
+  const T=[['dim','DIM 层全部字段',MET.DIM.length],['dwd','DWD 层全部字段',MET.DWD.length],['dws','DWS 层全部字段',MET.DWS.length],['ads','ADS 层全部字段',MET.ADS.length]];
   const T2=[['dwsdict','DWS 口径字典',RAW['DWS口径'].rows.length],['adsdict','ADS 指标字典',RAW['ADS业务指标'].rows.length],['bizall','ADS 业务指标（周期展开）→',ADS.summary.biz]];
   const chip=([k,l,n])=>`<button class="chip ${tab===k?'on':''}" data-k="${k}" style="height:30px;padding:0 14px">${l}<i>${n}</i></button>`;
   v.innerHTML=`<div class="bar" style="margin-bottom:6px"><div class="chips">${chip(['catalog','指标目录（按口径）',CATALOG.length])}</div><span class="sep"></span><div class="chips">${T.map(chip).join('')}</div><span class="sep"></span><div class="chips">${T2.map(chip).join('')}</div></div><div id="mh" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>`;
@@ -537,14 +541,16 @@ function vMetrics(v,a){
   if(['dim','dwd','dws','ads'].includes(tab)){
     const L=tab.toUpperCase();const rows=MET[L];
     const hasName=rows.some(r=>r[3]);
-    const idx=hasName?[0,2,3,4,5,7,9]:[0,2,4,5,6,7,9];
+    const idx=hasName?[0,2,10,3,4,5,7,9]:[0,2,10,4,6,7,9];const ki=idx.indexOf(10);
     const cols=idx.map(i=>i===4&&!hasName?'口径 / 注释':METCOLS[i]);
     const view=rows.map(r=>idx.map(i=>r[i]));
     const tbls=[...new Set(rows.map(r=>r[0]))].sort();
-    grid(h,{state:MS[tab],cols,rows:view,wide:true,filters:[0,idx.indexOf(5),idx.indexOf(9)].filter(i=>i>=0),searchPh:`搜索 ${L} 表 / 字段 / 指标名 / 口径…`,csvName:L+'_指标口径',
-      cls:idx.map(i=>({0:'c-id',2:'c-id',3:'c-m',4:'c-l',5:'c-s',6:'c-s',7:'c-l',9:'c-s'})[i]),
+    const cc={};rows.forEach(r=>cc[r[10]]=(cc[r[10]]||0)+1);
+    const order=['粒度键','度量','指标','主键','业务主键','外键','退化维度','维度属性','状态类型','时间','拉链','分区','ETL'];
+    grid(h,{state:MS[tab],cols,rows:view,wide:true,filters:[0,ki,idx.indexOf(5),idx.indexOf(9)].filter(i=>i>=0),searchPh:`搜索 ${L} 表 / 字段 / 指标名 / 口径…`,csvName:L+'_全部字段',
+      cls:idx.map(i=>({0:'c-id',2:'c-id',3:'c-m',4:'c-l',5:'c-s',6:'c-s',7:'c-l',9:'c-s',10:'c-s'})[i]),rowCls:r=>isGK(r[ki])?'gk':'',
       cell:(j,v,q)=>metCell(idx[j],v,q),onRow:vr=>{const k=view.indexOf(vr);metDrawer(rows[k])},
-      extra:`<div class="sub" style="margin:-2px 0 8px">${L} 层共 ${tbls.length} 张表含${L==='DIM'||L==='DWD'?'度量':'指标'}字段 · 口径取自字段清单「字段注释」，计算逻辑取自「加工 / 来源」· 点行查看完整口径</div><div class="sub" style="margin:-4px 0 8px">${coverage(L)}</div>`});
+      extra:`<div class="sub" style="margin:-2px 0 8px">${L} 层 ${tbls.length} 张表（含实时）共 ${rows.length.toLocaleString()} 个字段：${order.filter(k=>cc[k]).map(k=>isGK(k)?`<span class="gk-mark">粒度键 ${cc[k]}</span>`:`${k} ${cc[k]}`).join(' · ')} · <span class="gk-mark">黄色底色</span> 为粒度键 · 用「类别」筛选可只看度量/指标 · 点行查看完整口径</div><div class="sub" style="margin:-4px 0 8px">${coverage(L)}</div>`});
   }else if(tab==='dwsdict'){
     const R=RAW['DWS口径'],c=R.cols,tcols=['落地 DWS 表','来源明细表','被哪些 ADS 表使用'];
     grid(h,{state:MS[tab],cols:c,rows:R.rows,wide:true,filters:[3,4,7],searchPh:'搜索口径编码 / 中文名 / 公式…',csvName:'DWS口径',extra:`<div class="sub" style="margin:-2px 0 8px">${coverage('DWS')}。编码带 B 的是改造补登记的去重位图口径。</div>`,
