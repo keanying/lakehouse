@@ -12,12 +12,7 @@ sku_src AS (                                               -- 主表「SKU」，
   WHERE travel_date = '${bizdate}'                         -- 只取当日分区
 ),
 spu_src AS (                                               -- 「SPU」当日数据，只取用到的列
-  SELECT id, spu_no
-  FROM ods.ods_prd_spu_df
-  WHERE travel_date = '${bizdate}'                         -- 只取当日分区
-),
-spu_src_2 AS (                                             -- 「SPU」当日数据，只取用到的列
-  SELECT id, poi_id, product_type, spu_name
+  SELECT id, poi_id, product_type, spu_name, spu_no
   FROM ods.ods_prd_spu_df
   WHERE travel_date = '${bizdate}'                         -- 只取当日分区
 ),
@@ -60,18 +55,16 @@ src AS (                                                   -- 今日最新状态
     sku_src.create_time                AS create_time,     -- 创建时间
     sku_src.update_time                AS update_time,     -- 更新时间
     spu_src.spu_no                     AS spu_no,          -- SPU 编号
-    spu_src_2.spu_name                 AS spu_name,        -- 产品名称
-    spu_src_2.product_type             AS product_type,    -- 产品业态
-    spu_src_2.poi_id                   AS poi_id,          -- POI ID（景区/场馆）
+    spu_src.spu_name                   AS spu_name,        -- 产品名称
+    spu_src.product_type               AS product_type,    -- 产品业态
+    spu_src.poi_id                     AS poi_id,          -- POI ID（景区/场馆）
     tenant_cur.tenant_name             AS tenant_name,     -- 所属商户名称
     COALESCE(sale_rule_count.v, 0)     AS sale_rule_qty,   -- 生效中的售卖规则数
     sku_attr_max.v                     AS real_name_policy_code,  -- 实名制策略
     sku_attr_max_2.v                   AS refund_policy_code  -- 退改策略
   FROM sku_src
-  LEFT JOIN spu_src                                        -- 关联「SPU」，取 SPU 编号
+  LEFT JOIN spu_src                                        -- 关联「SPU」，取 SPU 编号、产品名称、产品业态、POI ID（景区/场馆）
     ON spu_src.id = sku_src.spu_id                         -- 按 spu_id→id 关联
-  LEFT JOIN spu_src_2                                      -- 关联「SPU」，取 产品名称、产品业态、POI ID（景区/场馆）
-    ON spu_src_2.id = sku_src.tenant_id                    -- 按 tenant_id→id 关联
   LEFT JOIN tenant_cur                                     -- 关联「租户（商户/供应商/分销商）维度」，取 所属商户名称
     ON tenant_cur.tenant_id = sku_src.tenant_id            -- 按 tenant_id 关联
   LEFT JOIN sale_rule_count                                -- 关联「售卖规则维度」，取 生效中的售卖规则数

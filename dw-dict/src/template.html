@@ -470,7 +470,7 @@ function vTables(v,a,b){
   function detail(){
     const t=TBM[TS.sel],el=$('#td2');
     if(!t){el.innerHTML='<div class="empty" style="margin:auto">← 从左侧选择一张表，查看概览、字段与 DDL</div>';return}
-    const tabs=[['info','概览'],['cols',`字段 (${t.fields.length})`]];if(t.metrics&&t.metrics.length)tabs.push(['met',`指标口径 (${t.metrics.length})`]);tabs.push(['ddl','DDL']);const sch=SCHED(t.short),dq=DQ(t.short);const of=OF[t.short]||[];if(of.length)tabs.splice(2,0,['orig',`改造前字段 (${of.length})`]);if(ETL[t.short])tabs.splice(2,0,['etl','加工逻辑']);if(TS.tab==='etl'&&!ETL[t.short])TS.tab='info';if(TS.tab==='orig'&&!of.length)TS.tab='info';if(sch.length)tabs.push(['sch','调度']);if(dq.length)tabs.push(['dq',`质量规则 (${dq.length})`]);if(TS.tab==='sch'&&!sch.length||TS.tab==='dq'&&!dq.length)TS.tab='info';if(TS.tab==='met'&&!(t.metrics&&t.metrics.length))TS.tab='info';
+    const tabs=[['info','概览'],['cols',`字段 (${t.fields.length})`]];if(t.metrics&&t.metrics.length)tabs.push(['met',`指标口径 (${t.metrics.length})`]);tabs.push(['ddl','DDL']);const sch=SCHED(t.short),dq=DQ(t.short);if(ETL[t.short])tabs.splice(2,0,['etl','加工逻辑']);if(TS.tab==='etl'&&!ETL[t.short])TS.tab='info';if(TS.tab==='orig')TS.tab='info';if(sch.length)tabs.push(['sch','调度']);if(dq.length)tabs.push(['dq',`质量规则 (${dq.length})`]);if(TS.tab==='sch'&&!sch.length||TS.tab==='dq'&&!dq.length)TS.tab='info';if(TS.tab==='met'&&!(t.metrics&&t.metrics.length))TS.tab='info';
     el.innerHTML=`<div class="dh"><h2>${ltag(t.layer)}${esc(t.name)}<button class="btn" id="cpn" style="margin-left:auto;height:26px">复制表名</button></h2><div class="cn">${esc(t.cn)} · <span class="pill">${esc(t.domain)}</span> ${t.rt?'<span class="pill o">实时</span>':'<span class="pill g">离线</span>'}${CHG[t.short]?` <span class="pill o">改造</span> <span style="color:var(--sub);font-size:12px">${esc(CHG[t.short])}</span>`:''}</div><div class="tabs">${tabs.map(([k,l])=>`<a data-k="${k}" class="${TS.tab===k?'on':''}">${l}</a>`).join('')}</div></div><div class="db ${['info','met','sch','dq'].includes(TS.tab)?'':'flex'}" id="dbody"></div>`;
     $('#cpn').onclick=e=>copy(t.name,e.target);
     el.querySelector('.tabs').onclick=e=>{const a=e.target.closest('a');if(a){TS.tab=a.dataset.k;detail()}};
@@ -492,13 +492,6 @@ function vTables(v,a,b){
       body.innerHTML=`<div class="dtool" style="flex-wrap:wrap"><span class="sub" style="margin:0">${KN[e.kind]} · <span class="mono-s">${esc(e.path)}</span></span><span class="pill g">直接翻译 ${st.auto||0}</span><span class="pill b">规则翻译 ${st.rule||0}</span>${st.review?`<span class="pill o">待确认 ${st.review}</span><button class="btn" id="etodo" style="height:26px">定位待确认</button>`:''}<span class="grow" style="flex:1"></span><button class="btn pri" id="cpe">复制 SQL</button></div><pre class="code" id="esql">${sqlHtml(e.sql)}</pre>`;
       $('#cpe').onclick=ev=>copy(e.sql,ev.target);
       const tb=$('#etodo');if(tb){let k=0;tb.onclick=()=>{const L=[...document.querySelectorAll('#esql .todo')];if(!L.length)return;L.forEach(x=>x.classList.remove('cur'));const x=L[k%L.length];x.classList.add('cur');x.scrollIntoView({block:'center'});tb.textContent=`定位待确认 ${k%L.length+1}/${L.length}`;k++}}
-    }else if(TS.tab==='orig'){
-      const F0=ORIG['字段清单'],c0=F0.cols,g0=n=>c0.indexOf(n);const now=new Set(t.fields.map(f=>f.n));
-      const rows=of.map(r=>[r[g0('序号')],r[g0('字段名')],r[g0('类型')],r[g0('字段类别')],r[g0('字段注释')],now.has(r[g0('字段名')])?'保留':'已替换']);
-      body.innerHTML='';const box=document.createElement('div');box.style.cssText='flex:1;min-height:0;display:flex;flex-direction:column';body.appendChild(box);
-      grid(box,{cols:['#','字段名','类型','类别','字段注释','改造后'],rows,filters:[5],cls:['c-n','c-id','c-s','c-s','c-l','c-s'],pageSize:300,csvName:t.short+'_改造前',searchPh:'筛选改造前字段…',
-        extra:`<div class="sub" style="margin:-2px 0 8px">客户原版字段。ADS 表里按周期写死的列（如 pay_1d_amt / pay_7d_amt / pay_30d_amt）改造后合并为一个日字段 pay_amt（比率改存分子分母、买家数改存位图），任意周期在查询时关联时间表 dim_opr_period_f 汇总。</div>`,
-        cell:(i,v,q)=>i===5?`<span class="pill ${v==='保留'?'g':'o'}">${v}</span>`:i===3?catPill(v):hl(esc(v),q)});
     }else if(TS.tab==='sch'){
       const W=RAW['调度工作流'],c=W.cols;
       body.innerHTML=sch.map(r=>`<div class="sub" style="margin:4px 0 6px">${esc(r[0])} · 第 ${esc(r[1])} 步 · ${esc(r[3])}</div>`+kvHtml(c.map((n,i)=>[n,i===8||i===10?linksHtml(String(r[i]).replace(/dq\./g,'')):esc(r[i])]).filter((x,i)=>![0,1,3].includes(i)))).join('');
@@ -592,7 +585,7 @@ function metricDrawer(c,r,title,sub,ki,fi,tcols){
    kvHtml(c.map((n,i)=>[n,i===ki||i===fi?null:tcols.includes(n)?linksHtml(r[i]):n==='口径类型'?typePill(r[i]):esc(r[i])]).filter((_,i)=>i!==ki&&i!==fi)));
 }
 /* ---------- 改造前原版 ---------- */
-const OF={},OT={};{const c=ORIG['字段清单'].cols,g=c.indexOf('表名（库.表）');ORIG['字段清单'].rows.forEach(r=>(OF[shortN(r[g])]??=[]).push(r));
+const OT={};{
  const tc=ORIG['表清单'].cols,tg=n=>tc.indexOf(n);ORIG['表清单'].rows.forEach(r=>OT[shortN(r[tg('表名（库.表）')])]={grain:r[tg('粒度')],keys:r[tg('度量 / 口径 / 关键字段')]})}
 /* ---------- 调度 / 质量规则 索引 ---------- */
 const SCHED=(()=>{const m={};(RAW['调度工作流']?.rows||[]).forEach(r=>{const k=String(r[2]);(m[k]??=[]).push(r)});return t=>m[t]||[]})();
