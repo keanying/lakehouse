@@ -62,9 +62,30 @@ python3 dw-dict/build.py
 
 用同一套核对规则复核改造版：原版 11 类问题，改造版剩 3 类（两份设计文档字段不一致、1 个字段命名、时间字段用 STRING），都需要客户决定，未擅自修改。
 
+## 日期维表数据（scripts/dim_date）
+
+`scripts/dim_date/gen_dim_opr_date_f.py` 生成 `dim.dim_opr_date_f`（1 行 = 1 天）和 `dim.dim_opr_holiday_period_f`（节假日放假区间）的数据，只用 Python 标准库：
+
+```bash
+python3 scripts/dim_date/gen_dim_opr_date_f.py
+```
+
+```bash
+python3 scripts/dim_date/gen_dim_opr_date_f.py --start 2023-01-01 --end 2028-12-31 --out scripts/dim_date/output
+```
+
+- 默认范围：今年往前 3 年的 1 月 1 日 ~ 往后 2 年的 12 月 31 日（当前为 2023-01-01 ~ 2028-12-31，2,192 天）；
+- 输出 `output/` 下 CSV 和 Spark SQL（`INSERT OVERWRITE … FROM VALUES`，与 `sql/dim/dim_opr_date_f.sql`、`sql/dim/dim_opr_holiday_period_f.sql` 相同，年调度直接执行）；
+- 节假日：国务院办公厅 2022–2027 年放假安排（放假区间含相连周末、调休上班日）；未公布的年份（目前 2028）按《全国年节及纪念日放假办法》估算法定假日（逢周末顺延补休，不含调休上班），国务院每年 11 月前后公布次年安排后补进脚本 `HOLIDAYS` 重跑；
+- 农历：内置香港天文台《公历与农历日期对照表》2019–2036 年每个农历月初一，逐日与天文台对照表核对一致；
+- 同比对齐日：假期内取去年同一假期第 N 天，其余取 364 天前（同星期）；
+- 寒暑假、旺淡季是运营配置，默认规则（暑假 7–8 月；寒假 = 春节前 21 天 ~ 正月十五；法定节假日与暑假为旺季，11–3 月其余日期为淡季）在脚本 `vacation_type()` / `season_type()` 里，按实际业务修改。
+
+字典页的「区间解析演示」和 `sql/dim/` 下的两个脚本都从这个脚本取数据，节假日只维护一处。
+
 ## 加工逻辑说明
 
-`sql/` 下 176 个脚本由 `dw-dict/etl_gen.py` 生成，每个文件开头写明粒度、来源和字段翻译情况：
+`sql/` 下 177 个脚本由 `dw-dict/etl_gen.py` 生成（日期维表与节假日区间由上面的脚本生成），同一份字典每次生成结果一致，每个文件开头写明粒度、来源和字段翻译情况：
 
 - **直接翻译**：加工说明是「表.字段 / 改名 / ÷100 / 按键关联」，原样转成 SQL；
 - **规则翻译**：前后差（LAG）、JSON 展开、状态变更时间、聚合 where 条件、修饰词条件（如 渠道类型=小程序 → `channel_type='MP'`）等；
@@ -80,3 +101,4 @@ python3 dw-dict/build.py
 参数：`${bizdate}`（YYYYMMDD）、`${bizdate_dash}`（yyyy-MM-dd）、`${bizdate_prev}` / `${bizdate_prev_dash}`（前一天），周报 / 月报用 `${last_week_*}` / `${last_month_*}`。
 全部脚本已用 sqlglot 做过三项检查：语法（Spark / StarRocks 方言；Flink 专有语法替换后检查）；最外层输出列的名称和顺序与字段清单一致（INSERT 按位置写入）；以字段清单为表结构，逐个校验脚本引用的每一列都真实存在。
 统计周期时间表 `dim_opr_period_f` 的 SQL 已在 DuckDB 上用 2024–2026 年日期实际执行，17,536 行非节假日周期与 Python 区间算法逐行一致。
+日期维表与节假日区间的 SQL 同样在 DuckDB 上执行过，结果与 CSV 逐行一致。

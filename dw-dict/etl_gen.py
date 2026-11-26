@@ -104,7 +104,7 @@ class Dict:
             self.f[sn(r[fi['表名（库.表）']])].append({'n': r[fi['字段名']], 'type': r[fi['类型']], 'cat': r[fi['字段类别']],
                                                      'cmt': str(r[fi['字段注释']]), 'p': str(r[fi['加工 / 来源']]).strip(),
                                                      'up': str(r[fi['上游字段']])})
-        self.cols = {t: {x['n'] for x in fs} for t, fs in self.f.items()}
+        self.cols = {t: dict.fromkeys(x["n"] for x in fs) for t, fs in self.f.items()}   # 按字段清单顺序（有序，保证生成结果稳定）
 
     def db(self, t):
         return t.split('_', 1)[0]
@@ -210,16 +210,23 @@ class RowGen:
             if conds:
                 return conds
         ent = self.entity(self.main)
-        if ent and f'{ent}_id' in scols and 'id' in mc:
-            return [(f'{ent}_id', 'id')]
+        for e in ([ent, ent.split('_')[-1]] if ent else []):   # 如主表 sys_role → 关联表的 role_id
+            if f'{e}_id' in scols and 'id' in mc:
+                return [(f'{e}_id', 'id')]
         for k in skeys:
             if k in mc and k not in ('id', 'tenant_id', 'create_by', 'update_by'):
                 return [(k, k)]
+        es = self.entity(s)
         for k in skeys:
-            mk = next((x for x in mc if x != k and x.endswith('_' + k)), None)
+            if k in ('id', 'no', 'code'):
+                # 通用主键 id 只和主表的「<实体>_id」对应（如 package_id → 套餐包.id），不随便配任意 *_id
+                ents = [es, es.split('_')[-1]] if es else []
+                mk = next((x for e in ents for x in mc if x == f'{e}_{k}' or x.endswith(f'_{e}_{k}')), None)
+            else:
+                mk = next((x for x in mc if x != k and x.endswith('_' + k) and x not in ('tenant_id', 'create_by', 'update_by')), None)
             if mk:
                 return [(k, mk)]
-        if 'tenant_id' in scols and 'tenant_id' in mc:
+        if 'tenant_id' in scols and 'tenant_id' in mc and D.keys(s)[:1] == ['tenant_id']:   # 只有租户级的表才按 tenant_id 关联，否则会一对多
             return [('tenant_id', 'tenant_id')]
         return None
 
@@ -244,6 +251,11 @@ class RowGen:
         key = (s, tuple(kk) if kk else hint, via, agg or asof)
         if key in self.joins:
             return self.joins[key][0]
+        if not hint and not agg and not asof:
+            # 没写关联键的字段：同一张表已经按明确的键关联过，就复用那次关联
+            for (s2, _k, _v, ag2), (al2, _) in self.joins.items():
+                if s2 == s and ag2 is None:
+                    return al2
         al = 'j' + str(len(self.joins) + 1)
         if not kk:
             pk = self.D.pk(s)
@@ -1153,7 +1165,7 @@ def gen_time_tables(D):
     out = {}
     pc = "'D1','WTD','LW','MTD','LM','QTD','LQ','HTD','LH','YTD','LY','N7','N30','N90','N180','N365'"
     out['dim_opr_period_f'] = """-- dim.dim_opr_period_f  统计周期时间表
--- 每个截止日 T × 每种统计周期一行：本期 / 环比基期 / 同比基期区间。一次生成 2020–2035 年，之后每年 12 月补一年。
+-- 每个截止日 T × 每种统计周期一行：本期 / 环比基期 / 同比基期区间。截止日取日期维表的全部日期，日期维表扩范围后重跑即可。
 -- 依赖 dim_opr_date_f（日期）与 dim_opr_holiday_period_f（节假日放假区间）；每类周期一个 WITH 逻辑块，最后合并
 WITH
 anchor_day AS (            -- 全部截止日 T，并预先算好周/月/季/半年/年的首日
@@ -1249,35 +1261,9 @@ SELECT
   DATE_FORMAT(e, 'yyyy-MM-dd')                   AS end_date,             -- 本期结束日（展示）
   CURRENT_TIMESTAMP()                            AS etl_time              -- ETL 加载时间
 FROM all_period;"""
-    out['dim_opr_holiday_period_f'] = """-- dim.dim_opr_holiday_period_f  节假日放假区间
--- 人工维护：每年 12 月国务院公布次年放假安排后追加。以下为 2024–2026 年数据。
-INSERT OVERWRITE TABLE dim.dim_opr_holiday_period_f
-SELECT holiday_period_code, year_no, holiday_code, holiday_name, start_date, end_date,
-       DATEDIFF(TO_DATE(end_date, 'yyyyMMdd'), TO_DATE(start_date, 'yyyyMMdd')) + 1 AS holiday_day_qty,
-       adjust_workday_desc, last_year_period_code, CURRENT_TIMESTAMP() AS etl_time
-FROM VALUES
-  ('2024_new_year',        2024, 'new_year',        '元旦',          '20240101', '20240101', '',                  ''),
-  ('2024_spring_festival', 2024, 'spring_festival', '春节',          '20240210', '20240217', '20240204,20240218', ''),
-  ('2024_qingming',        2024, 'qingming',        '清明节',        '20240404', '20240406', '20240407',          ''),
-  ('2024_labour_day',      2024, 'labour_day',      '劳动节',        '20240501', '20240505', '20240428,20240511', ''),
-  ('2024_dragon_boat',     2024, 'dragon_boat',     '端午节',        '20240608', '20240610', '',                  ''),
-  ('2024_mid_autumn',      2024, 'mid_autumn',      '中秋节',        '20240915', '20240917', '20240914',          ''),
-  ('2024_national_day',    2024, 'national_day',    '国庆节',        '20241001', '20241007', '20240929,20241012', ''),
-  ('2025_new_year',        2025, 'new_year',        '元旦',          '20250101', '20250101', '',                  '2024_new_year'),
-  ('2025_spring_festival', 2025, 'spring_festival', '春节',          '20250128', '20250204', '20250126,20250208', '2024_spring_festival'),
-  ('2025_qingming',        2025, 'qingming',        '清明节',        '20250404', '20250406', '',                  '2024_qingming'),
-  ('2025_labour_day',      2025, 'labour_day',      '劳动节',        '20250501', '20250505', '20250427',          '2024_labour_day'),
-  ('2025_dragon_boat',     2025, 'dragon_boat',     '端午节',        '20250531', '20250602', '',                  '2024_dragon_boat'),
-  ('2025_national_day',    2025, 'national_day',    '国庆节·中秋节', '20251001', '20251008', '20250928,20251011', '2024_national_day'),
-  ('2026_new_year',        2026, 'new_year',        '元旦',          '20260101', '20260103', '20260104',          '2025_new_year'),
-  ('2026_spring_festival', 2026, 'spring_festival', '春节',          '20260215', '20260223', '20260214,20260228', '2025_spring_festival'),
-  ('2026_qingming',        2026, 'qingming',        '清明节',        '20260404', '20260406', '',                  '2025_qingming'),
-  ('2026_labour_day',      2026, 'labour_day',      '劳动节',        '20260501', '20260505', '20260509',          '2025_labour_day'),
-  ('2026_dragon_boat',     2026, 'dragon_boat',     '端午节',        '20260619', '20260621', '',                  '2025_dragon_boat'),
-  ('2026_mid_autumn',      2026, 'mid_autumn',      '中秋节',        '20260925', '20260927', '',                  ''),
-  ('2026_national_day',    2026, 'national_day',    '国庆节',        '20261001', '20261007', '20260920,20261010', '2025_national_day')
-AS v(holiday_period_code, year_no, holiday_code, holiday_name, start_date, end_date, adjust_workday_desc, last_year_period_code);
--- 调休上班日以国务院当年通知为准，上线前核对"""
+    cal = date_calendar()
+    out['dim_opr_holiday_period_f'] = cal['holiday_sql'].rstrip('\n')
+    out['dim_opr_date_f'] = cal['date_sql'].rstrip('\n')
     return out
 
 
@@ -1426,20 +1412,16 @@ def generate(sheets, ads_model=None):
         sql, stats, _ = r
         if t not in hand:
             sql = annotate(sql, t, D)
-        if t == 'dim_opr_date_f':
-            sql += DATE_EXTRA
         path = {'hive': f'sql/{L.lower()}/{t}.sql', 'flink': f'sql/flink/{t}.sql', 'starrocks': f'sql/starrocks/{t}.sql'}[kind]
         out[t] = {'sql': sql, 'kind': kind, 'path': path, 'stats': dict(stats)}
     return out
 
 
-DATE_EXTRA = """
-
--- 改造新增字段（dim_opr_date_f 补充的 7 个统计周期字段）的取值：
---   half_year_no            = IF(MONTH(d) <= 6, 1, 2)
---   quarter_start_date      = DATE_FORMAT(TRUNC(d, 'Q'), 'yyyy-MM-dd')
---   year_start_date         = DATE_FORMAT(TRUNC(d, 'YYYY'), 'yyyy-MM-dd')
---   holiday_period_code     = h.holiday_period_code（d BETWEEN h.start_date AND h.end_date）
---   holiday_day_no          = DATEDIFF(d, h.start_date) + 1
---   lunar_date_code         = 农历对照表（UDF 或静态表）
---   last_year_same_day_date = 假期内取去年同一假期第 holiday_day_no 天，否则 DATE_SUB(d, 364)"""
+def date_calendar():
+    """日期维表与节假日区间的数据由 scripts/dim_date/gen_dim_opr_date_f.py 生成（默认范围：往前 3 年 ~ 往后 2 年）。"""
+    import importlib.util, pathlib
+    p = pathlib.Path(__file__).resolve().parent.parent / 'scripts' / 'dim_date' / 'gen_dim_opr_date_f.py'
+    spec = importlib.util.spec_from_file_location('gen_dim_opr_date_f', p)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m.render(*m.default_range())

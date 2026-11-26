@@ -1,8 +1,9 @@
 -- dim.dim_prd_sku_attr_df  SKU票属性维度
 -- 粒度：1行=1个SKU×1个票属性
 -- 来源：ods_prd_sku_meta_value_df + ods_prd_ticket_meta_df, dim_prd_ticket_meta_f
--- 生成方式：Spark SQL / Hive；字段 11 个：直接翻译 11 · 规则翻译 0 · 待确认 0
+-- 生成方式：Spark SQL / Hive；字段 12 个：直接翻译 11 · 规则翻译 0 · 待确认 1
 -- 每个 WITH 逻辑块只取用到的列并先过滤分区；小维表广播关联
+-- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 sku_meta_value_src AS (                                        -- 主表「SKU票属性值」，只取用到的列
@@ -16,7 +17,7 @@ ticket_meta_src AS (                                           -- 「票属性�
   WHERE travel_date = '${bizdate}'                             -- 只取当日分区
 ),
 dict_dim AS (                                                  -- 「枚举码表」当日数据，只取用到的列
-  SELECT dict_name, tenant_id
+  SELECT dict_id, dict_name
   FROM dim.dim_opr_dict_f
 )
 INSERT OVERWRITE TABLE dim.dim_prd_sku_attr_df PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
@@ -36,4 +37,4 @@ FROM sku_meta_value_src
 LEFT JOIN ticket_meta_src                                      -- 关联「票属性元数据」，取 属性名称、值类型
   ON ticket_meta_src.attribute_code = sku_meta_value_src.attribute_code  -- 按 attribute_code 关联
 LEFT JOIN dict_dim                                             -- 关联「枚举码表」，取 属性值中文含义
-  ON dict_dim.tenant_id = sku_meta_value_src.tenant_id;        -- 按 tenant_id 关联
+  ON dict_dim.dict_id = sku_meta_value_src.id;                 -- 按 id→dict_id 关联｜待确认：关联键

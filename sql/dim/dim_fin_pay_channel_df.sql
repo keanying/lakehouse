@@ -12,12 +12,7 @@ payment_channel_config_src AS (                                           -- 主
   WHERE travel_date = '${bizdate}'                                        -- 只取当日分区
 ),
 merchant_payment_config_src AS (                                          -- 「商户收款配置」当日数据，只取用到的列
-  SELECT channel_code, collection_mode, tenant_id
-  FROM ods.ods_fin_merchant_payment_config_df
-  WHERE travel_date = '${bizdate}'                                        -- 只取当日分区
-),
-merchant_payment_config_src_2 AS (                                        -- 「商户收款配置」当日数据，只取用到的列
-  SELECT config_status, merchant_no
+  SELECT channel_code, collection_mode, config_status, tenant_id
   FROM ods.ods_fin_merchant_payment_config_df
   WHERE travel_date = '${bizdate}'                                        -- 只取当日分区
 )
@@ -34,10 +29,8 @@ SELECT
   payment_channel_config_src.create_time      AS create_time,             -- 创建时间
   payment_channel_config_src.update_time      AS update_time,             -- 更新时间
   merchant_payment_config_src.collection_mode AS collection_mode_type,    -- 商户收款模式
-  merchant_payment_config_src_2.config_status AS merchant_config_status,  -- 商户支付配置状态
+  merchant_payment_config_src.config_status   AS merchant_config_status,  -- 商户支付配置状态
   CURRENT_TIMESTAMP()                         AS etl_time                 -- ETL 加载时间
 FROM payment_channel_config_src
-LEFT JOIN merchant_payment_config_src                                     -- 关联「商户收款配置」，取 商户收款模式
-  ON merchant_payment_config_src.tenant_id = payment_channel_config_src.tenant_id AND merchant_payment_config_src.channel_code = payment_channel_config_src.channel_code  -- 按 tenant_id、channel_code 关联
-LEFT JOIN merchant_payment_config_src_2                                   -- 关联「商户收款配置」，取 商户支付配置状态
-  ON merchant_payment_config_src_2.merchant_no = payment_channel_config_src.merchant_no;  -- 按 merchant_no 关联
+LEFT JOIN merchant_payment_config_src                                     -- 关联「商户收款配置」，取 商户收款模式、商户支付配置状态
+  ON merchant_payment_config_src.tenant_id = payment_channel_config_src.tenant_id AND merchant_payment_config_src.channel_code = payment_channel_config_src.channel_code;  -- 按 tenant_id、channel_code 关联

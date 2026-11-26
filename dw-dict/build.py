@@ -56,7 +56,12 @@ def main():
     meta = {'xlsx': xlsx.name, 'built': datetime.date.today().isoformat(), 'dict2': xlsx.stem + '_改造版.xlsx'}
     js = lambda o: json.dumps(o, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/')
     tpl = (ROOT / 'src' / 'template.html').read_text(encoding='utf-8')
-    html = tpl.replace('__DATA__', js(data2)).replace('__ORIG__', js(orig)).replace('__CHECKS__', js(res)).replace('__META__', js(meta)).replace('__ADS__', js(model)).replace('__ETL__', js(etl))
+    cal = etl_gen.date_calendar()   # 区间解析演示的节假日与 dim_opr_holiday_period_f 同源
+    d10 = lambda x: f'{x[:4]}-{x[4:6]}-{x[6:]}'
+    hol = {}
+    for r in cal['holiday_rows']:
+        hol.setdefault(r[1], []).append([r[3], r[2], d10(r[4]), d10(r[5])])
+    html = tpl.replace('__HOL__', js(hol)).replace('__DATA__', js(data2)).replace('__ORIG__', js(orig)).replace('__CHECKS__', js(res)).replace('__META__', js(meta)).replace('__ADS__', js(model)).replace('__ETL__', js(etl))
     (ROOT / 'dist').mkdir(exist_ok=True)
     (ROOT / 'dist' / 'index.html').write_text(html, encoding='utf-8')
     DOCS.mkdir(exist_ok=True)
