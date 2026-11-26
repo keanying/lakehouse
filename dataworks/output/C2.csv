@@ -1,0 +1,4 @@
+﻿含义,现有字段名
+订单数,order_num / ordernum / ordernum_num / paid_count
+票数,ticket_num / mo_ticket_count / verify_num
+金额,paid_amount / payment_money / sale_money / mo_amount / total
