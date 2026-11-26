@@ -19,11 +19,9 @@ SELECT
   a.create_time                          AS create_time,     -- 创建时间
   a.update_time                          AS update_time,     -- 更新时间
   j1.rule_type                           AS rule_type,       -- 规则类型
-  j2.dimension_type                      AS dimension_type,  -- 规则维度
+  j1.dimension_type                      AS dimension_type,  -- 规则维度
   a.create_time                          AS event_time,      -- 事件发生时间
   1                                      AS event_qty        -- 事件数
 FROM ods.ods_opr_risk_event_rt a                             -- 主表「风控事件 binlog 流」
-LEFT JOIN dim.dim_opr_risk_rule_df FOR SYSTEM_TIME AS OF a.proc_time AS j1  -- 关联「风控规则维度」，取 规则类型
-  ON j1.risk_rule_id = a.rule_id                             -- 按 rule_id→risk_rule_id 关联
-LEFT JOIN dim.dim_opr_risk_rule_df FOR SYSTEM_TIME AS OF a.proc_time AS j2  -- 关联「风控规则维度」，取 规则维度
-  ON j2.tenant_id = a.tenant_id;                             -- 按 tenant_id 关联
+LEFT JOIN dim.dim_opr_risk_rule_df FOR SYSTEM_TIME AS OF a.proc_time AS j1  -- 关联「风控规则维度」，取 规则类型、规则维度
+  ON j1.risk_rule_id = a.rule_id;                            -- 按 rule_id→risk_rule_id 关联

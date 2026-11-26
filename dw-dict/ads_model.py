@@ -693,7 +693,7 @@ def apply_to_dictionary(sheets, model, chk):
         changed[name] = '新增表'
 
     ads_ts = '查询时关联：' + '、'.join(tables)
-    add_table('dim_opr_holiday_period_f', '节假日放假区间', '1行=1个年度×1个节假日', '人工维护（每年 12 月按国务院放假安排录入次年）',
+    add_table('dim_opr_holiday_period_f', '节假日放假区间', '1行=1个年度×1个节假日', '脚本生成（scripts/dim_date/gen_dim_opr_date_f.py；每年国务院公布次年放假安排后补录重跑）',
               'holiday_period_code', 'dim_opr_period_f、dim_opr_date_f', HOLIDAY_DDL.split('-- dim_opr_date_f')[0])
     add_table('dim_opr_period_f', '统计周期时间表', '1行=1个截止日×1种统计周期', '脚本生成（dim_opr_date_f + dim_opr_holiday_period_f）',
               'anchor_date_no、period_type_code、holiday_period_code', ads_ts, PERIOD_DIM_DDL)
@@ -710,6 +710,7 @@ def apply_to_dictionary(sheets, model, chk):
                 rows.insert(pos, frow('DIM', o[fi['表名（库.表）']], o[fi['表中文名']], 0, c, ty, '维度属性', cm, '脚本生成（含 dim_opr_holiday_period_f）', ''))
                 pos += 1
         tr = trow['dim_opr_date_f']
+        tr[ti['来源']] = '脚本生成（scripts/dim_date/gen_dim_opr_date_f.py：国务院放假安排 + 香港天文台农历对照表）'
         tr[ti['下游表']] = '、'.join([x for x in re.split(r'[、,，\s]+', str(tr[ti['下游表']])) if x] + ['dim_opr_period_f'])
         tr[ti['备注']] = (str(tr[ti['备注']]) + '；' if tr[ti['备注']] else '') + '【改造】补半年度、节假日区间、节假日第N天、农历、同比对齐日等 7 个字段'
         changed['dim_opr_date_f'] = '补 7 个统计周期字段（半年度、节假日区间、同比对齐日等）'
@@ -977,7 +978,7 @@ def finalize_dictionary(S, model, changed):
             rule(t, dim_, txt, lvl, fail, exp_, note, sql)
             newq[-1][qi['工作流']] = '年调度'
     rule('dim_opr_holiday_period_f', '完整性', '下一年度节假日已录入', '强', '阻断下游', 'cnt >= 7',
-         '每年 12 月国务院公布次年放假安排后人工录入；未录入则次年节假日周期为空',
+         '每年国务院公布次年放假安排后补进脚本重跑；未公布时脚本按法定假日估算（不含调休）',
          "SELECT COUNT(*) AS cnt FROM dim.dim_opr_holiday_period_f WHERE year_no = YEAR(CURRENT_DATE()) + 1;")
     newq[-1][qi['工作流']] = '年调度'
     Q['rows'] = keep + newq
@@ -998,7 +999,7 @@ def finalize_dictionary(S, model, changed):
                          ('失败处理', fail), ('规则数', n), ('等待（上游）', wait), ('执行 / 说明', run)):
                 r[wi[k]] = v
             return r
-        add = [wrow(2, 'dim_opr_holiday_period_f', '任务', '节假日放假区间（每年 12 月人工录入次年后触发）', 'start.yearly', '', 0, 'sql/dim/dim_opr_holiday_period_f.sql'),
+        add = [wrow(2, 'dim_opr_holiday_period_f', '任务', '节假日放假区间（每年国务院公布次年安排后补进脚本重跑）', 'start.yearly', '', 0, 'sql/dim/dim_opr_holiday_period_f.sql'),
                wrow(3, 'dq.dim_opr_holiday_period_f', '质检', '节假日放假区间 质检', 'dim_opr_holiday_period_f', '阻断', nrule['dq.dim_opr_holiday_period_f'], ''),
                wrow(4, 'dim_opr_period_f', '任务', '统计周期时间表（重算全部截止日，约 6 千行/年）', 'dq.dim_opr_date_f、dq.dim_opr_holiday_period_f', '', 0, 'sql/dim/dim_opr_period_f.sql'),
                wrow(5, 'dq.dim_opr_period_f', '质检', '统计周期时间表 质检', 'dim_opr_period_f', '阻断', nrule['dq.dim_opr_period_f'], '')]
@@ -1014,7 +1015,7 @@ def finalize_dictionary(S, model, changed):
         ('命名规范', '去重位图字段后缀 _bitmap 不在规范关键字内', '新增 *_bitmap（BITMAP 类型）存去重集合，建议规范补充 _bitmap 关键字', '影响 6 张 DWS、ADS 去重类字段'),
         ('技术选型', 'ADS 去重指标依赖 BITMAP_UNION 查询', 'ADS 与 DWS 的 *_bitmap 列需在 StarRocks 以 BITMAP 类型存储与查询；仅用 Hive 查询时需回明细按区间去重', '影响买家数、动销商户/SKU 数等去重指标'),
         ('口径', 'ADS 统计周期改为查询时关联时间表', 'ADS 保持日粒度；本周/本月/近半年/节假日/自定义等周期、环比/同比/日均在查询时关联 dim_opr_period_f 计算，原 *_7d_* / *_30d_* / *_mtd_* / *_ytd_* 列下线', '影响全部 ADS 报表查询方式'),
-        ('数据维护', '节假日放假区间需每年人工维护', '每年 12 月国务院公布次年放假安排后录入 dim_opr_holiday_period_f，年调度重算时间表', '影响节假日周期及同比'),
+        ('数据维护', '节假日放假区间需每年更新', '国务院一般在 11 月公布次年放假安排：补进 scripts/dim_date/gen_dim_opr_date_f.py 的 HOLIDAYS 后重跑，覆盖 dim_opr_date_f 与 dim_opr_holiday_period_f，年调度重算时间表；未公布年份脚本按法定假日估算（不含调休）', '影响节假日周期、日期类型及同比'),
         ('口径', '实时去重指标仍为分钟计数相加', '实时 DWS 的买家数等仍按分钟窗口 COUNT(DISTINCT) 后相加，跨窗口会重复计人；如需准确需实时 DWS 也存位图', '影响实时今日买家数'),
         ('源系统缺口', '字典引用了上游不存在的字段', '如买家条件 kind=\'REAL\' 在 dwd_ord_order_di 中不存在；加工 SQL 中以「待确认」标出，需客户确认口径或补字段', '影响新注册游客数、支付买家数等'),
         ('口径', '日存储的比率分子可能大于分母', '退款、核销等跨日事件按事件日入账，单日的退票率等可能超过 100%；区间汇总后正常', '影响单日比率的展示'),

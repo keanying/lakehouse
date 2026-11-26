@@ -1,7 +1,7 @@
 -- dwd.dwd_fin_resource_batch_di  资源包购买/消耗明细
 -- 粒度：1行=1个资源批次的1日状态
 -- 来源：ods_fin_resource_batch_df（相邻日快照求差）
--- 生成方式：Spark SQL / Hive；字段 15 个：直接翻译 14 · 规则翻译 0 · 待确认 1
+-- 生成方式：Spark SQL / Hive；字段 16 个：直接翻译 14 · 规则翻译 0 · 待确认 2
 -- 流水/状态变更类：保留每条变更记录；每个 WITH 逻辑块只取用到的列并先过滤分区
 -- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
@@ -13,7 +13,7 @@ resource_batch_chg AS (                                               -- 主表�
   WHERE travel_date = '${bizdate}'                                    -- 只取当日分区
 ),
 package_subscription_dtl AS (                                         -- 「套餐订购明细」当日数据，只取用到的列
-  SELECT package_id, tenant_id
+  SELECT package_id, subscription_id
   FROM dwd.dwd_opr_package_subscription_di
   WHERE travel_date = '${bizdate}'                                    -- 只取当日分区
 )
@@ -36,4 +36,4 @@ SELECT
   CURRENT_TIMESTAMP()                              AS etl_time        -- ETL 加载时间
 FROM resource_batch_chg
 LEFT JOIN package_subscription_dtl                                    -- 关联「套餐订购明细」，取 来源套餐ID
-  ON package_subscription_dtl.tenant_id = resource_batch_chg.tenant_id;  -- 按 tenant_id 关联
+  ON package_subscription_dtl.subscription_id = resource_batch_chg.id;  -- 按 id→subscription_id 关联｜待确认：关联键
