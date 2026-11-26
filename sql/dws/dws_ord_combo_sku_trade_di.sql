@@ -26,7 +26,7 @@ src_order_status_log AS (                                         -- 来源「�
   SELECT
     sku_id AS combo_sku_id,                                       -- 套票主 SKU ID
     sku_id AS sub_sku_id,                                         -- 套票子项 SKU ID
-    tenant_id AS sub_seller_tenant_id,                            -- 套票子项卖家租户ID
+    seller_tenant_id AS sub_seller_tenant_id,                     -- 套票子项卖家租户ID
     NULL AS combo_order_qty,
     COUNT(DISTINCT CASE WHEN after_status='PAID' THEN order_no END) AS pay_order_qty,  -- 支付子单数
     NULL AS pay_amt,
@@ -36,7 +36,7 @@ src_order_status_log AS (                                         -- 来源「�
     NULL AS pay_ticket_qty
   FROM dwd.dwd_ord_order_status_log_di s                          -- 来源表「子单状态流转明细」
   WHERE s.travel_date = '${bizdate}'                              -- 只取当日分区
-  GROUP BY sku_id, sku_id, tenant_id                              -- 按粒度键汇总
+  GROUP BY sku_id, sku_id, seller_tenant_id                       -- 按粒度键汇总
 ),
 src_refund_ticket AS (                                            -- 来源「退款票明细」按粒度键预聚合
   SELECT
