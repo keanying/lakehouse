@@ -1,0 +1,129 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "BI_RDS_oa_ecology",
+        "column": [
+          "id",
+          "requestId",
+          "bh",
+          "sqr",
+          "sqsj",
+          "jqmc",
+          "htbh",
+          "hflx",
+          "sfysgwc",
+          "jqlxr",
+          "lxdh",
+          "lxrjs",
+          "dqqkms",
+          "zphfkf",
+          "njqdsbazhlm",
+          "qwnxzsfyjkssywsdsbln",
+          "qwssmyydznwkssyn",
+          "ndwsdrjcpsfmy",
+          "ndwsdyjsbsfmy",
+          "ndwsdssgcsdfwsfmy",
+          "bz",
+          "nfkdwtsfddjj",
+          "ndwsdssgcsdfws1fmy",
+          "ndwtdclsdsfgdmy",
+          "bz1",
+          "xzhfnr",
+          "smshhfnr",
+          "rjbmyyy",
+          "yjbmyyy",
+          "ssgcsbmyyy",
+          "ssgcsbmyyy1",
+          "bmyhs",
+          "sfys",
+          "tcsj",
+          "glxslxtz"
+        ],
+        "connection": [
+          {
+            "datasource": "BI_RDS_oa_ecology",
+            "table": [
+              "formtable_main_212"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_opr_oa_form_212_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "requestid",
+          "bh",
+          "sqr",
+          "sqsj",
+          "jqmc",
+          "htbh",
+          "hflx",
+          "sfysgwc",
+          "jqlxr",
+          "lxdh",
+          "lxrjs",
+          "dqqkms",
+          "zphfkf",
+          "njqdsbazhlm",
+          "qwnxzsfyjkssywsdsbln",
+          "qwssmyydznwkssyn",
+          "ndwsdrjcpsfmy",
+          "ndwsdyjsbsfmy",
+          "ndwsdssgcsdfwsfmy",
+          "bz",
+          "nfkdwtsfddjj",
+          "ndwsdssgcsdfws1fmy",
+          "ndwtdclsdsfgdmy",
+          "bz1",
+          "xzhfnr",
+          "smshhfnr",
+          "rjbmyyy",
+          "yjbmyyy",
+          "ssgcsbmyyy",
+          "ssgcsbmyyy1",
+          "bmyhs",
+          "sfys",
+          "tcsj",
+          "glxslxtz"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

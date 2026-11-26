@@ -1,0 +1,83 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "polardb",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "POLAR_myuu",
+        "column": [
+          "id",
+          "orderid",
+          "trade_no",
+          "fid",
+          "dprice",
+          "exclusive_id",
+          "version_code",
+          "remain_num",
+          "opid",
+          "order_time",
+          "purchase_type",
+          "subject_code"
+        ],
+        "connection": [
+          {
+            "datasource": "POLAR_myuu",
+            "table": [
+              "pft_account_exclusive_purchase_record"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_fin_account_exclusive_purchase_record_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "orderid",
+          "trade_no",
+          "fid",
+          "dprice",
+          "exclusive_id",
+          "version_code",
+          "remain_num",
+          "opid",
+          "order_time",
+          "purchase_type",
+          "subject_code"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

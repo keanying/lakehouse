@@ -1,0 +1,95 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "polardb",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "POLAR_myuu",
+        "column": [
+          "id",
+          "pid",
+          "ticket_id",
+          "ptype",
+          "n_price",
+          "m_price",
+          "s_price",
+          "l_price",
+          "window_price",
+          "start_date",
+          "end_date",
+          "memo",
+          "status",
+          "weekdays",
+          "storage",
+          "rid",
+          "update_time",
+          "operater_id"
+        ],
+        "connection": [
+          {
+            "datasource": "POLAR_myuu",
+            "table": [
+              "uu_product_price"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_prd_ticket_price_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "pid",
+          "ticket_id",
+          "ptype",
+          "n_price",
+          "m_price",
+          "s_price",
+          "l_price",
+          "window_price",
+          "start_date",
+          "end_date",
+          "memo",
+          "status",
+          "weekdays",
+          "storage",
+          "rid",
+          "update_time",
+          "operater_id"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

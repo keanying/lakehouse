@@ -1,0 +1,63 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "RDS_BI_Business",
+        "column": [
+          "coopB",
+          "system_name"
+        ],
+        "connection": [
+          {
+            "datasource": "RDS_BI_Business",
+            "table": [
+              "third_purchase_system"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_opr_third_purchase_system_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "coopb",
+          "system_name"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

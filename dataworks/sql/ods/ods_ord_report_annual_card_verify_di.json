@@ -1,0 +1,97 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "RDS_summary",
+        "column": [
+          "id",
+          "date",
+          "fid",
+          "reseller_id",
+          "lid",
+          "tid",
+          "pid",
+          "card_tid",
+          "card_pid",
+          "level",
+          "operate_id",
+          "order_num",
+          "order_ticket",
+          "cost_money",
+          "sale_money",
+          "orders_info",
+          "channel",
+          "update_time",
+          "site_id"
+        ],
+        "connection": [
+          {
+            "datasource": "RDS_summary",
+            "table": [
+              "pft_report_annual_card_checked"
+            ]
+          }
+        ],
+        "where": "`update_time` >= UNIX_TIMESTAMP(STR_TO_DATE('${bizdate}', '%Y%m%d')) AND `update_time` < UNIX_TIMESTAMP(DATE_ADD(STR_TO_DATE('${bizdate}', '%Y%m%d'), INTERVAL 1 DAY))",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_ord_report_annual_card_verify_di",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "date",
+          "fid",
+          "reseller_id",
+          "lid",
+          "tid",
+          "pid",
+          "card_tid",
+          "card_pid",
+          "level",
+          "operate_id",
+          "order_num",
+          "order_ticket",
+          "cost_money",
+          "sale_money",
+          "orders_info",
+          "channel",
+          "update_time",
+          "site_id"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

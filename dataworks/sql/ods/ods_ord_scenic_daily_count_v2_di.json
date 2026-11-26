@@ -1,0 +1,81 @@
+{ds} —— 只取当天新建记录，之后的状态变化漏采，已改为按 updatetime
+--   · 写入：truncate 当日分区（幂等，可重跑）；ORC + SNAPPY；脏数据 0 容忍（errorLimit=0），有脏数据直接失败告警
+-- DataWorks 数据集成 · 脚本模式（JSON）：
+-- ================================================================================================
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "RDS_summary",
+        "column": [
+          "id",
+          "sid",
+          "land_id",
+          "num",
+          "roll",
+          "device_key",
+          "createtime",
+          "updatetime",
+          "date"
+        ],
+        "connection": [
+          {
+            "datasource": "RDS_summary",
+            "table": [
+              "pft_dc_daycount_two"
+            ]
+          }
+        ],
+        "where": "`updatetime` >= UNIX_TIMESTAMP(STR_TO_DATE('${bizdate}', '%Y%m%d')) AND `updatetime` < UNIX_TIMESTAMP(DATE_ADD(STR_TO_DATE('${bizdate}', '%Y%m%d'), INTERVAL 1 DAY))",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_ord_scenic_daily_count_v2_di",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "sid",
+          "land_id",
+          "num",
+          "roll",
+          "device_key",
+          "createtime",
+          "updatetime",
+          "date"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

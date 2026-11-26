@@ -1,0 +1,89 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "ECS_pft_business_case",
+        "column": [
+          "id",
+          "sid",
+          "annual_id",
+          "CONCAT(LEFT(`mobile`, 7), '#', SHA2(`mobile`, 256))",
+          "CASE WHEN CHAR_LENGTH(`id_card`) = 18 THEN CONCAT(LEFT(`id_card`, 6), SUBSTR(`id_card`, 7, 4), SUBSTR(`id_card`, 17, 1), '#', SHA2(UPPER(`id_card`), 256)) ELSE CONCAT('#', SHA2(UPPER(`id_card`), 256)) END",
+          "name",
+          "tid",
+          "audit_materials",
+          "state",
+          "apply_remark",
+          "audit_remark",
+          "op_id",
+          "active_params",
+          "create_time",
+          "update_time"
+        ],
+        "connection": [
+          {
+            "datasource": "ECS_pft_business_case",
+            "table": [
+              "pft_annual_card_active_apply"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_ord_annual_card_active_apply_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "sid",
+          "annual_id",
+          "mobile",
+          "id_card",
+          "name",
+          "tid",
+          "audit_materials",
+          "state",
+          "apply_remark",
+          "audit_remark",
+          "op_id",
+          "active_params",
+          "create_time",
+          "update_time"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

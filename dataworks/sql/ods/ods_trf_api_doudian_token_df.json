@@ -1,0 +1,79 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "pft_open",
+        "column": [
+          "id",
+          "shop_id",
+          "access_token",
+          "refresh_token",
+          "expires_in",
+          "member_id",
+          "shop_name",
+          "create_time",
+          "update_time",
+          "opid"
+        ],
+        "connection": [
+          {
+            "datasource": "pft_open",
+            "table": [
+              "api_doudian_token"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_trf_api_doudian_token_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "shop_id",
+          "access_token",
+          "refresh_token",
+          "expires_in",
+          "member_id",
+          "shop_name",
+          "create_time",
+          "update_time",
+          "opid"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

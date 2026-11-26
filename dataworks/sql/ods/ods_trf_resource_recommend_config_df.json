@@ -1,0 +1,93 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "polardb",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "POLAR_rcenter",
+        "column": [
+          "id",
+          "title",
+          "url_path",
+          "subheading",
+          "min_img",
+          "max_img",
+          "title_img",
+          "place",
+          "add_time",
+          "update_time",
+          "recommend_type",
+          "index_num",
+          "enabled_state",
+          "delete_type",
+          "opid",
+          "channel",
+          "recommend_describe"
+        ],
+        "connection": [
+          {
+            "datasource": "POLAR_rcenter",
+            "table": [
+              "pft_resource_recommend_config"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_trf_resource_recommend_config_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "title",
+          "url_path",
+          "subheading",
+          "min_img",
+          "max_img",
+          "title_img",
+          "place",
+          "add_time",
+          "update_time",
+          "recommend_type",
+          "index_num",
+          "enabled_state",
+          "delete_type",
+          "opid",
+          "channel",
+          "recommend_describe"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

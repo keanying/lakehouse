@@ -1,0 +1,75 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "RDS_pft_ai",
+        "column": [
+          "id",
+          "sid",
+          "land_id",
+          "num",
+          "create_time",
+          "device_key",
+          "roll",
+          "all_num"
+        ],
+        "connection": [
+          {
+            "datasource": "RDS_pft_ai",
+            "table": [
+              "pft_dc_daycount_info"
+            ]
+          }
+        ],
+        "where": "`create_time` >= UNIX_TIMESTAMP(STR_TO_DATE('${bizdate}', '%Y%m%d')) AND `create_time` < UNIX_TIMESTAMP(DATE_ADD(STR_TO_DATE('${bizdate}', '%Y%m%d'), INTERVAL 1 DAY))",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_ord_scenic_daily_count_di",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "sid",
+          "land_id",
+          "num",
+          "create_time",
+          "device_key",
+          "roll",
+          "all_num"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

@@ -1,0 +1,99 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "pft_open",
+        "column": [
+          "id",
+          "pftOrder",
+          "apiOrder",
+          "coopB",
+          "bCode",
+          "oStatus",
+          "oStnum",
+          "apiCode",
+          "cTime",
+          "uTime",
+          "tempOrder",
+          "handleStatus",
+          "tourist_info",
+          "single_num",
+          "errormsg",
+          "fid",
+          "remoteorder",
+          "select_time",
+          "select_status",
+          "code_query_status"
+        ],
+        "connection": [
+          {
+            "datasource": "pft_open",
+            "table": [
+              "all_api_order"
+            ]
+          }
+        ],
+        "where": "cTime >= STR_TO_DATE(${ds}, '%Y%m%d') AND cTime < DATE_ADD(STR_TO_DATE(${ds}, '%Y%m%d'), INTERVAL 1 DAY)",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_trf_all_api_order_di",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "pftorder",
+          "apiorder",
+          "coopb",
+          "bcode",
+          "ostatus",
+          "ostnum",
+          "apicode",
+          "ctime",
+          "utime",
+          "temporder",
+          "handlestatus",
+          "tourist_info",
+          "single_num",
+          "errormsg",
+          "fid",
+          "remoteorder",
+          "select_time",
+          "select_status",
+          "code_query_status"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

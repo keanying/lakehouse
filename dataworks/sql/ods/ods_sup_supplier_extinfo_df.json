@@ -1,0 +1,73 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "polardb",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "POLAR_myuu",
+        "column": [
+          "id",
+          "fid",
+          "transfer_time",
+          "enable_num",
+          "enable_time",
+          "push_money_check_time",
+          "push_money_checkt_status"
+        ],
+        "connection": [
+          {
+            "datasource": "POLAR_myuu",
+            "table": [
+              "pft_supplier_extinfo"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_sup_supplier_extinfo_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "fid",
+          "transfer_time",
+          "enable_num",
+          "enable_time",
+          "push_money_check_time",
+          "push_money_checkt_status"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

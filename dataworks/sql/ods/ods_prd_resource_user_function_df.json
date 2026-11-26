@@ -1,0 +1,79 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "polardb",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "POLAR_rcenter",
+        "column": [
+          "id",
+          "sid",
+          "function_type",
+          "add_time",
+          "update_time",
+          "product_status",
+          "opid",
+          "user_function_type",
+          "start_time",
+          "end_time"
+        ],
+        "connection": [
+          {
+            "datasource": "POLAR_rcenter",
+            "table": [
+              "pft_resource_user_function"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_prd_resource_user_function_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "sid",
+          "function_type",
+          "add_time",
+          "update_time",
+          "product_status",
+          "opid",
+          "user_function_type",
+          "start_time",
+          "end_time"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

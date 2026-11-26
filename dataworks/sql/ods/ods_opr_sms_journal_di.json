@@ -1,0 +1,95 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "polardb",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "POLAR_myuu",
+        "column": [
+          "id",
+          "aid",
+          "ordernum",
+          "CONCAT(LEFT(`mobile`, 7), '#', SHA2(`mobile`, 256))",
+          "wordscnt",
+          "msgcnt",
+          "smstxt",
+          "tob",
+          "platformid",
+          "send_time",
+          "platform_sid",
+          "api_code",
+          "api_errmsg",
+          "report_time",
+          "report_code",
+          "report_errmsg",
+          "is_resend",
+          "channel"
+        ],
+        "connection": [
+          {
+            "datasource": "POLAR_myuu",
+            "table": [
+              "pft_sms_journal"
+            ]
+          }
+        ],
+        "where": "FROM_UNIXTIME(send_time,'%Y-%m-%d')=DATE_SUB(CURDATE(),INTERVAL 1 day)",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_opr_sms_journal_di",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "aid",
+          "ordernum",
+          "mobile",
+          "wordscnt",
+          "msgcnt",
+          "smstxt",
+          "tob",
+          "platformid",
+          "send_time",
+          "platform_sid",
+          "api_code",
+          "api_errmsg",
+          "report_time",
+          "report_code",
+          "report_errmsg",
+          "is_resend",
+          "channel"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

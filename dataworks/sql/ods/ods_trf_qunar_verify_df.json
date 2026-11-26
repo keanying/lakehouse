@@ -1,0 +1,83 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "pft_open",
+        "column": [
+          "id",
+          "fid",
+          "tid_aid",
+          "supplierIdentity",
+          "signkey",
+          "itime",
+          "uptime",
+          "cooperation_way",
+          "coop_id",
+          "DockingMode",
+          "tid",
+          "third_part_teamwork_id"
+        ],
+        "connection": [
+          {
+            "datasource": "pft_open",
+            "table": [
+              "uu_qunar_use"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_trf_qunar_verify_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "fid",
+          "tid_aid",
+          "supplieridentity",
+          "signkey",
+          "itime",
+          "uptime",
+          "cooperation_way",
+          "coop_id",
+          "dockingmode",
+          "tid",
+          "third_part_teamwork_id"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

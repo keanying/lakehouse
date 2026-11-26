@@ -1,0 +1,87 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "polardb",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "POLAR_rcenter",
+        "column": [
+          "id",
+          "sid",
+          "fid",
+          "pid",
+          "ticket_id",
+          "price_spread",
+          "add_time",
+          "update_time",
+          "status",
+          "reason",
+          "group_ids",
+          "all_distributor",
+          "opid",
+          "operation_status"
+        ],
+        "connection": [
+          {
+            "datasource": "POLAR_rcenter",
+            "table": [
+              "pft_resource_purchase_recode_list"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_prd_resource_purchase_recode_list_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "sid",
+          "fid",
+          "pid",
+          "ticket_id",
+          "price_spread",
+          "add_time",
+          "update_time",
+          "status",
+          "reason",
+          "group_ids",
+          "all_distributor",
+          "opid",
+          "operation_status"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

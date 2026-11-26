@@ -1,0 +1,145 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "ecs_pft002",
+        "column": [
+          "id",
+          "order_id",
+          "member_id",
+          "sid",
+          "pid",
+          "aid",
+          "tnum",
+          "parent_id",
+          "grand_id",
+          "total_money",
+          "develop_money",
+          "recommend_money",
+          "return_money",
+          "update_time",
+          "status",
+          "order_status",
+          "order_pay_status",
+          "create_time",
+          "all_dis_type",
+          "dis_id",
+          "remain_money",
+          "money_config",
+          "is_new",
+          "is_issue",
+          "is_self",
+          "rec_id",
+          "profit",
+          "commission_type",
+          "complete_time",
+          "is_tax_withholding",
+          "last_status",
+          "last_error_code",
+          "invoicing_status",
+          "develop_individual_income_tax",
+          "develop_invoicing_service_fee",
+          "develop_pft_invoicing_service_fee",
+          "recommend_individual_income_tax",
+          "recommend_invoicing_service_fee",
+          "recommend_pft_invoicing_service_fee",
+          "return_individual_income_tax",
+          "return_invoicing_service_fee",
+          "return_pft_invoicing_service_fee",
+          "debug_flag"
+        ],
+        "connection": [
+          {
+            "datasource": "ecs_pft002",
+            "table": [
+              "pft_all_dis_orders"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_trf_all_dis_orders_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "order_id",
+          "member_id",
+          "sid",
+          "pid",
+          "aid",
+          "tnum",
+          "parent_id",
+          "grand_id",
+          "total_money",
+          "develop_money",
+          "recommend_money",
+          "return_money",
+          "update_time",
+          "status",
+          "order_status",
+          "order_pay_status",
+          "create_time",
+          "all_dis_type",
+          "dis_id",
+          "remain_money",
+          "money_config",
+          "is_new",
+          "is_issue",
+          "is_self",
+          "rec_id",
+          "profit",
+          "commission_type",
+          "complete_time",
+          "is_tax_withholding",
+          "last_status",
+          "last_error_code",
+          "invoicing_status",
+          "develop_individual_income_tax",
+          "develop_invoicing_service_fee",
+          "develop_pft_invoicing_service_fee",
+          "recommend_individual_income_tax",
+          "recommend_invoicing_service_fee",
+          "recommend_pft_invoicing_service_fee",
+          "return_individual_income_tax",
+          "return_invoicing_service_fee",
+          "return_pft_invoicing_service_fee",
+          "debug_flag"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

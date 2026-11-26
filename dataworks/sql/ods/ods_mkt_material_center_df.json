@@ -1,0 +1,95 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "ecs_pft002",
+        "column": [
+          "id",
+          "sid",
+          "material_name",
+          "main_title",
+          "sub_title",
+          "com_name",
+          "style_type",
+          "material_img_url",
+          "bg_img_url",
+          "rule_json",
+          "time_type",
+          "start_time",
+          "end_time",
+          "material_status",
+          "create_time",
+          "update_time",
+          "count_num",
+          "save_status"
+        ],
+        "connection": [
+          {
+            "datasource": "ecs_pft002",
+            "table": [
+              "pft_material_center"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_mkt_material_center_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "sid",
+          "material_name",
+          "main_title",
+          "sub_title",
+          "com_name",
+          "style_type",
+          "material_img_url",
+          "bg_img_url",
+          "rule_json",
+          "time_type",
+          "start_time",
+          "end_time",
+          "material_status",
+          "create_time",
+          "update_time",
+          "count_num",
+          "save_status"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

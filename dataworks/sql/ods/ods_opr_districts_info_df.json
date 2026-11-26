@@ -1,0 +1,91 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "BI_RDS_bi_datav",
+        "column": [
+          "id",
+          "province_name",
+          "province_adcode",
+          "province_center",
+          "province_lng",
+          "province_lat",
+          "city_name",
+          "city_adcode",
+          "city_center",
+          "city_lng",
+          "city_lat",
+          "district_name",
+          "district_adcode",
+          "district_center",
+          "district_lng",
+          "district_lat"
+        ],
+        "connection": [
+          {
+            "datasource": "BI_RDS_bi_datav",
+            "table": [
+              "dim_districts_info"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_opr_districts_info_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "province_name",
+          "province_adcode",
+          "province_center",
+          "province_lng",
+          "province_lat",
+          "city_name",
+          "city_adcode",
+          "city_center",
+          "city_lng",
+          "city_lat",
+          "district_name",
+          "district_adcode",
+          "district_center",
+          "district_lng",
+          "district_lat"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

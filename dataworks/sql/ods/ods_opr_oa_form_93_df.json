@@ -1,0 +1,73 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "BI_RDS_oa_ecology",
+        "column": [
+          "id",
+          "requestId",
+          "resourceId",
+          "fromDate",
+          "toDate",
+          "lcbm",
+          "sqbm"
+        ],
+        "connection": [
+          {
+            "datasource": "BI_RDS_oa_ecology",
+            "table": [
+              "formtable_main_93"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_opr_oa_form_93_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "requestid",
+          "resourceid",
+          "fromdate",
+          "todate",
+          "lcbm",
+          "sqbm"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

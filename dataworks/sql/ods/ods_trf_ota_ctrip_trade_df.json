@@ -1,0 +1,107 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "RDS_pft_ai",
+        "column": [
+          "id",
+          "account_id",
+          "scenic_id",
+          "transaction_date",
+          "signing_code",
+          "signing_type",
+          "biz_type",
+          "date_type",
+          "turnover",
+          "turnover_mom",
+          "order_count",
+          "order_count_mom",
+          "sold_ticket_cnt",
+          "sold_ticket_mom",
+          "validated_ticket_volume",
+          "validated_ticket_mom",
+          "refund_rate",
+          "refund_rate_mom",
+          "collect_time",
+          "create_time",
+          "update_time",
+          "deal_resource_count",
+          "deal_resource_count_mom",
+          "period_type"
+        ],
+        "connection": [
+          {
+            "datasource": "RDS_pft_ai",
+            "table": [
+              "ads_sup_ota_ctrip_trade_di"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_trf_ota_ctrip_trade_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "account_id",
+          "scenic_id",
+          "transaction_date",
+          "signing_code",
+          "signing_type",
+          "biz_type",
+          "date_type",
+          "turnover",
+          "turnover_mom",
+          "order_count",
+          "order_count_mom",
+          "sold_ticket_cnt",
+          "sold_ticket_mom",
+          "validated_ticket_volume",
+          "validated_ticket_mom",
+          "refund_rate",
+          "refund_rate_mom",
+          "collect_time",
+          "create_time",
+          "update_time",
+          "deal_resource_count",
+          "deal_resource_count_mom",
+          "period_type"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

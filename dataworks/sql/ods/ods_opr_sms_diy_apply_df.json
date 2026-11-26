@@ -1,0 +1,89 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "ecs_pft001",
+        "column": [
+          "id",
+          "sid",
+          "member_id",
+          "content",
+          "p_type",
+          "state",
+          "use_state",
+          "is_delete",
+          "is_system",
+          "create_time",
+          "update_time",
+          "examine_time",
+          "title",
+          "use_scene",
+          "template_code"
+        ],
+        "connection": [
+          {
+            "datasource": "ecs_pft001",
+            "table": [
+              "pft_sms_diy_apply"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_opr_sms_diy_apply_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "sid",
+          "member_id",
+          "content",
+          "p_type",
+          "state",
+          "use_state",
+          "is_delete",
+          "is_system",
+          "create_time",
+          "update_time",
+          "examine_time",
+          "title",
+          "use_scene",
+          "template_code"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

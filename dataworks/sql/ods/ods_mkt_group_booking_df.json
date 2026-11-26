@@ -1,0 +1,119 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "ecs_pft002",
+        "column": [
+          "id",
+          "sid",
+          "tid",
+          "aid",
+          "begin",
+          "end",
+          "valid_hours",
+          "valid_mans",
+          "price",
+          "storage",
+          "sold_num",
+          "limit_buy",
+          "poster_id",
+          "is_open",
+          "auto_complete",
+          "discounts_money",
+          "discounts_type",
+          "status",
+          "create_time",
+          "lid",
+          "activity_id",
+          "start_num",
+          "start_pre",
+          "saleout_down",
+          "over_down",
+          "is_pre",
+          "ori_price",
+          "ori_price_xcx",
+          "activity_status",
+          "pid"
+        ],
+        "connection": [
+          {
+            "datasource": "ecs_pft002",
+            "table": [
+              "pft_group_booking"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_mkt_group_booking_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "sid",
+          "tid",
+          "aid",
+          "begin",
+          "end",
+          "valid_hours",
+          "valid_mans",
+          "price",
+          "storage",
+          "sold_num",
+          "limit_buy",
+          "poster_id",
+          "is_open",
+          "auto_complete",
+          "discounts_money",
+          "discounts_type",
+          "status",
+          "create_time",
+          "lid",
+          "activity_id",
+          "start_num",
+          "start_pre",
+          "saleout_down",
+          "over_down",
+          "is_pre",
+          "ori_price",
+          "ori_price_xcx",
+          "activity_status",
+          "pid"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

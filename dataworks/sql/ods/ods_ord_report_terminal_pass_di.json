@@ -1,0 +1,101 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "RDS_summary",
+        "column": [
+          "id",
+          "fid",
+          "date",
+          "lid",
+          "tid",
+          "pid",
+          "level",
+          "operate_id",
+          "reseller_id",
+          "card_type",
+          "card_pid",
+          "channel",
+          "terminal_type",
+          "order_num",
+          "ticket_num",
+          "cost_money",
+          "sale_money",
+          "orders_info",
+          "update_time",
+          "site_id",
+          "ext_content"
+        ],
+        "connection": [
+          {
+            "datasource": "RDS_summary",
+            "table": [
+              "pft_report_terminal_pass"
+            ]
+          }
+        ],
+        "where": "`update_time` >= UNIX_TIMESTAMP(STR_TO_DATE('${bizdate}', '%Y%m%d')) AND `update_time` < UNIX_TIMESTAMP(DATE_ADD(STR_TO_DATE('${bizdate}', '%Y%m%d'), INTERVAL 1 DAY))",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_ord_report_terminal_pass_di",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "fid",
+          "date",
+          "lid",
+          "tid",
+          "pid",
+          "level",
+          "operate_id",
+          "reseller_id",
+          "card_type",
+          "card_pid",
+          "channel",
+          "terminal_type",
+          "order_num",
+          "ticket_num",
+          "cost_money",
+          "sale_money",
+          "orders_info",
+          "update_time",
+          "site_id",
+          "ext_content"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

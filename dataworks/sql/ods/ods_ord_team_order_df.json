@@ -1,0 +1,121 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "polardb",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "POLAR_myuu",
+        "column": [
+          "id",
+          "status",
+          "CONCAT(LEFT(`contacttel`, 7), '#', SHA2(`contacttel`, 256))",
+          "ordername",
+          "pay_status",
+          "ordernum",
+          "playtime",
+          "tnum",
+          "province",
+          "province_code",
+          "city",
+          "city_code",
+          "county",
+          "county_code",
+          "aid",
+          "fid",
+          "ordertime",
+          "updatetime",
+          "guide",
+          "combine_pay_id",
+          "ordertype",
+          "is_lodging",
+          "hotel",
+          "team_type_id",
+          "ext_content",
+          "active_code",
+          "active_status",
+          "active_time",
+          "group_id",
+          "sync",
+          "first_check_time"
+        ],
+        "connection": [
+          {
+            "datasource": "POLAR_myuu",
+            "table": [
+              "uu_ss_order_team"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_ord_team_order_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "status",
+          "contacttel",
+          "ordername",
+          "pay_status",
+          "ordernum",
+          "playtime",
+          "tnum",
+          "province",
+          "province_code",
+          "city",
+          "city_code",
+          "county",
+          "county_code",
+          "aid",
+          "fid",
+          "ordertime",
+          "updatetime",
+          "guide",
+          "combine_pay_id",
+          "ordertype",
+          "is_lodging",
+          "hotel",
+          "team_type_id",
+          "ext_content",
+          "active_code",
+          "active_status",
+          "active_time",
+          "group_id",
+          "sync",
+          "first_check_time"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

@@ -1,0 +1,177 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "RDS_pft_ai",
+        "column": [
+          "id",
+          "travel_date",
+          "scenic_spot_name",
+          "scenic_spot_code",
+          "comment_count",
+          "positive_count",
+          "neutral_count",
+          "negative_count",
+          "positive_growth_rate",
+          "neutral_growth_rate",
+          "negative_growth_rate",
+          "daily_rating",
+          "emotional_score",
+          "publish_time",
+          "etl_time",
+          "comment_count_wow",
+          "comment_count_mom",
+          "emotional_score_7d",
+          "emotional_score_30d",
+          "positive_growth_rate_7d",
+          "neutral_growth_rate_7d",
+          "negative_growth_rate_7d",
+          "positive_growth_rate_30d",
+          "neutral_growth_rate_30d",
+          "negative_growth_rate_30d",
+          "comment_count_dod",
+          "positive_rate_7d",
+          "neutral_rate_7d",
+          "negative_rate_7d",
+          "positive_rate_30d",
+          "neutral_rate_30d",
+          "negative_rate_30d",
+          "emotional_score_60d",
+          "emotional_score_90d",
+          "emotional_score_365d",
+          "comment_count_60dod",
+          "comment_count_90dod",
+          "comment_count_365dod",
+          "positive_growth_rate_60d",
+          "positive_growth_rate_90d",
+          "positive_growth_rate_365d",
+          "neutral_growth_rate_60d",
+          "neutral_growth_rate_90d",
+          "neutral_growth_rate_365d",
+          "negative_growth_rate_60d",
+          "negative_growth_rate_90d",
+          "negative_growth_rate_365d",
+          "positive_rate_60d",
+          "positive_rate_90d",
+          "positive_rate_365d",
+          "neutral_rate_60d",
+          "neutral_rate_90d",
+          "neutral_rate_365d",
+          "negative_rate_60d",
+          "negative_rate_90d",
+          "negative_rate_365d",
+          "positive_rate",
+          "neutral_rate",
+          "negative_rate"
+        ],
+        "connection": [
+          {
+            "datasource": "RDS_pft_ai",
+            "table": [
+              "ads_trf_social_opinion_comment_core_di"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_trf_social_opinion_comment_core_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "travel_date",
+          "scenic_spot_name",
+          "scenic_spot_code",
+          "comment_count",
+          "positive_count",
+          "neutral_count",
+          "negative_count",
+          "positive_growth_rate",
+          "neutral_growth_rate",
+          "negative_growth_rate",
+          "daily_rating",
+          "emotional_score",
+          "publish_time",
+          "etl_time",
+          "comment_count_wow",
+          "comment_count_mom",
+          "emotional_score_7d",
+          "emotional_score_30d",
+          "positive_growth_rate_7d",
+          "neutral_growth_rate_7d",
+          "negative_growth_rate_7d",
+          "positive_growth_rate_30d",
+          "neutral_growth_rate_30d",
+          "negative_growth_rate_30d",
+          "comment_count_dod",
+          "positive_rate_7d",
+          "neutral_rate_7d",
+          "negative_rate_7d",
+          "positive_rate_30d",
+          "neutral_rate_30d",
+          "negative_rate_30d",
+          "emotional_score_60d",
+          "emotional_score_90d",
+          "emotional_score_365d",
+          "comment_count_60dod",
+          "comment_count_90dod",
+          "comment_count_365dod",
+          "positive_growth_rate_60d",
+          "positive_growth_rate_90d",
+          "positive_growth_rate_365d",
+          "neutral_growth_rate_60d",
+          "neutral_growth_rate_90d",
+          "neutral_growth_rate_365d",
+          "negative_growth_rate_60d",
+          "negative_growth_rate_90d",
+          "negative_growth_rate_365d",
+          "positive_rate_60d",
+          "positive_rate_90d",
+          "positive_rate_365d",
+          "neutral_rate_60d",
+          "neutral_rate_90d",
+          "neutral_rate_365d",
+          "negative_rate_60d",
+          "negative_rate_90d",
+          "negative_rate_365d",
+          "positive_rate",
+          "neutral_rate",
+          "negative_rate"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

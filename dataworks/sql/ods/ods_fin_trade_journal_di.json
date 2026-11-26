@@ -1,0 +1,149 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "polardb",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "POLAR_myuu",
+        "column": [
+          "id",
+          "customer_id",
+          "account_id",
+          "trade_account_id",
+          "fid",
+          "aid",
+          "dmoney",
+          "lmoney",
+          "frozen_money",
+          "frozen_remain_money",
+          "trade_limit_money",
+          "trade_limit_type",
+          "trade_limit_total",
+          "orderid",
+          "trade_no",
+          "account_book_id",
+          "subject_code",
+          "trade_subject_code",
+          "subject_type",
+          "template_code",
+          "template_item_code",
+          "function_code",
+          "settle_mark",
+          "daction",
+          "rectime",
+          "trade_time",
+          "recmonth",
+          "dtype",
+          "ptype",
+          "account_type",
+          "reversal_trade_id",
+          "last_trade_id",
+          "channel",
+          "account_adjust",
+          "opid",
+          "memo",
+          "status",
+          "sequence",
+          "total_trade",
+          "available_trade",
+          "available_money",
+          "available_remain_money",
+          "available_trade_type",
+          "frozen_trade",
+          "frozen_trade_type"
+        ],
+        "connection": [
+          {
+            "datasource": "POLAR_myuu",
+            "table": [
+              "pft_trade_journal"
+            ]
+          }
+        ],
+        "where": "`rectime` >= STR_TO_DATE('${bizdate}', '%Y%m%d') AND `rectime` < DATE_ADD(STR_TO_DATE('${bizdate}', '%Y%m%d'), INTERVAL 1 DAY)",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_fin_trade_journal_di",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "customer_id",
+          "account_id",
+          "trade_account_id",
+          "fid",
+          "aid",
+          "dmoney",
+          "lmoney",
+          "frozen_money",
+          "frozen_remain_money",
+          "trade_limit_money",
+          "trade_limit_type",
+          "trade_limit_total",
+          "orderid",
+          "trade_no",
+          "account_book_id",
+          "subject_code",
+          "trade_subject_code",
+          "subject_type",
+          "template_code",
+          "template_item_code",
+          "function_code",
+          "settle_mark",
+          "daction",
+          "rectime",
+          "trade_time",
+          "recmonth",
+          "dtype",
+          "ptype",
+          "account_type",
+          "reversal_trade_id",
+          "last_trade_id",
+          "channel",
+          "account_adjust",
+          "opid",
+          "memo",
+          "status",
+          "sequence",
+          "total_trade",
+          "available_trade",
+          "available_money",
+          "available_remain_money",
+          "available_trade_type",
+          "frozen_trade",
+          "frozen_trade_type"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 8
+    }
+  }
+}

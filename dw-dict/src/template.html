@@ -475,8 +475,8 @@ function vTables(v,a,b){
       body.innerHTML='';const box=document.createElement('div');box.style.cssText='flex:1;min-height:0;display:flex;flex-direction:column';body.appendChild(box);
       grid(box,{cols:H,rows:F,cls:['c-n','c-id','c-s','c-s','c-cm','c-kou','c-src'],filters:[3],searchPh:'筛选字段名 / 注释…',pageSize:200,csvName:t.short+'_fields',rowCls:r=>isGK(r[3])?'gk':'',state:{q:TS.fq,f:{},sort:null,page:0},cell:(i,v,q)=>i===3?catPill(v):i===5?(v?`<span class="kou">${hl(esc(v),q)}</span>`:'<span style="color:#c3c8d3">—</span>'):hl(esc(v),q),onRow:r=>{const f=t.fields.find(x=>x.no===r[0]&&x.n===r[1]);drawer(f.n,t.name,(caliber(t,f)?`<div class="sub">口径说明</div><div class="formula" style="font-family:inherit">${esc(caliber(t,f))}</div>`:'')+kvHtml([['序号',f.no],['类型',esc(f.t)],['类别',catPill(f.k)],['字段注释',esc(f.c)],['加工 / 来源',esc(f.s)],['上游字段',esc(f.u)]]))}});
     }else if(TS.tab==='etl'){
-      const e=ETL[t.short],st=e.stats;const KN={hive:'Spark SQL / Hive（离线日调度）',flink:'Flink SQL（实时）',starrocks:'StarRocks 物化视图（实时）',legacy:'旧系统实现（参考，按标准模型重写）'};
-      body.innerHTML=`<div class="dtool" style="flex-wrap:wrap"><span class="sub" style="margin:0">${KN[e.kind]} · <span class="mono-s">${esc(e.path)}</span></span>${e.kind==='legacy'?`<span class="pill o">旧任务 ${st.nodes||0} 个</span>`:`<span class="pill g">直接翻译 ${st.auto||0}</span><span class="pill b">规则翻译 ${st.rule||0}</span>`}${st.review?`<span class="pill o">待确认 ${st.review}</span><button class="btn" id="etodo" style="height:26px">定位待确认</button>`:''}<span class="grow" style="flex:1"></span><button class="btn pri" id="cpe">复制${e.kind==='legacy'?'':' SQL'}</button></div><pre class="code" id="esql">${sqlHtml(e.sql)}</pre>`;
+      const e=ETL[t.short],st=e.stats;const KN={hive:'Spark SQL / Hive（离线日调度）',flink:'Flink SQL（实时）',starrocks:'StarRocks 物化视图（实时）',legacy:'旧系统实现（参考，按标准模型重写）',std:'标准实现 · Spark SQL（离线日调度）',di:'DataWorks 数据集成 · 离线同步（脚本模式 JSON）'};
+      body.innerHTML=`<div class="dtool" style="flex-wrap:wrap"><span class="sub" style="margin:0">${KN[e.kind]} · <span class="mono-s">${esc(e.path)}</span></span>${e.kind==='legacy'?`<span class="pill o">旧任务 ${st.nodes||0} 个</span>`:e.kind==='std'||e.kind==='di'?(st.nodes?`<span class="pill b">替代旧任务 ${st.nodes} 个</span>`:`<span class="pill g">新建</span>`):`<span class="pill g">直接翻译 ${st.auto||0}</span><span class="pill b">规则翻译 ${st.rule||0}</span>`}${st.review?`<span class="pill o">待确认 ${st.review}</span><button class="btn" id="etodo" style="height:26px">定位待确认</button>`:''}<span class="grow" style="flex:1"></span><button class="btn pri" id="cpe">复制${e.kind==='legacy'?'':e.kind==='di'?'配置':' SQL'}</button></div><pre class="code" id="esql">${sqlHtml(e.sql)}</pre>${e.legacy?`<details class="legacy-old" style="margin-top:14px"><summary style="cursor:pointer;color:var(--muted);font-size:13px">旧实现（${st.nodes||0} 个旧任务原脚本，仅供上线对数，对数一致后下线）</summary><pre class="code" style="margin-top:8px">${sqlHtml(e.legacy)}</pre></details>`:''}`;
       $('#cpe').onclick=ev=>copy(e.sql,ev.target);
       const tb=$('#etodo');if(tb){let k=0;tb.onclick=()=>{const L=[...document.querySelectorAll('#esql .todo')];if(!L.length)return;L.forEach(x=>x.classList.remove('cur'));const x=L[k%L.length];x.classList.add('cur');x.scrollIntoView({block:'center'});tb.textContent=`定位待确认 ${k%L.length+1}/${L.length}`;k++}}
     }else if(TS.tab==='sch'){
@@ -578,7 +578,7 @@ function catDrawer(m){
 /* ---------- 旧系统对照 ---------- */
 const LS={};
 function vLegacy(v,a){
-  const T=[['issues','现状问题',LEGACY.findings.length],['map','旧表 → 标准表',LEGACY.mapping.rows.length],['nodes','旧节点清单',LEGACY.nodes.rows.length]];
+  const T=[['issues','现状问题',LEGACY.findings.length],['map','旧表 → 标准表',LEGACY.mapping.rows.length],...(LEGACY.cover?[['cover','导出模型覆盖',LEGACY.cover.rows.length],['unify','口径统一',LEGACY.unify.rows.length]]:[]),['nodes','旧节点清单',LEGACY.nodes.rows.length]];
   const tab=T.some(x=>x[0]===a)?a:'issues';
   v.innerHTML=`<div class="bar" style="margin-bottom:10px"><div class="chips" style="align-items:center">${T.map(([k,l,n])=>`<button class="chip ${tab===k?'on':''}" data-k="${k}" style="height:30px;padding:0 14px">${l}<i>${n.toLocaleString()}</i></button>`).join('')}${qi(LEGACY.tips[tab])}</div><span class="grow"></span>${tab==='issues'?`<a class="btn" href="${esc(LEGACY.reportHref)}" style="display:inline-flex;align-items:center;text-decoration:none">问题清单（Markdown）</a>`:''}</div><div id="lh" style="${tab==='issues'?'':'flex:1;min-height:0;display:flex;flex-direction:column'}"></div>`;
   v.querySelector('.chips').onclick=e=>{const b=e.target.closest('.chip');if(b)go('#/legacy/'+b.dataset.k)};
@@ -593,12 +593,13 @@ function vLegacy(v,a){
       grid($('#fdg'),{cols:f.cols,rows:f.rows,pageSize:100,csvName:f.id,searchPh:'筛选…'})};
     return;
   }
-  const D=tab==='map'?LEGACY.mapping:LEGACY.nodes;const c=D.cols;
-  const AP={'合并':'b','改名':'g','回流改造':'o','移出数仓':'r','下线':'r','项目专用':'','保留':'g'};
-  grid(h,{state:LS[tab],cols:c,rows:D.rows,wide:true,filters:D.filters,searchPh:tab==='map'?'搜索旧表名 / 标准表…':'搜索节点路径 / 读写表…',csvName:tab==='map'?'旧表映射':'旧节点清单',pageSize:200,
+  const D=LEGACY[{map:'mapping',nodes:'nodes',cover:'cover',unify:'unify'}[tab]];const c=D.cols;
+  const AP={'合并':'b','改名':'g','回流改造':'o','移出数仓':'r','下线':'r','项目专用':'','保留':'g','已覆盖':'g','已覆盖（时间表派生）':'g','补全':'o','维度':'b','与标准一致':'g'};
+  grid(h,{state:LS[tab],cols:c,rows:D.rows,wide:true,filters:D.filters,searchPh:{map:'搜索旧表名 / 标准表…',cover:'搜索导出表 / 字段 / 标准指标…',unify:'搜索指标 / 旧口径…',nodes:'搜索节点路径 / 读写表…'}[tab],csvName:tab==='map'?'旧表映射':'旧节点清单',pageSize:200,
     extra:`<div class="sub" style="margin:-2px 0 8px">${esc(D.note)}</div>`,
-    cell:(i,v,q)=>c[i]==='标准表'&&v?tlink(v,q):c[i]==='处理'?`<span class="pill ${AP[v]??''}">${esc(v)}</span>`:/表|路径/.test(c[i])?`<span class="c-id">${hl(esc(v),q)}</span>`:hl(esc(v),q),
-    onRow:r=>{const k=c.indexOf('标准表');if(k>=0&&TBM[r[k]])go('#/tables/'+r[k])}});
+    cell:(i,v,q)=>(c[i]==='标准表'||c[i]==='标准 ADS')&&v?tlink(v,q):['处理','覆盖情况'].includes(c[i])?`<span class="pill ${AP[v]??''}">${esc(v)}</span>`:/表|路径/.test(c[i])?`<span class="c-id">${hl(esc(v),q)}</span>`:hl(esc(v),q),
+    onRow:r=>{if(tab==='cover'||tab==='unify'){drawer(r[1]+(tab==='cover'?'（'+r[0]+'）':''),tab==='cover'?(r[4]||r[5]):r[2],kvHtml(c.map((n,i)=>[n,esc(r[i])])));return}
+      const k=c.indexOf('标准表');if(k>=0&&TBM[r[k]])go('#/tables/'+r[k])}});
 }
 
 /* ---------- 核对报告 ---------- */

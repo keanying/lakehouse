@@ -1,0 +1,105 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "RDS_oa_ecology",
+        "column": [
+          "sign_year",
+          "win_bid_date",
+          "sign_date",
+          "manage_group",
+          "signer",
+          "province",
+          "city",
+          "land_name",
+          "land_company_name",
+          "owner_company_name",
+          "project_name",
+          "contrcat_amount",
+          "settlement_amount",
+          "gross_margin",
+          "business_type",
+          "third_party_contribution",
+          "bid_type",
+          "contract_no",
+          "pft_user_id_list",
+          "land_level",
+          "land_topic",
+          "contract_type",
+          "customer_type"
+        ],
+        "connection": [
+          {
+            "datasource": "RDS_oa_ecology",
+            "table": [
+              "project_contract"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_sup_contract_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "sign_year",
+          "win_bid_date",
+          "sign_date",
+          "manage_group",
+          "signer",
+          "province",
+          "city",
+          "land_name",
+          "land_company_name",
+          "owner_company_name",
+          "project_name",
+          "contrcat_amount",
+          "settlement_amount",
+          "gross_margin",
+          "business_type",
+          "third_party_contribution",
+          "bid_type",
+          "contract_no",
+          "pft_user_id_list",
+          "land_level",
+          "land_topic",
+          "contract_type",
+          "customer_type"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

@@ -1,0 +1,83 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "RDS_open_data_api",
+        "column": [
+          "id",
+          "sid",
+          "serial_no",
+          "name",
+          "gates",
+          "delete_at",
+          "created_at",
+          "updated_at",
+          "capacity",
+          "upper_limit",
+          "config",
+          "sid_gates_hash"
+        ],
+        "connection": [
+          {
+            "datasource": "RDS_open_data_api",
+            "table": [
+              "scenic_inout_summary_group"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_trf_scenic_inout_summary_group_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "sid",
+          "serial_no",
+          "name",
+          "gates",
+          "delete_at",
+          "created_at",
+          "updated_at",
+          "capacity",
+          "upper_limit",
+          "config",
+          "sid_gates_hash"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

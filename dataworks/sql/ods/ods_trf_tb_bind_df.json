@@ -1,0 +1,77 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "pft_open",
+        "column": [
+          "id",
+          "id2",
+          "id3",
+          "data1",
+          "data2",
+          "msg1",
+          "seller_nick",
+          "status",
+          "createtime"
+        ],
+        "connection": [
+          {
+            "datasource": "pft_open",
+            "table": [
+              "pft_tb_bind"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_trf_tb_bind_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "id2",
+          "id3",
+          "data1",
+          "data2",
+          "msg1",
+          "seller_nick",
+          "status",
+          "createtime"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

@@ -1,0 +1,139 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "RDS_oa_ecology",
+        "column": [
+          "id",
+          "requestId",
+          "ysbh",
+          "sqr",
+          "sqsj",
+          "glxslxjjd",
+          "xmmc",
+          "htbh",
+          "jqmc",
+          "sfbzhxm",
+          "khjl",
+          "ywlxxz",
+          "xmgzbm",
+          "dqxmqs",
+          "xmbh",
+          "scfj",
+          "cyyssj",
+          "zyyssj",
+          "cyqzjsc",
+          "zyqzjsc",
+          "glxslxjjd1",
+          "dsfcz",
+          "mt",
+          "mblx",
+          "jfmc",
+          "xmlx",
+          "sbsqlc",
+          "bjsplc",
+          "ysbgfj",
+          "mx1",
+          "mx2",
+          "mx3",
+          "mx4",
+          "zbysbggzj",
+          "lxxz",
+          "xmlxpt",
+          "mx5",
+          "mx6",
+          "mx7",
+          "ftg"
+        ],
+        "connection": [
+          {
+            "datasource": "RDS_oa_ecology",
+            "table": [
+              "formtable_main_268"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_opr_oa_form_268_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "requestid",
+          "ysbh",
+          "sqr",
+          "sqsj",
+          "glxslxjjd",
+          "xmmc",
+          "htbh",
+          "jqmc",
+          "sfbzhxm",
+          "khjl",
+          "ywlxxz",
+          "xmgzbm",
+          "dqxmqs",
+          "xmbh",
+          "scfj",
+          "cyyssj",
+          "zyyssj",
+          "cyqzjsc",
+          "zyqzjsc",
+          "glxslxjjd1",
+          "dsfcz",
+          "mt",
+          "mblx",
+          "jfmc",
+          "xmlx",
+          "sbsqlc",
+          "bjsplc",
+          "ysbgfj",
+          "mx1",
+          "mx2",
+          "mx3",
+          "mx4",
+          "zbysbggzj",
+          "lxxz",
+          "xmlxpt",
+          "mx5",
+          "mx6",
+          "mx7",
+          "ftg"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}
