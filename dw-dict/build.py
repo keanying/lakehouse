@@ -30,7 +30,7 @@ def load_sheets(xlsx):
 
 
 def main():
-    import checks, ads_model, etl_gen, shutil
+    import checks, ads_model, etl_gen, shutil, source_tables
     xlsx = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else next((ROOT / 'data').glob('*.xlsx')))
     data = load_sheets(xlsx)
     res = checks.run(data, DOCS / 'source')
@@ -61,7 +61,8 @@ def main():
     hol = {}
     for r in cal['holiday_rows']:
         hol.setdefault(r[1], []).append([r[3], r[2], d10(r[4]), d10(r[5])])
-    html = tpl.replace('__HOL__', js(hol)).replace('__DATA__', js(data2)).replace('__ORIG__', js(orig)).replace('__CHECKS__', js(res)).replace('__META__', js(meta)).replace('__ADS__', js(model)).replace('__ETL__', js(etl))
+    src = source_tables.build(DOCS / 'source', data2)   # 业务库原始表（ODS 上游）
+    html = tpl.replace('__SRC__', js(src)).replace('__HOL__', js(hol)).replace('__DATA__', js(data2)).replace('__ORIG__', js(orig)).replace('__CHECKS__', js(res)).replace('__META__', js(meta)).replace('__ADS__', js(model)).replace('__ETL__', js(etl))
     (ROOT / 'dist').mkdir(exist_ok=True)
     (ROOT / 'dist' / 'index.html').write_text(html, encoding='utf-8')
     DOCS.mkdir(exist_ok=True)
@@ -69,7 +70,10 @@ def main():
     print('OK ->', ROOT / 'dist' / 'index.html', {k: len(v['rows']) for k, v in data.items()})
     n = ads_model.to_xlsx(model, ROOT / 'dist' / 'ADS指标体系.xlsx', xlsx.name)
     out = ROOT / 'dist' / (xlsx.stem + '_改造版.xlsx')
-    ads_model.dict_xlsx(data2, changed, out)
+    fcols = ['约束 / 默认值' if c == '加工 / 来源' else c for c in data2['字段清单']['cols']]
+    ads_model.dict_xlsx({**data2, '业务库表': {'cols': data2['表清单']['cols'], 'rows': src['tables']},
+                         '业务库字段': {'cols': fcols, 'rows': src['fields']}}, changed, out)
+    print('业务库表：', len(src['tables']), '张，', len(src['fields']), '个字段')
     print('改造版字典 ->', out.name, '改动表', len(changed))
     import collections
     tot = collections.Counter()
