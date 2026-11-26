@@ -59,6 +59,7 @@ python3 dataworks/standard/build.py
 | `audit.py` | 诊断规则，生成问题清单与明细 |
 | `docs/问题清单.md` | 问题汇总（按级别、类别），每条有说明和治理建议 |
 | `docs/行业报告取数方案.md` | 行业报告怎么出数：报告结构、指标口径、样本规则（可比景区、最小样本抑制、异常剔除）、取数步骤、校验、安全；SQL 在 `sql/report/industry_report.sql` |
+| `report_demo/` | 行业报告演示稿：`build_demo.py` 用模拟数据按同一套规则算出报告指标竖表（`metric_demo.csv`），渲染成 `index.html`；数字全部为随机模拟 |
 | `output/<编号>.csv` | 每个问题的明细（涉及的节点、表、字段） |
 | `output/节点清单.csv` | 全部 1,509 个节点：路径、类型、工作流、cron、读写表、上游依赖 |
 
