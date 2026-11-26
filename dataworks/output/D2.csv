@@ -1,0 +1,40 @@
+﻿节点,读表,增量条件
+业务工厂/业态通/二次消费/思讯零售/思迅零售汇总工作流/ods_retail_sixun_order_d_i,retail_sixun_order,"create_time>= '${ds}' AND create_time< DATE_ADD('${ds}',INTERVAL 1 day)"
+业务工厂/业态通/二次消费/银豹零售/银豹零售汇总工作流/s_retail_yinbao_ticket_item_d_i,retail_yinbao_ticket_item,"sync_create_time>=DATE_SUB('${ds2}',INTERVAL 3 day) AND sync_create_time< DATE_ADD('${ds2}',INTERVAL 3 day)"
+业务工厂/出入园/数据同步/s_pft_device_inout_journal_d_i,pft_device_inout_journal,"FROM_UNIXTIME(create_time, '%Y-%m-%d') = STR_TO_DATE(${ds}, '%Y%m%d')
+AND node_id > 0
+AND num > 0
+"
+业务工厂/手动任务/临时同步任务/ods_pft_dc_daycount_info_his_d_i,pft_dc_daycount_info,"create_time >= UNIX_TIMESTAMP('${ds}') and create_time <UNIX_TIMESTAMP(DATE_ADD('${ds}',INTERVAL 1 day))"
+业务工厂/手动任务/临时同步任务/ods_pft_dc_daycount_info_history_d_i,pft_dc_daycount_info_history,"create_time >= UNIX_TIMESTAMP('${ds}') and create_time <UNIX_TIMESTAMP(DATE_ADD('${ds}',INTERVAL 1 day))"
+业务工厂/票务数据/出入园/出入园数据校验工作流/ods_pft_dc_daycount_info_d_i,pft_dc_daycount_info,"create_time >= UNIX_TIMESTAMP('${ds}') and create_time <UNIX_TIMESTAMP(DATE_ADD('${ds}',INTERVAL 1 day))"
+业务工厂/财务平衡/财务平衡汇总/ods_pft_trade_journal_d_i,pft_trade_journal,"rectime>=""${ds}""  AND rectime< DATE_ADD(""${ds}"",INTERVAL 1 DAY)"
+数据中台/ODS/ods_order_user_info_d_i_workflow/s_order_user_info_d_i,order_user_info,"create_time >= UNIX_TIMESTAMP(STR_TO_DATE('${ds}', '%Y%m%d')) - 2 * 60
+AND create_time < UNIX_TIMESTAMP(DATE_ADD(STR_TO_DATE('${ds}', '%Y%m%d'), INTERVAL 1 DAY)) + 2 * 60"
+数据中台/同步任务/MySQL_to_Hive/ods_myuu_pft_evolute_group_speciality_d_f,pft_evolute_group_speciality,"rectime >= STR_TO_DATE(${ds}, '%Y%m%d') AND rectime < DATE_ADD(STR_TO_DATE(${ds}, '%Y%m%d'),INTERVAL 1 DAY)
+"
+数据中台/同步任务/MySQL_to_Hive/同步_对接/ods_all_api_order_d_f,all_api_order,"cTime >= STR_TO_DATE(${ds}, '%Y%m%d') AND cTime < DATE_ADD(STR_TO_DATE(${ds}, '%Y%m%d'), INTERVAL 1 DAY)"
+数据中台/同步任务/MySQL_to_Hive/同步_对接/s_api_order_track_d_i,api_order_track,"ctime >= STR_TO_DATE(${ds}, '%Y%m%d') AND ctime <= DATE_ADD(STR_TO_DATE(${ds}, '%Y%m%d'), INTERVAL 1 DAY)
+"
+数据平台/SRC[ETL]/src_年卡/src_pft_annual_async_order_di,pft_annual_async_order,"create_time >= UNIX_TIMESTAMP('${ds}' - INTERVAL 1 DAY)
+  AND create_time <  UNIX_TIMESTAMP('${ds}' );"
+数据平台/SRC[ETL]/src_年卡/src_pft_annual_card_order_di,pft_annual_card_order,"create_time >= UNIX_TIMESTAMP('${ds}' - INTERVAL 1 DAY)
+  AND create_time <  UNIX_TIMESTAMP('${ds}' );"
+数据平台/SRC[ETL]/src_年卡/src_pft_annual_card_photos_di,pft_annual_card_photos,"create_time >= UNIX_TIMESTAMP('${ds}' - INTERVAL 1 DAY)
+  AND create_time <  UNIX_TIMESTAMP('${ds}' );"
+数据平台/SRC[ETL]/src_年卡/src_pft_annual_card_renew_di,pft_annual_card_renew,"create_time >= UNIX_TIMESTAMP('${ds}' - INTERVAL 1 DAY)
+  AND create_time <  UNIX_TIMESTAMP('${ds}' );"
+数据平台/SRC[ETL]/src_年卡/src_pft_annual_card_task_detail_di,pft_annual_card_task_detail,"create_time >= UNIX_TIMESTAMP('${ds}' - INTERVAL 1 DAY)
+  AND create_time <  UNIX_TIMESTAMP('${ds}' );"
+数据平台/SRC[ETL]/src_年卡/src_pft_annual_card_trade_di,pft_annual_card_trade,"add_time >= UNIX_TIMESTAMP('${ds}' - INTERVAL 1 DAY)
+  AND add_time <  UNIX_TIMESTAMP('${ds}' );"
+数据平台/SRC[ETL]/src_年卡/src_pft_annual_manage_record_di,pft_annual_manage_record,"create_time >= UNIX_TIMESTAMP('${ds}' - INTERVAL 1 DAY)
+  AND create_time <  UNIX_TIMESTAMP('${ds}' );"
+数据平台/平台湖仓工作流/一卡通/sync_ods_pft_card_order_journal_di,pft_card_order_journal,"create_time >= UNIX_TIMESTAMP('${bizdate}') and create_time <UNIX_TIMESTAMP(DATE_ADD('${bizdate}',INTERVAL 1 day))"
+数据平台/平台湖仓工作流/一卡通/sync_ods_pft_card_order_refund_journal_di,pft_card_order_refund_journal,"create_time >= UNIX_TIMESTAMP('${bizdate}') and create_time <UNIX_TIMESTAMP(DATE_ADD('${bizdate}',INTERVAL 1 day))"
+数据平台/平台湖仓工作流/出入园数据/sync_ods_summary_pft_dc_daycount_info_di,pft_dc_daycount_info,"create_time >= UNIX_TIMESTAMP('${yesterday}') and create_time <UNIX_TIMESTAMP(DATE_ADD('${yesterday}',INTERVAL 1 day))"
+数据平台/平台湖仓工作流/小岛零售/sync_ods_retail_xisland_order_di_from_mysql,retail_xisland_order,"order_create_time>= '${bizdate}' AND order_create_time< DATE_ADD('${bizdate}',INTERVAL 1 day)"
+数据平台/平台湖仓工作流/小岛零售/sync_ods_retail_xisland_order_item_di_from_mysql,retail_xisland_order_item,"order_create_time>= '${bizdate}' AND order_create_time< DATE_ADD('${bizdate}',INTERVAL 1 day)"
+数据平台/平台湖仓工作流/小岛零售/sync_ods_retail_xisland_refund_order_di_from_mysql,retail_xisland_refund_order,"refund_create_time>= '${bizdate}' AND refund_create_time< DATE_ADD('${bizdate}',INTERVAL 1 day)"
+数据平台/平台湖仓工作流/小岛零售/sync_ods_retail_xisland_refund_order_item_di_from_mysql,retail_xisland_refund_order_item,"refund_create_time>= '${bizdate}' AND refund_create_time< DATE_ADD('${bizdate}',INTERVAL 1 day)"
+数据平台/平台湖仓工作流/景区实时客流/tmp_src_trf_scenic_access_record_hrs_f,pft_dc_daycount_info,"create_time >= UNIX_TIMESTAMP('${today}') and create_time <UNIX_TIMESTAMP(DATE_ADD('${today}',INTERVAL 1 day))"

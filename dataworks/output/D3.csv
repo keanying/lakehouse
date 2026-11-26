@@ -1,0 +1,199 @@
+﻿节点,问题,影响
+业务工厂/业态通/二次消费/思讯零售/思迅零售汇总工作流/ads_daily_retail_sixun_summary_d_i,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+业务工厂/内部信息/DIM/dim_marketing_test_analyze_d_f_workflow/dim_marketing_test_analyze_d_f,写入前 ORDER BY,全局排序单 reducer
+业务工厂/内部信息/DWD/dwd_project_bill_d_f,SELECT *,读出全部列，列裁剪失效
+业务工厂/内部信息/DWD/dwd_project_bill_d_f,写死日期,补数 / 重跑结果不对
+业务工厂/内部信息/DWD/dwd_project_by_post_d_f,SELECT *,读出全部列，列裁剪失效
+业务工厂/内部信息/DWD/dwd_project_call_back_d_f,SELECT *,读出全部列，列裁剪失效
+业务工厂/内部信息/DWD/dwd_project_call_back_d_f,写死日期,补数 / 重跑结果不对
+业务工厂/内部信息/DWD/dwd_staff_basic_d_f,SELECT *,读出全部列，列裁剪失效
+业务工厂/内部信息/DWD/dwd_staff_basic_d_f,写入前 ORDER BY,全局排序单 reducer
+业务工厂/内部信息/DWD/dwd_staff_basic_d_f,写死日期,补数 / 重跑结果不对
+业务工厂/内部信息/DWS/dws_contract_d_f_workflow/dwd_project_bill_d_f,SELECT *,读出全部列，列裁剪失效
+业务工厂/内部信息/DWS/dws_contract_d_f_workflow/dwd_project_bill_d_f,写死日期,补数 / 重跑结果不对
+业务工厂/内部信息/DWS/dws_contract_d_f_workflow/dwd_project_by_post_d_f,SELECT *,读出全部列，列裁剪失效
+业务工厂/内部信息/DWS/dws_contract_d_f_workflow/dwd_project_call_back_d_f,SELECT *,读出全部列，列裁剪失效
+业务工厂/内部信息/DWS/dws_contract_d_f_workflow/dwd_project_call_back_d_f,写死日期,补数 / 重跑结果不对
+业务工厂/内部信息/DWS/dws_contract_d_f_workflow/dwd_project_check_d_f,SELECT *,读出全部列，列裁剪失效
+业务工厂/内部信息/DWS/dws_contract_d_f_workflow/dws_contract_d_f,SELECT *,读出全部列，列裁剪失效
+业务工厂/内部信息/DWS/dws_contract_d_f_workflow/tmp_contract_d_f,SELECT *,读出全部列，列裁剪失效
+业务工厂/内部信息/公司/公司大屏/公司大屏工作流/ads_plat_map_fly_d_f,SELECT *,读出全部列，列裁剪失效
+业务工厂/内部信息/公司/公司大屏/公司大屏工作流/ads_plat_third_purchase_order_d_f,写入前 ORDER BY,全局排序单 reducer
+业务工厂/内部信息/公司/公司大屏/公司大屏工作流/ads_plat_yesterday_order_hour_d_i,写入前 ORDER BY,全局排序单 reducer
+业务工厂/内部信息/公司/公司大屏/公司大屏工作流/ads_source_area_sell_d_f,写入前 ORDER BY,全局排序单 reducer
+业务工厂/内部信息/公司/公司大屏/公司大屏工作流/ads_source_area_sell_d_f,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+业务工厂/内部信息/市场（平台事业部）/公司BI/公司BI工作流/ads_company_order_month_summary_d_f,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+业务工厂/内部信息/市场（平台事业部）/公司BI/公司BI工作流/ads_marketing_department_supply_gmv_d_f,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+业务工厂/内部信息/市场（平台事业部）/公司BI/公司BI工作流/ads_module_open_rank_d_f,写入前 ORDER BY,全局排序单 reducer
+业务工厂/内部信息/市场（平台事业部）/公司BI/公司BI工作流/ads_module_open_rank_d_f,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+业务工厂/内部信息/市场（平台事业部）/公司BI/公司BI工作流/ads_module_open_rank_d_f,写死日期,补数 / 重跑结果不对
+业务工厂/内部信息/市场（平台事业部）/公司BI/公司BI工作流/ads_operate_lv1_num_d_f,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+业务工厂/内部信息/市场（平台事业部）/公司BI/公司BI工作流/ads_operate_pay_distri_num_d_f,SELECT *,读出全部列，列裁剪失效
+业务工厂/内部信息/市场（平台事业部）/公司BI/公司BI工作流/ads_operate_pay_distri_num_d_f,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+业务工厂/内部信息/财务部/客户属性cus_company/ads_cus_company_d_f,写入前 ORDER BY,全局排序单 reducer
+业务工厂/内部信息/财务部/客户属性cus_company/ads_cus_company_d_f,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+业务工厂/内部信息/财务部/客户属性cus_company/dim_cus_company_d_f,写入前 ORDER BY,全局排序单 reducer
+业务工厂/内部信息/财务部/客户属性cus_company/dim_cus_company_d_f,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+业务工厂/内部信息/财务部/客户属性cus_company/dim_cus_company_d_f,UNION（去重）,多一次全量去重
+业务工厂/内部信息/财务部/客户属性cus_company/dwd_sales_tr_marketing_order_d_f,SELECT *,读出全部列，列裁剪失效
+业务工厂/内部信息/财务部/客户属性cus_company/dws_company_package_it_d_f,SELECT *,读出全部列，列裁剪失效
+业务工厂/内部信息/财务部/客户属性cus_company/dws_company_package_it_d_f,写入前 ORDER BY,全局排序单 reducer
+业务工厂/内部信息/财务部/客户属性cus_company/dws_cus_company_login_d_f,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+业务工厂/内部信息/财务部/客户属性cus_company/dws_cus_company_partner_d_f,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+业务工厂/内部信息/财务部/客户属性cus_company/dws_cus_company_prod_d_f,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+业务工厂/内部信息/财务部/景旅纵横/ads_cus_landtravel_d_f,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+业务工厂/内部信息/财务部/景旅纵横/ads_cus_landtravel_d_f,UNION（去重）,多一次全量去重
+业务工厂/内部信息/财务部/景旅纵横/ads_cus_landtravel_d_f,写死日期,补数 / 重跑结果不对
+业务工厂/内部信息/财务部/节假日数据2/dws_order_info_holiday_analysis_d_f,写入前 ORDER BY,全局排序单 reducer
+业务工厂/内部信息/财务部/节假日数据2/dws_order_info_holiday_analysis_d_f,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+业务工厂/内部信息/财务部/节假日数据2/dws_verify_info_holiday_analysis_d_f,写入前 ORDER BY,全局排序单 reducer
+业务工厂/内部信息/财务部/节假日数据2/dws_verify_info_holiday_analysis_d_f,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+业务工厂/内部信息/财务部/资源中心考核2/ads_res_center_assessment_province2022_d_f,SELECT *,读出全部列，列裁剪失效
+业务工厂/内部信息/财务部/资源中心考核2/ads_res_center_assessment_province2022_d_f,写入前 ORDER BY,全局排序单 reducer
+业务工厂/内部信息/财务部/资源中心考核2/ads_res_center_assessment_province2022_d_f,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+业务工厂/内部信息/财务部/资源中心考核2/ads_res_center_assessment_province2022_d_f,写死日期,补数 / 重跑结果不对
+业务工厂/内部信息/财务部/资源中心考核2/ads_res_center_assessment_province2022_detail_d_f,SELECT *,读出全部列，列裁剪失效
+业务工厂/内部信息/财务部/资源中心考核2/ads_res_center_assessment_province2022_detail_d_f,写入前 ORDER BY,全局排序单 reducer
+业务工厂/内部信息/财务部/资源中心考核2/ads_res_center_assessment_province2022_detail_d_f,写死日期,补数 / 重跑结果不对
+业务工厂/内部信息/财务部/资源中心考核2/ads_resource_center_order_d_f,SELECT *,读出全部列，列裁剪失效
+业务工厂/内部信息/财务部/资源中心考核2/dwd_resource_center_order_d_f,SELECT *,读出全部列，列裁剪失效
+业务工厂/内部信息/财务部/资源中心考核2/dwd_resource_center_order_d_f,写入前 ORDER BY,全局排序单 reducer
+业务工厂/内部信息/财务部/资源中心考核2/dws_res_resource_center_land_attr_detail_d_f,SELECT *,读出全部列，列裁剪失效
+业务工厂/内部信息/财务部/资源中心考核2/dws_res_resource_center_land_attr_detail_d_f,写入前 ORDER BY,全局排序单 reducer
+业务工厂/内部信息/财务部/资源中心考核2/dws_resource_center_land_summary_d_f,SELECT *,读出全部列，列裁剪失效
+业务工厂/内部信息/财务部/资源中心考核2/dws_resource_center_land_summary_d_f,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+业务工厂/内部信息/财务部/资源中心考核2/dws_resource_center_user_d_f2,SELECT *,读出全部列，列裁剪失效
+业务工厂/内部信息/财务部/资源中心考核2/dws_resource_center_user_d_f2,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+业务工厂/内部信息/财务部/资源中心考核2/dws_resource_center_user_d_f2,写死日期,补数 / 重跑结果不对
+业务工厂/内部信息/资源中心/资源中心汇总工作流/ads_resource_center_order_d_f2,SELECT *,读出全部列，列裁剪失效
+业务工厂/内部信息/资源中心/资源中心汇总工作流/ads_resource_center_ticket_summary_d_f,SELECT *,读出全部列，列裁剪失效
+业务工厂/内部信息/资源中心/资源中心汇总工作流/ads_resource_center_ticket_summary_d_f,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+业务工厂/内部信息/资源中心/资源中心汇总工作流/ads_resource_purchase_list_d_f,SELECT *,读出全部列，列裁剪失效
+业务工厂/内部信息/资源中心/资源中心汇总工作流/dws_resource_center_user_d_f,SELECT *,读出全部列，列裁剪失效
+业务工厂/内部信息/资源中心/资源中心汇总工作流/dws_resource_center_user_d_f,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+业务工厂/内部信息/资源中心/资源中心汇总工作流/dws_resource_center_user_d_f,写死日期,补数 / 重跑结果不对
+业务工厂/内部信息/运营/运营汇总工作流/dws_company_distributor_order_d_f,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+业务工厂/内部信息/运营/运营汇总工作流/dws_company_package_d_f,SELECT *,读出全部列，列裁剪失效
+业务工厂/内部信息/运营/运营汇总工作流/dws_user_report_order_month_d_f,SELECT *,读出全部列，列裁剪失效
+业务工厂/内部信息/运营/运营汇总工作流/dws_user_report_order_month_d_f,写死日期,补数 / 重跑结果不对
+业务工厂/出入园/ADS/ads_datav_device_inout_statistics_month_d_i,UNION（去重）,多一次全量去重
+业务工厂/商户数据中心/ADS/ads_all_dis_member_count_d_f,写入前 ORDER BY,全局排序单 reducer
+业务工厂/商户数据中心/ADS/ads_all_dis_member_count_d_f,写死日期,补数 / 重跑结果不对
+业务工厂/商户数据中心/ADS/ads_distributor_total_count_d_f,写入前 ORDER BY,全局排序单 reducer
+业务工厂/商户数据中心/ADS/ads_distributor_total_count_d_f,写死日期,补数 / 重跑结果不对
+业务工厂/商户数据中心/ADS/ads_s_company_distributor_stat_o_i,写死日期,补数 / 重跑结果不对
+业务工厂/商户数据中心/ADS/ads_s_company_order_instance_stat_d_f,CROSS JOIN,笛卡尔积
+业务工厂/商户数据中心/ADS/ads_s_company_supplier_distributor_stat_d_f,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+业务工厂/商户数据中心/ADS/ads_s_company_tourist_area_instance_stat_d_f,SELECT *,读出全部列，列裁剪失效
+业务工厂/商户数据中心/ADS/ads_s_company_tourist_area_instance_stat_d_f,CROSS JOIN,笛卡尔积
+业务工厂/商户数据中心/ADS/ads_two_s_company_day_stat_d_i_f,写死日期,补数 / 重跑结果不对
+业务工厂/商户数据中心/开通服务的商户及景区/ods_c_member_authorize_d_f,写死日期,补数 / 重跑结果不对
+业务工厂/客户数据大屏/大连文化中心/ods_datav_preplay_describe_day_d_i,SELECT *,读出全部列，列裁剪失效
+业务工厂/客户数据大屏/大连文化中心/ods_datav_tourist_frequency_day_d_f,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+业务工厂/数据备份服务/ADS/ads_everyday_land_enter_into_number_d_f,写入前 ORDER BY,全局排序单 reducer
+业务工厂/数据备份服务/数据备份服务插入测试商户使用,SELECT *,读出全部列，列裁剪失效
+业务工厂/景区指标宽表/每日景区其他工作流/ads_daily_scenic_summary_d_i,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+业务工厂/景区指标宽表/每日景区其他工作流/ads_daily_scenic_toi_d_i,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+业务工厂/经营数据/预定单表/dwd_order_forck_o_f,写死日期,补数 / 重跑结果不对
+业务工厂/苏超使用工作流/苏超期间使用工作流/ods_tourist_info_d_i_temp,SELECT *,读出全部列，列裁剪失效
+数据中台/DIM/dim_date_isoweek_o_f_copy,写死日期,补数 / 重跑结果不对
+数据中台/DIM/dim_sid_white_list_d_f,NOT IN 子查询,易退化为笛卡尔
+数据中台/DW/dim_order_d_i,SELECT *,读出全部列，列裁剪失效
+数据中台/DW/dim_order_d_i,UNION（去重）,多一次全量去重
+数据中台/DW/dim_order_d_i,NOT IN 子查询,易退化为笛卡尔
+数据中台/DW/dim_order_d_i_dev,SELECT *,读出全部列，列裁剪失效
+数据中台/DW/dim_order_d_i_dev,UNION（去重）,多一次全量去重
+数据中台/DW/dim_order_d_i_dev,NOT IN 子查询,易退化为笛卡尔
+数据中台/DW/dim_order_d_i_dev_刷数,SELECT *,读出全部列，列裁剪失效
+数据中台/DW/dwd_order_split_d_i,SELECT *,读出全部列，列裁剪失效
+数据中台/DW/dwd_order_split_d_i,写入前 ORDER BY,全局排序单 reducer
+数据中台/DW/dwd_split_d_i,SELECT *,读出全部列，列裁剪失效
+数据中台/DW/dwd_tourist_info_d_i,SELECT *,读出全部列，列裁剪失效
+数据中台/DW/dws_distribution_aggregation_d_i,NOT IN 子查询,易退化为笛卡尔
+数据中台/ODS/ods_order_addon_d_i_workflow/ods_order_addon_d_i,SELECT *,读出全部列，列裁剪失效
+数据中台/ODS/ods_order_apply_d_i_workflow/ods_order_apply_15d_i,写入前 ORDER BY,全局排序单 reducer
+数据中台/ODS/ods_order_split_d_i_workflow/s_order_split_d_i,写入前 ORDER BY,全局排序单 reducer
+数据中台/ODS/ods_order_user_info_d_i_workflow/ods_order_user_info_d_i,SELECT *,读出全部列，列裁剪失效
+数据中台/ODS/ods_tourist_info_d_i_workflow/ods_tourist_info_d_i,SELECT *,读出全部列，列裁剪失效
+数据中台/ODS/ods_track_tnum_d_i_workflow/ods_track_tnum_d_i,NOT IN 子查询,易退化为笛卡尔
+数据中台/原始数据层(ODS)/ods_用户/ods_pft_common_dict_d_f,SELECT *,读出全部列，列裁剪失效
+数据中台/原始数据层(ODS)/ods_订单/ods_team_order_d_f,SELECT *,读出全部列，列裁剪失效
+数据中台/原始数据层(ODS)/ods_订单/ods_third_purchase_order_d_f,SELECT *,读出全部列，列裁剪失效
+数据中台/原始数据层(ODS)/ods_订单/ods_uu_order_terminal_change_d_f,写入前 ORDER BY,全局排序单 reducer
+数据中台/应用数据层(ADS)/大数据分析/数据罗盘/ads_booking_sum_d_f,SELECT *,读出全部列，列裁剪失效
+数据中台/应用数据层(ADS)/旅游相关api/ads_travel_age_gender_summary_d_f,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+数据中台/应用数据层(ADS)/旅游相关api/ads_travel_product_summary_d_f,SELECT *,读出全部列，列裁剪失效
+数据中台/应用数据层(ADS)/旅游相关api/ads_travel_togerter_summary_d_f,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+数据中台/应用数据层(ADS)/旅游相关api/ads_travel_tourists_source_summary_d_i,SELECT *,读出全部列，列裁剪失效
+数据中台/应用数据层(ADS)/旅游相关api/ads_travel_tourists_source_summary_d_i,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+数据中台/应用数据层(ADS)/营销短信/ads_order_draw_d_i,SELECT *,读出全部列，列裁剪失效
+数据中台/应用数据层(ADS)/营销短信/ads_order_draw_new_user_d_f,SELECT *,读出全部列，列裁剪失效
+数据中台/数仓明细层(DWD)/dwd_用户域/购买套餐、应用模块/dwd_user_module_d_f,SELECT *,读出全部列，列裁剪失效
+数据中台/数仓明细层(DWD)/dwd_用户域/购买套餐、应用模块/dwd_user_module_d_f,写入前 ORDER BY,全局排序单 reducer
+数据中台/数仓明细层(DWD)/dwd_用户域/购买套餐、应用模块/dwd_user_package_d_f,SELECT *,读出全部列，列裁剪失效
+数据中台/数仓明细层(DWD)/dwd_用户域/购买套餐、应用模块/dwd_user_package_d_f,写入前 ORDER BY,全局排序单 reducer
+数据中台/数仓明细层(DWD)/dwd_用户域/购买套餐、应用模块/dwd_user_package_d_f,写死日期,补数 / 重跑结果不对
+数据中台/数仓明细层(DWD)/dwd_预定单游客信息/dwd_order_tourist_info_d_f,写死日期,补数 / 重跑结果不对
+数据中台/数据维度(DIM)/dim_其他/dim_channel_d_f,SELECT *,读出全部列，列裁剪失效
+数据中台/数据维度(DIM)/dim_其他/dim_idcard_city_d_f,SELECT *,读出全部列，列裁剪失效
+数据中台/数据维度(DIM)/dim_其他/dim_idcard_city_fixed_d_f,SELECT *,读出全部列，列裁剪失效
+数据中台/数据维度(DIM)/dim_其他/dim_phone_city_d_f,SELECT *,读出全部列，列裁剪失效
+数据中台/数据维度(DIM)/dim_商品域/dim_land_d_f,SELECT *,读出全部列，列裁剪失效
+数据中台/数据维度(DIM)/dim_商品域/dim_prod_d_f,SELECT *,读出全部列，列裁剪失效
+数据中台/数据维度(DIM)/dim_商品域/dim_prod_price_d_f,写入前 ORDER BY,全局排序单 reducer
+数据中台/数据维度(DIM)/dim_用户域/dim_plat_staff_d_f,SELECT *,读出全部列，列裁剪失效
+数据中台/数据维度(DIM)/dim_用户域/dim_prod_distribute_d_f,SELECT *,读出全部列，列裁剪失效
+数据中台/数据维度(DIM)/dim_用户域/dim_thirdsystem_d_f,SELECT *,读出全部列，列裁剪失效
+数据中台/数据维度(DIM)/dim_用户域/dim_user_d_f,SELECT *,读出全部列，列裁剪失效
+数据中台/数据维度(DIM)/dim_用户域/dim_user_module_d_f,SELECT *,读出全部列，列裁剪失效
+数据中台/数据维度(DIM)/dim_用户域/dim_user_module_d_f,写入前 ORDER BY,全局排序单 reducer
+数据中台/数据维度(DIM)/dim_用户域/dim_user_relationship_d_f,SELECT *,读出全部列，列裁剪失效
+数据中台/数据维度(DIM)/dim_用户域/dim_user_thirdsystem_d_f,SELECT *,读出全部列，列裁剪失效
+数据中台/数据维度(DIM)/dim_资源中心/dim_resource_center_prod_d_f,SELECT *,读出全部列，列裁剪失效
+数据中台/数据维度(DIM)/dim_资源中心/dim_resource_center_prod_d_f,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+数据中台/数据维度(DIM)/dim_资源中心/dim_resource_center_prod_d_f,写死日期,补数 / 重跑结果不对
+数据中台/数据维度(DIM)/dim_资源中心/dim_resource_center_purchase_d_f,SELECT *,读出全部列，列裁剪失效
+数据中台/数据维度(DIM)/dim_资源中心/dim_resource_center_purchase_d_f,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+数据中台/数据维度(DIM)/dim_资源中心/dim_resource_center_purchase_d_f,写死日期,补数 / 重跑结果不对
+数据中台/数据维度(DIM)/dim_资源域/dim_resource_land_d_f,SELECT *,读出全部列，列裁剪失效
+数据中台/数据维度(DIM)/dim_资源域/dim_resource_type_d_f,SELECT *,读出全部列，列裁剪失效
+数据平台/ADS/ads_数字大脑指标流程/ads_digital_brain_target_merge_ota_di,CROSS JOIN,笛卡尔积
+数据平台/DIM/dim_attr_scenic_info_df,SELECT *,读出全部列，列裁剪失效
+数据平台/DIM/dim_common_date_info_df,写入前 ORDER BY,全局排序单 reducer
+数据平台/DIM/dim_common_date_info_df,写死日期,补数 / 重跑结果不对
+数据平台/DIM/dim_cus_member_info_df,SELECT *,读出全部列，列裁剪失效
+数据平台/DWS/dws_scenic_ticket_price_zipper_di,写入前 ORDER BY,全局排序单 reducer
+数据平台/ODS/脚本流程/ods_myuu_order_aids_split_f,写入前 ORDER BY,全局排序单 reducer
+数据平台/ODS/脚本流程/ods_myuu_pft_order_tourist_track_di,SELECT *,读出全部列，列裁剪失效
+数据平台/ODS/脚本流程/ods_myuu_uu_order_addon_f,写入前 ORDER BY,全局排序单 reducer
+数据平台/ODS/脚本流程/ods_myuu_uu_order_apply_info_f,写入前 ORDER BY,全局排序单 reducer
+数据平台/ODS/脚本流程/ods_myuu_uu_order_tourist_info_extend_f,写入前 ORDER BY,全局排序单 reducer
+数据平台/ODS/脚本流程/ods_myuu_uu_order_tourist_info_f,写入前 ORDER BY,全局排序单 reducer
+数据平台/ODS/脚本流程/ods_myuu_uu_ss_order_df,SELECT *,读出全部列，列裁剪失效
+数据平台/ODS/脚本流程/ods_myuu_uu_ss_order_df,写入前 ORDER BY,全局排序单 reducer
+数据平台/业务需求工作流/星享铁旅工作流/dwd_ord_order_tourist_shift_detail_di,UNION（去重）,多一次全量去重
+数据平台/业务需求工作流/星享铁旅工作流/dwd_ord_order_tourist_shift_detail_di,NOT IN 子查询,易退化为笛卡尔
+数据平台/业务需求工作流/西安博物院_日报/ads_prd_attraction_visitor_stats_df,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+数据平台/业务需求工作流/西安博物院_日报/西安博物院_日报数据/ads_prd_attraction_visitor_stats_di,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+数据平台/平台湖仓工作流/一卡通/dws_tps_aioc_summary_di,UNION（去重）,多一次全量去重
+数据平台/平台湖仓工作流/一卡通/dws_tps_aioc_summary_di,NOT IN 子查询,易退化为笛卡尔
+数据平台/平台湖仓工作流/出入园数据/ads_trf_tourist_in_out_qty,CROSS JOIN,笛卡尔积
+数据平台/平台湖仓工作流/商户数据中心/dwd_order_boss_cockpit_instance_workflow,SELECT *,读出全部列，列裁剪失效
+数据平台/平台湖仓工作流/小岛零售/dws_sup_xisland_retail_summary_di,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+数据平台/平台湖仓工作流/平台新报表/dws_mps_prd_report_summary_di,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+数据平台/平台湖仓工作流/平台新报表/dws_mps_sup_report_summary_di,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+数据平台/平台湖仓工作流/平台新报表/dws_mps_trf_report_summary_di,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+数据平台/平台湖仓工作流/提前预定主子票汇总/ods_track_tnum_hrs,NOT IN 子查询,易退化为笛卡尔
+数据平台/平台湖仓工作流/经营数据/dwd_cus_qualification_auth_df,写入前 ORDER BY,全局排序单 reducer
+数据平台/平台湖仓工作流/经营数据/dwd_cus_user_base_bind_df,写入前 ORDER BY,全局排序单 reducer
+数据平台/平台湖仓工作流/经营数据/dwd_ord_order_detail_di,SELECT *,读出全部列，列裁剪失效
+数据平台/平台湖仓工作流/经营数据/dwd_ord_order_item_wide_di,SELECT *,读出全部列，列裁剪失效
+数据平台/平台湖仓工作流/经营数据/dws_ord_region_performance_di,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+数据平台/平台湖仓工作流/经营数据/dws_ord_region_performance_di,CROSS JOIN,笛卡尔积
+数据平台/平台湖仓工作流/经营数据/dws_ord_scenic_type_performance_di,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+数据平台/平台湖仓工作流/经营数据/dws_ord_scenic_type_performance_di,CROSS JOIN,笛卡尔积
+数据平台/平台湖仓工作流/经营数据/dws_ord_supplier_overview_di,SELECT *,读出全部列，列裁剪失效
+数据平台/平台湖仓工作流/经营数据/dws_ord_supplier_overview_di,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+数据平台/平台湖仓工作流/经营数据/dws_ord_supplier_overview_di,CROSS JOIN,笛卡尔积
+数据平台/平台湖仓工作流/经营数据/dws_ord_tourist_overview_di,COUNT(DISTINCT),去重计数无法跨表复用、数据倾斜
+数据平台/平台湖仓工作流/经营数据/dws_ord_tourist_overview_di,CROSS JOIN,笛卡尔积
