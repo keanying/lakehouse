@@ -538,10 +538,17 @@ function coverage(L){
 }
 function vMetrics(v,a){
   const keys=['catalog','dim','dwd','dws','ads','dwsdict','adsdict'];const tab=keys.includes(a)?a:'catalog';
-  const T=[['dim','DIM 层全部字段',MET.DIM.length],['dwd','DWD 层全部字段',MET.DWD.length],['dws','DWS 层全部字段',MET.DWS.length],['ads','ADS 层全部字段',MET.ADS.length]];
-  const T2=[['dwsdict','DWS 口径字典',RAW['DWS口径'].rows.length],['adsdict','ADS 指标字典',RAW['ADS业务指标'].rows.length],['bizall','ADS 业务指标（周期展开）→',ADS.summary.biz]];
-  const chip=([k,l,n])=>`<button class="chip ${tab===k?'on':''}" data-k="${k}" style="height:30px;padding:0 14px">${l}<i>${n}</i></button>`;
-  v.innerHTML=`<div class="bar" style="margin-bottom:6px"><div class="chips">${chip(['catalog','指标目录（按口径）',CATALOG.length])}</div><span class="sep"></span><div class="chips">${T.map(chip).join('')}</div><span class="sep"></span><div class="chips">${T2.map(chip).join('')}</div></div><div id="mh" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>`;
+  const TIP={catalog:'一个口径一行：口径定义 + 它在 ADS 里展开成哪些指标',
+    dim:'DIM 层所有表的全部字段（物理列）',dwd:'DWD 层所有表的全部字段（物理列）',dws:'DWS 层所有表的全部字段（物理列）',ads:'ADS 层所有表的全部字段（物理列）',
+    dwsdict:'指标怎么算：每个口径一条（公式、来源明细表、落地 DWS 表、被哪些 ADS 用）',
+    adsdict:'业务能用的指标：每张 ADS 表上的每个指标一条（本期值 / 日均 / 上期 / 环比 / 同比 / 占比，及分子分母等存储字段）',
+    bizall:'ADS 指标 × 统计周期（当日 / 本周 / 近半年 / 节假日…）展开后的业务指标，每条带取数 SQL'};
+  const T=[['dim','DIM 层',MET.DIM.length],['dwd','DWD 层',MET.DWD.length],['dws','DWS 层',MET.DWS.length],['ads','ADS 层',MET.ADS.length]];
+  const T2=[['dwsdict','① DWS 口径定义',RAW['DWS口径'].rows.length],['adsdict','② ADS 指标清单',RAW['ADS业务指标'].rows.length],['bizall','③ 业务指标（按周期展开）→',ADS.summary.biz]];
+  const chip=([k,l,n])=>`<button class="chip ${tab===k?'on':''}" data-k="${k}" title="${esc(TIP[k]||'')}" style="height:30px;padding:0 14px">${l}<i>${n.toLocaleString()}</i></button>`;
+  const grp=t=>`<span style="font-size:12px;color:var(--muted);white-space:nowrap">${t}</span>`;
+  v.innerHTML=`<div class="bar" style="margin-bottom:6px"><div class="chips">${chip(['catalog','指标目录（按口径）',CATALOG.length])}</div><span class="sep"></span><div class="chips" style="align-items:center">${grp('按表看字段：')}${T.map(chip).join('')}</div><span class="sep"></span><div class="chips" style="align-items:center">${grp('按指标看字典：')}${T2.map(chip).join('')}</div></div>
+    <div class="sub" style="margin:0 0 8px">${esc(TIP[tab]||'')}${['dwsdict','adsdict'].includes(tab)?'。关系：① 口径定义（怎么算）→ ② ADS 指标清单（每个口径在 ADS 里有哪些指标）→ ③ 再乘以统计周期得到业务指标':''}</div><div id="mh" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>`;
   v.querySelectorAll('.chips').forEach(c=>c.onclick=e=>{const b=e.target.closest('.chip');if(b)go(b.dataset.k==='bizall'?'#/period/biz':'#/metrics/'+b.dataset.k)});
   const h=$('#mh');MS[tab]??={};
   if(tab==='catalog'){vCatalog(h);return}
