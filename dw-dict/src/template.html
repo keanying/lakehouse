@@ -6,7 +6,7 @@
 <title>PFT3.0 数仓字典</title>
 <style>
 :root{--bg:#f3f4ef;--panel:#fff;--line:#e3e6ec;--line2:#eef0f4;--text:#1b2233;--sub:#4b5568;--muted:#7b8497;--brand:#2f3a12;--brand-soft:#eef7cf;
---ODS:#7a5af8;--DWD:#0e9384;--DIM:#d9770a;--DWS:#3a5bd9;--ADS:#d92d78;
+--SRC:#475467;--ODS:#7a5af8;--DWD:#0e9384;--DIM:#d9770a;--DWS:#3a5bd9;--ADS:#d92d78;
 --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
@@ -244,11 +244,11 @@ pre.code.sm{flex:none;max-height:none}
 </div>
 <div class="mask" id="mask"></div>
 <aside class="drawer" id="drawer"><div class="dh2"><h2 id="dt"></h2><button class="btn" id="dx">关闭 ✕</button></div><div class="body" id="dbd"></div></aside>
-<script>const RAW=__DATA__;const CHK=__CHECKS__;const BMETA=__META__;const ADS=__ADS__;const ETL=__ETL__;const ORIG=__ORIG__;const CHG=ORIG.changed;</script>
+<script>const RAW=__DATA__;const CHK=__CHECKS__;const BMETA=__META__;const ADS=__ADS__;const ETL=__ETL__;const ORIG=__ORIG__;const CHG=ORIG.changed;const SRC=__SRC__;RAW['表清单'].rows.unshift(...SRC.tables);RAW['字段清单'].rows.unshift(...SRC.fields);</script>
 <script>
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const LAY=['ODS','DWD','DIM','DWS','ADS'];
+const LAY=['ODS','DWD','DIM','DWS','ADS'];const TLAY=['SRC',...LAY];const LNAME={SRC:'业务库'};
 const base=l=>String(l).replace(/（实时）/,'');
 const isRT=l=>/实时/.test(l);
 const shortN=n=>String(n||'').replace(/^\w+\./,'');
@@ -259,7 +259,7 @@ const ltag=l=>`<span class="tag ${isRT(l)?'rt':''}" style="background:var(--${ba
 /* ---------- 数据建模 ---------- */
 const TB=[];const TBM={};
 {const c=RAW['表清单'].cols;const g=n=>c.indexOf(n);
- RAW['表清单'].rows.forEach(r=>{const o={no:r[g('序号')],layer:r[g('分层')],domain:r[g('业务域')],name:r[g('表名（库.表）')],cn:r[g('表中文名')],grain:r[g('粒度')],suffix:r[g('后缀含义')],part:r[g('分区')],src:r[g('来源')],keys:r[g('度量 / 口径 / 关键字段')],up:r[g('上游表')],down:r[g('下游表')],note:r[g('备注')]};o.short=shortN(o.name);o.b=base(o.layer);o.rt=isRT(o.layer);o.fields=[];TB.push(o);TBM[o.short]=o;});}
+ RAW['表清单'].rows.forEach(r=>{const o={no:r[g('序号')],layer:r[g('分层')],domain:r[g('业务域')],name:r[g('表名（库.表）')],cn:r[g('表中文名')],grain:r[g('粒度')],suffix:r[g('后缀含义')],part:r[g('分区')],src:r[g('来源')],keys:r[g('度量 / 口径 / 关键字段')],up:r[g('上游表')],down:r[g('下游表')],note:r[g('备注')]};o.short=shortN(o.name);o.b=base(o.layer);o.rt=isRT(o.layer);o.fields=[];if(o.b==='ODS'&&!o.up)o.up=(String(o.src).match(/pft-[\w-]+\.t_\w+/g)||[]).join('、');TB.push(o);TBM[o.short]=o;});}
 {const c=RAW['字段清单'].cols;const g=n=>c.indexOf(n);
  RAW['字段清单'].rows.forEach(r=>{const t=TBM[shortN(r[g('表名（库.表）')])];if(t)t.fields.push({no:r[g('序号')],n:r[g('字段名')],t:r[g('类型')],k:r[g('字段类别')],c:r[g('字段注释')],s:r[g('加工 / 来源')],u:r[g('上游字段')]});});}
 // 指标口径：DIM/DWD/DWS/ADS 层字段类别为 度量/指标 的字段
@@ -286,6 +286,7 @@ const tokens=s=>String(s||'').split(/[、,，\s;；]+/).map(x=>shortN(x.trim()))
 
 /* ---------- DDL ---------- */
 function ddl(t){
+  if(t.b==='SRC')return `-- ${t.name}（MySQL 业务库原始 DDL，摘自 docs/source/pft-arch-02-database.md）\n`+SRC.ddl[t.name];
   const q=s=>String(s??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,' ');
   const parts=t.fields.filter(f=>f.k==='分区'),cols=t.fields.filter(f=>f.k!=='分区');
   // 字段清单没登记分区字段时，按「表清单·分区」列补出 travel_date（离线 Hive 表）
@@ -433,7 +434,7 @@ function vTables(v,a,b){
   if(!TS.sel)TS.sel=null;
   const doms=[...new Set(TB.map(t=>t.domain))].sort();
   v.innerHTML=`<div class="bar"><input class="inp" id="tq" placeholder="搜索表名 / 中文名 / 来源 / 字段…" value="${esc(TS.q)}">
-   <div class="chips" id="lc"><button class="chip ${!TS.layer?'on':''}" data-l="">全部<i>${TB.length}</i></button>${LAY.map(l=>`<button class="chip ${TS.layer===l?'on':''}" data-l="${l}">${l}<i>${TB.filter(t=>t.b===l).length}</i></button>`).join('')}</div>
+   <div class="chips" id="lc"><button class="chip ${!TS.layer?'on':''}" data-l="">全部<i>${TB.length}</i></button>${TLAY.map(l=>`<button class="chip ${TS.layer===l?'on':''}" data-l="${l}">${LNAME[l]||l}<i>${TB.filter(t=>t.b===l).length}</i></button>`).join('')}</div>
    <select class="sel ${TS.domain?'act':''}" id="td"><option value="">业务域：全部</option>${doms.map(d=>`<option ${TS.domain===d?'selected':''}>${d}</option>`).join('')}</select>
    <button class="chip ${TS.chg?'on':''}" id="tchg">只看改造<i>${Object.keys(CHG).length}</i></button>
    <select class="sel ${TS.rt?'act':''}" id="tr"><option value="">离线 + 实时</option><option value="0" ${TS.rt==='0'?'selected':''}>仅离线</option><option value="1" ${TS.rt==='1'?'selected':''}>仅实时</option></select>
@@ -455,7 +456,7 @@ function vTables(v,a,b){
     const t=TBM[TS.sel],el=$('#td2');
     if(!t){el.innerHTML='<div class="empty" style="margin:auto">← 从左侧选择一张表，查看概览、字段与 DDL</div>';return}
     const tabs=[['info','概览'],['cols',`字段 (${t.fields.length})`]];tabs.push(['ddl','DDL']);const sch=SCHED(t.short),dq=DQ(t.short);if(ETL[t.short])tabs.splice(2,0,['etl','加工逻辑']);if(TS.tab==='etl'&&!ETL[t.short])TS.tab='info';if(TS.tab==='orig'||TS.tab==='met')TS.tab='info';if(sch.length)tabs.push(['sch','调度']);if(dq.length)tabs.push(['dq',`质量规则 (${dq.length})`]);if(TS.tab==='sch'&&!sch.length||TS.tab==='dq'&&!dq.length)TS.tab='info';
-    el.innerHTML=`<div class="dh"><h2>${ltag(t.layer)}${esc(t.name)}<button class="btn" id="cpn" style="margin-left:auto;height:26px">复制表名</button></h2><div class="cn">${esc(t.cn)} · <span class="pill">${esc(t.domain)}</span> ${t.rt?'<span class="pill o">实时</span>':'<span class="pill g">离线</span>'}${CHG[t.short]?` <span class="pill o">改造</span>`:''}</div><div class="tabs">${tabs.map(([k,l])=>`<a data-k="${k}" class="${TS.tab===k?'on':''}">${l}</a>`).join('')}</div></div><div class="db ${['info','met','sch','dq'].includes(TS.tab)?'':'flex'}" id="dbody"></div>`;
+    el.innerHTML=`<div class="dh"><h2>${ltag(t.layer)}${esc(t.name)}<button class="btn" id="cpn" style="margin-left:auto;height:26px">复制表名</button></h2><div class="cn">${esc(t.cn)} · <span class="pill">${esc(t.domain)}</span> ${t.b==='SRC'?'<span class="pill">MySQL 业务库</span>':t.rt?'<span class="pill o">实时</span>':'<span class="pill g">离线</span>'}${CHG[t.short]?` <span class="pill o">改造</span>`:''}</div><div class="tabs">${tabs.map(([k,l])=>`<a data-k="${k}" class="${TS.tab===k?'on':''}">${l}</a>`).join('')}</div></div><div class="db ${['info','met','sch','dq'].includes(TS.tab)?'':'flex'}" id="dbody"></div>`;
     $('#cpn').onclick=e=>copy(t.name,e.target);
     el.querySelector('.tabs').onclick=e=>{const a=e.target.closest('a');if(a){TS.tab=a.dataset.k;detail()}};
     const body=$('#dbody');
@@ -465,7 +466,7 @@ function vTables(v,a,b){
       body.onclick=e=>{const a=e.target.closest('a[data-t]');if(a){TS.sel=a.dataset.t;TS.tab='info';list();detail()}};
     }else if(TS.tab==='cols'){
       const F=t.fields.map(f=>[f.no,f.n,f.t,f.k,shortCmt(f),caliber(t,f),f.s]);
-      const H=['#','字段名','类型','类别','中文名','口径说明','加工 / 来源'];
+      const H=t.b==='SRC'?['#','字段名','类型','类别','中文名','字段注释','约束 / 默认值']:['#','字段名','类型','类别','中文名','口径说明','加工 / 来源'];
       body.innerHTML='';const box=document.createElement('div');box.style.cssText='flex:1;min-height:0;display:flex;flex-direction:column';body.appendChild(box);
       grid(box,{cols:H,rows:F,cls:['c-n','c-id','c-s','c-s','c-cm','c-kou','c-src'],filters:[3],searchPh:'筛选字段名 / 注释…',pageSize:200,csvName:t.short+'_fields',rowCls:r=>isGK(r[3])?'gk':'',state:{q:TS.fq,f:{},sort:null,page:0},cell:(i,v,q)=>i===3?catPill(v):i===5?(v?`<span class="kou">${hl(esc(v),q)}</span>`:'<span style="color:#c3c8d3">—</span>'):hl(esc(v),q),onRow:r=>{const f=t.fields.find(x=>x.no===r[0]&&x.n===r[1]);drawer(f.n,t.name,(caliber(t,f)?`<div class="sub">口径说明</div><div class="formula" style="font-family:inherit">${esc(caliber(t,f))}</div>`:'')+kvHtml([['序号',f.no],['类型',esc(f.t)],['类别',catPill(f.k)],['字段注释',esc(f.c)],['加工 / 来源',esc(f.s)],['上游字段',esc(f.u)]]))}});
     }else if(TS.tab==='etl'){
@@ -480,7 +481,7 @@ function vTables(v,a,b){
     }else if(TS.tab==='dq'){
       body.innerHTML=dq.map(r=>`<div class="mc" style="cursor:default;margin-bottom:8px"><div class="mh"><span class="c-id">${esc(r[0])}</span><b>${esc(r[5])}</b><span class="grow"></span><span class="pill">${esc(r[4])}</span><span class="pill ${r[6]==='强'?'r':''}">${esc(r[6])}</span><span class="pill">${esc(r[7])}</span></div><div class="mk">期望：${esc(r[8])}${r[9]?` · <span style="color:var(--sub)">${esc(r[9])}</span>`:''}</div><pre class="code sm">${esc(r[10])}</pre></div>`).join('');
     }else{
-      body.innerHTML=`<div class="dtool"><span class="sub" style="margin:0">${t.rt?'流式表':'Hive（ORC）'} · 根据字段清单生成 · ${t.fields.length} 个字段</span><span class="grow" style="flex:1"></span><button class="btn pri" id="cpd">复制 DDL</button></div><pre class="code">${ddlHtml(t)}</pre>`;
+      body.innerHTML=`<div class="dtool"><span class="sub" style="margin:0">${t.b==='SRC'?'MySQL 业务库 · 设计文档原始 DDL':(t.rt?'流式表':'Hive（ORC）')+' · 根据字段清单生成'} · ${t.fields.length} 个字段</span><span class="grow" style="flex:1"></span><button class="btn pri" id="cpd">复制 DDL</button></div><pre class="code">${ddlHtml(t)}</pre>`;
       $('#cpd').onclick=e=>copy(ddl(t),e.target);
     }
   }
