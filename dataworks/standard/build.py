@@ -10,7 +10,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parent
 sys.path[:0] = [str(ROOT), str(HERE)]
 import parse, catalog, audit  # noqa: E402
-import rules, model  # noqa: E402
+import rules, model, names  # noqa: E402
 
 sh = catalog.sh
 LAYER_CN = {'ODS': '原始数据层', 'DIM': '维度层', 'DWD': '明细层', 'DWS': '汇总层', 'ADS': '应用层'}
@@ -83,7 +83,7 @@ def build():
         landing = sorted({l for _, s in group for l in s['landing']})
         schema = next((SC[l] for l in landing if l in SC), None)
         tmap = {c: (ty, cm) for c, ty, cm in (schema['cols'] if schema else [])}
-        cn = next((s.get('comment') for _, s in group if s.get('comment')), '') or (schema or {}).get('comment', '') or rules.PINYIN.get(o['ltb'], ('', ''))[1] or o['ltb']
+        cn = next((s.get('comment') for _, s in group if s.get('comment')), '') or (schema or {}).get('comment', '') or rules.PINYIN.get(o['ltb'], ('', ''))[1] or table_cn(o['ltb'])
         srcs = sorted({f'{ds}.{tb}' for (ds, tb), _ in group})
         sens = [c for c in cols if rules.SENSITIVE.search(c)]
         drop = [c for c in cols if rules.DROP.match(c)]
@@ -154,7 +154,7 @@ def build():
             core = spec['fields'][1]
             keys = core
             seen = collections.OrderedDict()
-            srcs = spec['legacy_hit'] or [o for o in ods_set if o in up]
+            srcs = spec['legacy_hit'] or sorted(o for o in ods_set if o in up)   # 排序：保证每次生成一致
             freq = collections.Counter()
             for l in srcs:
                 for c, _, _ in (SC[l]['cols'] if l in SC else []):
@@ -264,7 +264,32 @@ def build():
                 down[u.strip()].add(tb['name'])
     for tb in tables:
         tb['down'] = '、'.join(sorted(down.get(tb['name'], ())))
+    # 字段中文名：缺失或与字段名相同的，用旧系统真实注释补，没有再按字段名翻译
+    global NAMER
+    NAMER = names.Namer(SC, nodes)
+    legacy_of = {f'{x["layer"].lower()}.{x["name"]}': x['legacy'] for x in tables}
+    for f in fields:
+        if not names.needs_name(f[7], f[4]):
+            continue
+        lc = re.findall(r'(?:沿用旧表 |^)(?:[\w-]+\.)?(\w+)\.(\w+)', str(f[8] or ''))
+        tabs = [a for a, _ in lc] + list(legacy_of.get(f[1], []))
+        cols = [b for _, b in lc] + [x.strip() for x in re.findall(r'旧字段：(.*)', str(f[8] or ''))[0].split('/')] if '旧字段：' in str(f[8] or '') else [b for _, b in lc]
+        sens = '（脱敏）' if rules.SENSITIVE.search(f[4]) and f[0] == 'ODS' else ''
+        f[7] = NAMER.name(f[4], tabs, [c for c in cols if c]) + sens
     return nodes, C, tables, fields, rows, logical, ods_of_source
+
+
+NAMER = None
+
+
+def table_cn(t):
+    """源表没有中文表名时按表名翻译（去掉 uu_ / pft_ 前缀）"""
+    base = re.sub(r'^(uu_|pft_|t_)', '', t)
+    m = re.match(r'formtable_main_(\d+)(_dt(\d+))?$', t)
+    if m:
+        return f'OA 表单 {m.group(1)}' + (f' 明细表 {m.group(3)}' if m.group(2) else '') + '（中文名待确认）'
+    s, sure = names.translate(base)
+    return s if sure else f'{s}（待确认）'
 
 
 def sheets(tables, fields, mrows, findings):
@@ -522,7 +547,7 @@ def legacy_src(C, logical, ods_of_source, fcols, tcols):
                 types.setdefault(c, (ty, cm))
         ods = sorted({ods_of_source[k] for k, _ in g if k in ods_of_source})
         targets = sorted({x for _, s in g for x in s['targets']})
-        cn = next((s.get('comment') for _, s in g if s.get('comment')), '') or rules.PINYIN.get(ltb, ('', ''))[1] or ltb
+        cn = next((s.get('comment') for _, s in g if s.get('comment')), '') or rules.PINYIN.get(ltb, ('', ''))[1] or table_cn(ltb)
         note = []
         if len(g) > 1:
             note.append('物理源：' + '、'.join(f'{a}.{b}' for (a, b), _ in g))
@@ -545,7 +570,7 @@ def legacy_src(C, logical, ods_of_source, fcols, tcols):
             fr[fi['分层']], fr[fi['表名（库.表）']], fr[fi['表中文名']], fr[fi['序号']], fr[fi['字段名']] = 'SRC', name, cn, i, c
             fr[fi['类型']] = ty or '—'
             fr[fi['字段类别']] = '主键' if c.lower() == 'id' else ('维度属性' if not rules.SENSITIVE.search(c) else '敏感字段')
-            fr[fi['字段注释']] = cm
+            fr[fi['字段注释']] = cm if not names.needs_name(cm, c) else NAMER.name(c, landing)
             fr[fi['加工 / 来源']] = '密码类字段：标准化后不再同步' if rules.DROP.match(c) else ('敏感字段：ODS 落地脱敏' if rules.SENSITIVE.search(c) else '')
             frows.append(fr)
             lines.append(f'  {c:<32} {ty or "（类型以业务库为准）"}' + (f'  -- {cm}' if cm else ''))
@@ -582,6 +607,7 @@ def main():
     print('标准表', dict(cnt), '字段', len(fields), '口径', len(model.METRICS))
     print('旧表映射', {('Hive' if k[0] else '回流') + '/' + k[1]: v for k, v in sorted(act.items())})
     print('->', xlsx)
+    print('字段中文名补齐：', dict(NAMER.stats))
 
     # ------------------------------------------------ 页面（与 PFT3.0 字典页同一模板，legacy 模式）
     sys.path.insert(0, str(ROOT.parent / 'dw-dict'))
