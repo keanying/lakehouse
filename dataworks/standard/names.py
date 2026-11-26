@@ -88,7 +88,7 @@ W = {
     'resourceid': '资源ID', 'resource': '资源', 'purchase': '采购', 'procurement': '采购', 'quota': '配额', 'share': '共享', 'shared': '共享', 'annual': '年卡',
     'privilege': '特权', 'renew': '续费', 'active': '激活', 'photos': '照片', 'face': '人脸', 'aliface': '支付宝人脸', 'async': '异步', 'cover': '覆盖', 'suit': '适用',
     'desensitization': '脱敏', 'manage': '管理', 'management': '管理', 'external': '外部', 'internal': '内部', 'mall': '商城', 'collect': '收集', 'v2': 'V2',
-    'serial_num': '流水号', 'trade_no': '交易号', 'out_trade_no': '外部交易号', 'tid': '门票ID', 'lid': '景区ID', 'aid': '供应商ID', 'fid': '用户ID', 'sid': '供应商ID',
+    'serial_num': '流水号', 'trade_no': '交易号', 'out_trade_no': '外部交易号', 'tid': '票ID', 'lid': '景区ID', 'aid': '供应商ID', 'fid': '用户ID', 'sid': '供应商ID（租户ID）',
     'pid': '产品ID', 'mid': '会员ID', 'uid': '用户ID', 'oid': '订单ID', 'ptype': '产品类型', 'apply_did': '原始供应商ID', 'px': '排序', 'q': '季度', 'mx5': '明细5',
     'sj': '时间', 'yj': '业绩', 'tc': '提成', 'fp': '发票', 'fph': '发票号', 'hz': '合作', 'xx': '信息', 'wl': '物流', 'kd': '快递', 'dsf': '第三方',
 }

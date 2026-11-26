@@ -127,6 +127,33 @@ COL = {
     'left_num': 'remain_ticket_qty', 'print_num': 'print_ticket_qty', 'total': 'total_qty', 'sex': 'gender', 'requestid': 'oa_request_id',
     'dw_ins_time': 'etl_time', 'inserttime': 'etl_time', 'insert_time': 'etl_time', 'year': 'year_no', 'month': 'month_no', 'week': 'week_no',
 }
+# 客户确认的核心 ID 含义（权威标注）：旧字段名 → (标准字段名, 中文名, 关联维表)
+ID_ANN = {'sid': ('supplier_id', '供应商ID（租户ID）', 'dim_sup_member_df'), 'lid': ('scenic_id', '景区ID', 'dim_prd_scenic_df'),
+          'pid': ('product_id', '产品ID', ''), 'tid': ('ticket_id', '票ID', 'dim_prd_ticket_df')}
+STD_ANN = {v[0]: (v[1], v[2]) for v in ID_ANN.values()}
+# 前缀形式统一说法（同一字段在各表只用一种中文名）
+PREFIXED_ANN = {'origin_supplier_id': '原始（顶级）供应商ID（租户ID）', 'scenic_supplier_id': '景区发布供应商ID（租户ID）',
+                'resource_center_supplier_id': '资源中心供应商ID（租户ID）', 'mall_supplier_id': '微商城供应商ID（租户ID）',
+                'main_ticket_id': '套票主票票ID', 'sub_ticket_id': '套票子票票ID', 'card_product_id': '年卡产品ID', 'resource_scenic_id': '业态景区ID'}
+
+
+def id_comment(name, old=''):
+    """标准字段名的中文名按客户标注统一：supplier_id / scenic_id / product_id / ticket_id 及其前缀形式（main_ / sub_ / origin_ …）"""
+    if name in STD_ANN:
+        cn, dim = STD_ANN[name]
+        return cn + (f'，关联 {dim}' if dim else '')
+    if name in PREFIXED_ANN:
+        return PREFIXED_ANN[name]
+    m = re.fullmatch(r'(\w+?)_(supplier_id|scenic_id|product_id|ticket_id)', name)
+    if m and old:
+        o = re.sub(r'门票\s*[iI][dD]|票类ID|门票ID', '票ID', old)
+        o = re.sub(r'([iI][dD])', 'ID', o)
+        if m.group(2) == 'supplier_id' and '租户' not in o and re.search(r'供应商\s*ID', o):
+            o = re.sub(r'供应商\s*ID', '供应商ID（租户ID）', o, count=1)
+        return o
+    return None
+
+
 SENSITIVE = re.compile(r'(phone|mobile$|tel$|id_card|idcard|personid|id_number|card_no|bank_no|address|passport|email|password|pwd)', re.I)
 DROP = re.compile(r'^(password|pwd|passwd|salt|secret)$', re.I)
 
@@ -134,6 +161,11 @@ DROP = re.compile(r'^(password|pwd|passwd|salt|secret)$', re.I)
 def std_col(c):
     """旧字段名 → (标准字段名, 是否改名)"""
     c0 = c.lower().strip('`')
+    if c0 in ID_ANN:
+        return ID_ANN[c0][0], True
+    if re.search(r'(^|_)(sid|lid|pid|tid)(_|$)', c0) and c0 not in COL:      # main_tid → main_ticket_id
+        n = re.sub(r'(?<![a-z])(sid|lid|pid|tid)(?![a-z])', lambda m: ID_ANN[m.group(1)][0], c0)
+        return n, True
     if c0 in COL:
         return COL[c0], COL[c0] != c0
     n = c0

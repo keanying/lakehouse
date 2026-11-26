@@ -276,6 +276,14 @@ def build():
         cols = [b for _, b in lc] + [x.strip() for x in re.findall(r'旧字段：(.*)', str(f[8] or ''))[0].split('/')] if '旧字段：' in str(f[8] or '') else [b for _, b in lc]
         sens = '（脱敏）' if rules.SENSITIVE.search(f[4]) and f[0] == 'ODS' else ''
         f[7] = NAMER.name(f[4], tabs, [c for c in cols if c]) + sens
+    # 客户标注的核心 ID：原始字段（sid / lid / pid / tid）与下游标准字段统一中文名
+    for f in fields:
+        if f[0] == 'ODS' and f[4] in rules.ID_ANN:
+            f[7] = rules.ID_ANN[f[4]][1]
+        elif f[0] != 'ODS':
+            c = rules.id_comment(f[4], str(f[7] or ''))
+            if c:
+                f[7] = c
     return nodes, C, tables, fields, rows, logical, ods_of_source
 
 
@@ -570,7 +578,7 @@ def legacy_src(C, logical, ods_of_source, fcols, tcols):
             fr[fi['分层']], fr[fi['表名（库.表）']], fr[fi['表中文名']], fr[fi['序号']], fr[fi['字段名']] = 'SRC', name, cn, i, c
             fr[fi['类型']] = ty or '—'
             fr[fi['字段类别']] = '主键' if c.lower() == 'id' else ('维度属性' if not rules.SENSITIVE.search(c) else '敏感字段')
-            fr[fi['字段注释']] = cm if not names.needs_name(cm, c) else NAMER.name(c, landing)
+            fr[fi['字段注释']] = rules.ID_ANN[c.lower()][1] if c.lower() in rules.ID_ANN else (cm if not names.needs_name(cm, c) else NAMER.name(c, landing))
             fr[fi['加工 / 来源']] = '密码类字段：标准化后不再同步' if rules.DROP.match(c) else ('敏感字段：ODS 落地脱敏' if rules.SENSITIVE.search(c) else '')
             frows.append(fr)
             lines.append(f'  {c:<32} {ty or "（类型以业务库为准）"}' + (f'  -- {cm}' if cm else ''))
