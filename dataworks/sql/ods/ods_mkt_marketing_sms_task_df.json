@@ -1,0 +1,83 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "ECS_pft_business_case",
+        "column": [
+          "id",
+          "uid",
+          "p_type",
+          "push_type_id",
+          "state",
+          "is_send",
+          "operater_id",
+          "is_timing",
+          "send_time",
+          "finish_time",
+          "create_time",
+          "update_time"
+        ],
+        "connection": [
+          {
+            "datasource": "ECS_pft_business_case",
+            "table": [
+              "pft_marketing_sms_task"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_mkt_marketing_sms_task_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "uid",
+          "p_type",
+          "push_type_id",
+          "state",
+          "is_send",
+          "operater_id",
+          "is_timing",
+          "send_time",
+          "finish_time",
+          "create_time",
+          "update_time"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

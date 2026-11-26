@@ -1,0 +1,81 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "ecs_pft001",
+        "column": [
+          "id",
+          "member_id",
+          "cooperat_type",
+          "cooperat_money",
+          "cooperat_time",
+          "repayment_time",
+          "sales_id",
+          "remark",
+          "is_delete",
+          "create_time",
+          "update_time"
+        ],
+        "connection": [
+          {
+            "datasource": "ecs_pft001",
+            "table": [
+              "pft_cooperation_other"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_sup_cooperation_other_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "member_id",
+          "cooperat_type",
+          "cooperat_money",
+          "cooperat_time",
+          "repayment_time",
+          "sales_id",
+          "remark",
+          "is_delete",
+          "create_time",
+          "update_time"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

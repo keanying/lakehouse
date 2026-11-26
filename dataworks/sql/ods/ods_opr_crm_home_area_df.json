@@ -1,0 +1,79 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "RDS_it_project",
+        "column": [
+          "home_area_group",
+          "home_area_desc",
+          "department",
+          "depid",
+          "lv1_team",
+          "lv2_team",
+          "lv3_team",
+          "amb_level1_dep",
+          "amb_level2_dep",
+          "amb_level3_dep"
+        ],
+        "connection": [
+          {
+            "datasource": "RDS_it_project",
+            "table": [
+              "dim_crm_home_area"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_opr_crm_home_area_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "home_area_group",
+          "home_area_desc",
+          "department",
+          "depid",
+          "lv1_team",
+          "lv2_team",
+          "lv3_team",
+          "amb_level1_dep",
+          "amb_level2_dep",
+          "amb_level3_dep"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

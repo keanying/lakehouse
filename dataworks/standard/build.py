@@ -11,6 +11,7 @@ ROOT = HERE.parent
 sys.path[:0] = [str(ROOT), str(HERE)]
 import parse, catalog, audit  # noqa: E402
 import rules, model, names, exports  # noqa: E402
+import etl as etl_mod  # noqa: E402
 
 sh = catalog.sh
 LAYER_CN = {'ODS': '原始数据层', 'DIM': '维度层', 'DWD': '明细层', 'DWS': '汇总层', 'ADS': '应用层'}
@@ -29,8 +30,10 @@ def suffix_of(name):
 def category(n, keys, layer):
     if n in keys[:1] and layer in ('DIM', 'DWD', 'ODS'):
         return '主键'
-    if n in keys:
-        return '粒度键' if layer in ('DWS', 'ADS') else '业务主键' if n.endswith(('_no', '_code')) else '外键'
+    if n in keys and layer in ('DWS', 'ADS'):
+        return '粒度键'
+    if n in keys and n.endswith(('_no', '_code')):
+        return '业务主键'
     if n == 'etl_time':
         return 'ETL'
     if re.search(r'_(qty|amt|rate|bitmap|pv|value)$', n):
@@ -42,6 +45,25 @@ def category(n, keys, layer):
     if re.search(r'_(id|no|code)$', n):
         return '外键'
     return '维度属性'
+
+
+def guess_type(n):
+    """标准化后新增字段的类型：按命名规范的后缀推断"""
+    for pat, ty in ((r'_amt$', 'DECIMAL(18,2)'), (r'_(qty|pv)$', 'BIGINT'), (r'_rate$', 'DECIMAL(20,6)'), (r'_(flag|level|hour)$|^stat_hour$', 'INT'), (r'_id$', 'BIGINT')):
+        if re.search(pat, n):
+            return ty
+    return 'STRING'
+
+
+def fix_mojibake(s):
+    """旧 DDL 里有 UTF-8 被按 cp1252 解读的注释（如 å–ç¥¨äºº），还原"""
+    if not s or not re.search(r'[\u00c0-\u00ff][\u0080-\u00ff\u0152-\u2122]', s):
+        return s
+    try:
+        b = b''.join(bytes([ord(ch)]) if ord(ch) < 256 else ch.encode('cp1252') for ch in s)
+        return b.decode('utf-8')
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return ''          # 转码时已丢字节，无法还原：置空，交给字段中文名补齐
 
 
 PFT3 = None
@@ -105,6 +127,7 @@ def build():
                 continue
             seq += 1
             ty, cm = tmap.get(c.lower(), ('STRING', ''))
+            cm = rules.FIELD_FIX.get((o['ltb'], c.lower())) or fix_mojibake(cm)
             cat = '主键' if c.lower() == 'id' else 'ETL' if c.lower() in ETL_COLS else category(c.lower(), [], 'ODS')
             fields.append(['ODS', f'ods.{name}', cn, seq, c.lower(), rules.std_type(ty), cat, (cm or c) + ('（脱敏）' if rules.SENSITIVE.search(c) else ''),
                            f'{srcs[0]}.{c}' + ('，落地脱敏' if rules.SENSITIVE.search(c) else ''), ''])
@@ -139,6 +162,9 @@ def build():
         if '*' in up:
             pref = re.findall(r'(ods_\w+?)_\*', up)
             up = '、'.join(sorted(o for o in ods_set if any(o.startswith(p) for p in pref)) + [x for x in re.split(r'[、]', spec['up']) if x and '*' not in x])
+        # 上游写的 ODS 名与实际增量 / 全量后缀不一致（_di / _df）时，对到实际存在的 ODS
+        fix = lambda x: x if not x.startswith('ods_') or x in ods_set else next((y for y in (x[:-3] + '_df', x[:-3] + '_di') if y in ods_set), x)
+        up = '、'.join(fix(x.strip()) for x in re.split(r'[、]', up) if x.strip())
         keys = []
         flist = []
         if spec['fields'] == 'pft3':          # 与 PFT3.0 共用的表：字段直接取 3.0 改造版字典，两边保持一致
@@ -179,7 +205,7 @@ def build():
                         seen[n] = (rules.std_type(ty), cm or '', f'沿用旧表 {l}.{c}', l)
             ordered = [k for k in core if k in seen] + [k for k in core if k not in seen] + [k for k in seen if k not in core]
             for n in ordered:
-                ty, cm, proc, l = seen.get(n, ('STRING', '', '新增（标准化后补齐）', ''))
+                ty, cm, proc, l = seen.get(n, (guess_type(n), '', '新增（标准化后补齐）', ''))
                 flist.append((n, ty, category(n, keys, layer), cm or n, proc, ''))
         else:
             keys = [f[0] for f in spec['fields'] if f[2] == '粒度键']
@@ -537,6 +563,57 @@ def legacy_etl(tables, T, nodes):
     return out
 
 
+def write_sql(etl, tables):
+    """加工逻辑落盘：dataworks/sql/<层>/<表>.sql（ODS 为数据集成脚本模式 .json），可直接导入 DataWorks"""
+    import shutil
+    base = ROOT / 'sql'
+    if base.exists():
+        shutil.rmtree(base)
+    layer = {t['name']: t['layer'].lower() for t in tables}
+    cnt, todo = collections.Counter(), collections.Counter()
+    for name, e in sorted(etl.items()):
+        d = base / layer[name]
+        d.mkdir(parents=True, exist_ok=True)
+        if e['kind'] == 'di':
+            body = e['sql'][e['sql'].index('{'):]
+            (d / f'{name}.json').write_text(body, encoding='utf-8')
+            e['path'] = f'sql/{layer[name]}/{name}.json'
+        else:
+            (d / f'{name}.sql').write_text(e['sql'], encoding='utf-8')
+            e['path'] = f'sql/{layer[name]}/{name}.sql'
+        cnt[layer[name]] += 1
+        todo[layer[name]] += e['stats'].get('review', 0)
+    rows = '\n'.join(f'| {k.upper()} | {cnt[k]} | {todo[k]} |' for k in ('ods', 'dim', 'dwd', 'dws', 'ads'))
+    (base / 'README.md').write_text(f"""# 标准化数仓加工逻辑
+
+由 `python3 dataworks/standard/build.py` 生成，与字典页「表清单 → 加工逻辑」一致；每段都经 sqlglot（spark）解析，输出列与字典字段清单逐一核对。
+
+| 层 | 脚本数 | 待确认字段 |
+|---|---|---|
+{rows}
+
+## 约定
+
+- 调度参数：`bizdate` = 业务日期（yyyyMMdd，DataWorks `$[yyyymmdd-1]`）；分区统一 `travel_date`。
+- ODS：`ods/*.json` 为数据集成脚本模式配置。增量表按 `update_time`（无则创建时间）取当天变更；只同步字典里的列；分表多表读取；历史库只在初始化时补一次。
+- 脱敏在读端完成，明文不落数仓：
+  - 手机号 = 前 7 位号段 + `#` + SHA256；
+  - 证件号（18 位）= 地区 6 位 + 出生年 4 位 + 性别位 + `#` + SHA256；
+  - DWD 用 `SUBSTRING_INDEX(x, '#', -1)` 取哈希、`SUBSTRING_INDEX(x, '#', 1)` 取前缀（归属地 / 性别 / 年龄）。
+- Spark 参数：订单明细按下单日动态分区覆盖，需 `spark.sql.sources.partitionOverwriteMode=dynamic`；明细关联订单时带下单日分区条件，依赖动态分区裁剪（Spark 3 默认开启）。
+- 去重类指标存位图：`TO_BITMAP / BITMAP_UNION / BITMAP_COUNT` 与 PFT3.0 同一套 UDF。
+- 累计维表、订单明细先写 `tmp` 临时表再覆盖（Spark 不允许同表边读边覆盖），需要 `tmp` 库。
+- 「待确认」：源字段未同步或码值需业务确认；「过渡期从旧表平移」：旧宽表逻辑分散在多张中间表，先平移保证下游切换，再逐字段改为从 ODS 计算。
+
+## 上线顺序
+
+ODS（同步）→ `dim_opr_dict_f`、地区 / 号段 / 证件地区码表 → `dim_sup_member_df` → `dim_prd_scenic_df` → `dim_prd_ticket_df` → `dim_prd_product_df`
+→ `dwd_ord_order_di` → 轨迹 / 核销 / 游客 / 分销 → `dim_sup_member_relation_zip` → `dim_sup_supplier_df`、`dim_cus_tourist_df` → `dim_cus_user_df` → DWS → ADS。
+
+每张表上线后与它替代的旧任务并行跑 7 天、按日对数（脚本头部列出了替代的旧任务），一致后下线旧任务。
+""", encoding='utf-8')
+
+
 def legacy_src(C, logical, ods_of_source, fcols, tcols):
     """业务库原始表（SRC）：DataWorks 同步任务读取的全部业务表；落地数仓的与 ODS 一一对应"""
     S, SC = C['sources'], C['schemas']
@@ -578,6 +655,7 @@ def legacy_src(C, logical, ods_of_source, fcols, tcols):
             fr[fi['分层']], fr[fi['表名（库.表）']], fr[fi['表中文名']], fr[fi['序号']], fr[fi['字段名']] = 'SRC', name, cn, i, c
             fr[fi['类型']] = ty or '—'
             fr[fi['字段类别']] = '主键' if c.lower() == 'id' else ('维度属性' if not rules.SENSITIVE.search(c) else '敏感字段')
+            cm = rules.FIELD_FIX.get((ltb, c.lower())) or fix_mojibake(cm)
             fr[fi['字段注释']] = rules.ID_ANN[c.lower()][1] if c.lower() in rules.ID_ANN else (cm if not names.needs_name(cm, c) else NAMER.name(c, landing))
             fr[fi['加工 / 来源']] = '密码类字段：标准化后不再同步' if rules.DROP.match(c) else ('敏感字段：ODS 落地脱敏' if rules.SENSITIVE.search(c) else '')
             frows.append(fr)
@@ -671,7 +749,13 @@ def main():
     res['mclass'].update(res0['mclass'])
     res['verify'], res['after'] = [], None
     model_.pop('_int', None)
-    etl = legacy_etl(tables, C['tables'], nodes)
+    old = legacy_etl(tables, C['tables'], nodes)
+    etl, bad = etl_mod.generate(tables, sh_['字段清单']['rows'], C, ods_of_source, nodes, {k: v['sql'] for k, v in old.items()})
+    write_sql(etl, tables)
+    kinds = collections.Counter(v['kind'] for v in etl.values())
+    print('加工逻辑：', dict(kinds), '校验未通过', len(bad))
+    for b in bad[:20]:
+        print('   ', b)
     src = legacy_src(C, logical, ods_of_source, sh_['字段清单']['cols'], sh_['表清单']['cols'])
     order = {'高': 0, '中': 1, '低': 2}
     F = sorted(findings, key=lambda f: (order[f['level']], f['id']))

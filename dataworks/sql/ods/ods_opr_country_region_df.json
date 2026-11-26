@@ -1,0 +1,85 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "polardb",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "POLAR_base_server",
+        "column": [
+          "id",
+          "name_zh",
+          "name_en",
+          "full_name_zh",
+          "full_name_en",
+          "is_country",
+          "alpha_2_code",
+          "alpha_3_code",
+          "numeric_3_code",
+          "sort",
+          "remark",
+          "create_time",
+          "update_time"
+        ],
+        "connection": [
+          {
+            "datasource": "POLAR_base_server",
+            "table": [
+              "country_region"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_opr_country_region_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "name_zh",
+          "name_en",
+          "full_name_zh",
+          "full_name_en",
+          "is_country",
+          "alpha_2_code",
+          "alpha_3_code",
+          "numeric_3_code",
+          "sort",
+          "remark",
+          "create_time",
+          "update_time"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

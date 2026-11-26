@@ -1,0 +1,91 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "polardb",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "POLAR_rcenter",
+        "column": [
+          "id",
+          "sid",
+          "lid",
+          "sales",
+          "profit",
+          "cron_time",
+          "attr_expand",
+          "create_time",
+          "update_time",
+          "attr_state",
+          "ticket_listing_time",
+          "opid",
+          "views",
+          "purchase_num",
+          "thirty_days_sales",
+          "resource_type"
+        ],
+        "connection": [
+          {
+            "datasource": "POLAR_rcenter",
+            "table": [
+              "pft_resource_land_attr"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_prd_resource_land_attr_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "sid",
+          "lid",
+          "sales",
+          "profit",
+          "cron_time",
+          "attr_expand",
+          "create_time",
+          "update_time",
+          "attr_state",
+          "ticket_listing_time",
+          "opid",
+          "views",
+          "purchase_num",
+          "thirty_days_sales",
+          "resource_type"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

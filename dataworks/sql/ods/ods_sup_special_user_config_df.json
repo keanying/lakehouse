@@ -1,0 +1,89 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "polardb",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "POLAR_myuu",
+        "column": [
+          "id",
+          "tag",
+          "tag_desc",
+          "type",
+          "rule_content",
+          "valid_time",
+          "data_source_desc",
+          "status",
+          "create_time",
+          "update_time",
+          "create_by",
+          "update_by",
+          "data_scope",
+          "business_type",
+          "certificate_type"
+        ],
+        "connection": [
+          {
+            "datasource": "POLAR_myuu",
+            "table": [
+              "pft_special_user_config"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_sup_special_user_config_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "tag",
+          "tag_desc",
+          "type",
+          "rule_content",
+          "valid_time",
+          "data_source_desc",
+          "status",
+          "create_time",
+          "update_time",
+          "create_by",
+          "update_by",
+          "data_scope",
+          "business_type",
+          "certificate_type"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

@@ -1,0 +1,133 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "BI_RDS_oa_ecology",
+        "column": [
+          "id",
+          "requestId",
+          "lcbh",
+          "khmc",
+          "ptid",
+          "gslx",
+          "jq",
+          "lhs",
+          "jcrczrxm",
+          "khxgtd",
+          "hzptgnxq",
+          "hzxspt",
+          "hzxxxt",
+          "sfgmyjsb",
+          "hzlx",
+          "tc",
+          "ddyc",
+          "ssje",
+          "zgdmc",
+          "je",
+          "lwf",
+          "yhjz",
+          "zc",
+          "sjh",
+          "s",
+          "s1",
+          "khcgjl",
+          "sfqrjs",
+          "formmodeid",
+          "modedatacreater",
+          "modedatacreatertype",
+          "modedatacreatedate",
+          "modedatacreatetime",
+          "modedatamodifier",
+          "modedatamodifydatetime",
+          "MODEUUID",
+          "zc1"
+        ],
+        "connection": [
+          {
+            "datasource": "BI_RDS_oa_ecology",
+            "table": [
+              "uf_xkhjjdtz"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_sup_oa_customer_visit_ledger_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "requestid",
+          "lcbh",
+          "khmc",
+          "ptid",
+          "gslx",
+          "jq",
+          "lhs",
+          "jcrczrxm",
+          "khxgtd",
+          "hzptgnxq",
+          "hzxspt",
+          "hzxxxt",
+          "sfgmyjsb",
+          "hzlx",
+          "tc",
+          "ddyc",
+          "ssje",
+          "zgdmc",
+          "je",
+          "lwf",
+          "yhjz",
+          "zc",
+          "sjh",
+          "s",
+          "s1",
+          "khcgjl",
+          "sfqrjs",
+          "formmodeid",
+          "modedatacreater",
+          "modedatacreatertype",
+          "modedatacreatedate",
+          "modedatacreatetime",
+          "modedatamodifier",
+          "modedatamodifydatetime",
+          "modeuuid",
+          "zc1"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

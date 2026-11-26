@@ -1,0 +1,101 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "polardb",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "POLAR_myuu",
+        "column": [
+          "id",
+          "orderid",
+          "apply_id",
+          "aprice",
+          "lprice",
+          "counter_price",
+          "sale_price",
+          "pid",
+          "refund_num",
+          "verified_num",
+          "origin_num",
+          "playtime",
+          "addtime",
+          "flag",
+          "current_num",
+          "order_time",
+          "update_time",
+          "order_month",
+          "sync_state",
+          "can_take",
+          "can_refund"
+        ],
+        "connection": [
+          {
+            "datasource": "POLAR_myuu",
+            "table": [
+              "uu_order_apply_info"
+            ]
+          }
+        ],
+        "where": "`update_time` >= UNIX_TIMESTAMP(STR_TO_DATE('${bizdate}', '%Y%m%d')) AND `update_time` < UNIX_TIMESTAMP(DATE_ADD(STR_TO_DATE('${bizdate}', '%Y%m%d'), INTERVAL 1 DAY))",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_ord_order_apply_di",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "orderid",
+          "apply_id",
+          "aprice",
+          "lprice",
+          "counter_price",
+          "sale_price",
+          "pid",
+          "refund_num",
+          "verified_num",
+          "origin_num",
+          "playtime",
+          "addtime",
+          "flag",
+          "current_num",
+          "order_time",
+          "update_time",
+          "order_month",
+          "sync_state",
+          "can_take",
+          "can_refund"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

@@ -1,0 +1,140 @@
+{ds}00 AND date_hour <=${ds}23 —— 只取当天新建记录，之后的状态变化漏采，已改为按 update_time
+--   · 历史库 / 归档 1 个（history_summary_history.pft_report_order_two_hour_2024）：只在首次初始化时一次性补数，日任务不再读
+--   · 写入：truncate 当日分区（幂等，可重跑）；ORC + SNAPPY；脏数据 0 容忍（errorLimit=0），有脏数据直接失败告警
+-- DataWorks 数据集成 · 脚本模式（JSON）：
+-- ================================================================================================
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "BI_RDS_summary",
+        "column": [
+          "id",
+          "date_hour",
+          "fid",
+          "reseller_id",
+          "lid",
+          "tid",
+          "pid",
+          "lvl",
+          "operate_id",
+          "order_num",
+          "order_ticket",
+          "cancel_num",
+          "cancel_ticket",
+          "revoke_num",
+          "revoke_ticket",
+          "cost_money",
+          "sale_money",
+          "cancel_cost_money",
+          "cancel_sale_money",
+          "revoke_cost_money",
+          "revoke_sale_money",
+          "service_money",
+          "orders_info",
+          "cancel_orders_info",
+          "revoke_orders_info",
+          "pay_way",
+          "channel",
+          "update_time",
+          "site_id",
+          "print_num",
+          "print_orders_info",
+          "main_tid",
+          "sub_merchant_id",
+          "main_type",
+          "after_sale_ticket_num",
+          "after_sale_refund_money",
+          "after_sale_income_money",
+          "after_sale_info"
+        ],
+        "connection": [
+          {
+            "datasource": "BI_RDS_summary",
+            "table": [
+              "pft_report_order_two_hour"
+            ]
+          }
+        ],
+        "where": "`update_time` >= UNIX_TIMESTAMP(STR_TO_DATE('${bizdate}', '%Y%m%d')) AND `update_time` < UNIX_TIMESTAMP(DATE_ADD(STR_TO_DATE('${bizdate}', '%Y%m%d'), INTERVAL 1 DAY))",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_ord_report_order_summary_hour_di",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "date_hour",
+          "fid",
+          "reseller_id",
+          "lid",
+          "tid",
+          "pid",
+          "lvl",
+          "operate_id",
+          "order_num",
+          "order_ticket",
+          "cancel_num",
+          "cancel_ticket",
+          "revoke_num",
+          "revoke_ticket",
+          "cost_money",
+          "sale_money",
+          "cancel_cost_money",
+          "cancel_sale_money",
+          "revoke_cost_money",
+          "revoke_sale_money",
+          "service_money",
+          "orders_info",
+          "cancel_orders_info",
+          "revoke_orders_info",
+          "pay_way",
+          "channel",
+          "update_time",
+          "site_id",
+          "print_num",
+          "print_orders_info",
+          "main_tid",
+          "sub_merchant_id",
+          "main_type",
+          "after_sale_ticket_num",
+          "after_sale_refund_money",
+          "after_sale_income_money",
+          "after_sale_info"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

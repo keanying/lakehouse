@@ -1,0 +1,83 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "BI_RDS_bi_datav",
+        "column": [
+          "user_id",
+          "DataV_token",
+          "account",
+          "certificate",
+          "capacity",
+          "land_name",
+          "index",
+          "sale",
+          "tourist",
+          "analyst",
+          "secret_code",
+          "land_id"
+        ],
+        "connection": [
+          {
+            "datasource": "BI_RDS_bi_datav",
+            "table": [
+              "datav_auth"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_opr_datav_auth_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "user_id",
+          "datav_token",
+          "account",
+          "certificate",
+          "capacity",
+          "land_name",
+          "index",
+          "sale",
+          "tourist",
+          "analyst",
+          "secret_code",
+          "land_id"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

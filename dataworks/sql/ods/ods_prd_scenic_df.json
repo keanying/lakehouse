@@ -1,0 +1,169 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "polardb",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "POLAR_myuu",
+        "column": [
+          "id",
+          "title",
+          "letters",
+          "CONCAT(LEFT(`tel`, 7), '#', SHA2(`tel`, 256))",
+          "fax",
+          "jtype",
+          "opentime",
+          "runtime",
+          "area",
+          "address",
+          "jtzn",
+          "jdjj",
+          "bhjq",
+          "jqts",
+          "qt",
+          "imgpath",
+          "status",
+          "verify_status",
+          "px",
+          "addtime",
+          "passtime",
+          "salerid",
+          "apply_did",
+          "topic",
+          "uptime",
+          "p_type",
+          "taobao_support",
+          "attribute",
+          "terminal",
+          "pft_rflex_id",
+          "delaytime",
+          "sync_id",
+          "sync_status",
+          "areacode",
+          "custom_made",
+          "imgpathGrp",
+          "scenicid_list",
+          "lng_lat_pos",
+          "terminal_type",
+          "venus_id",
+          "mVerification",
+          "resourceID",
+          "operater_id",
+          "reception_ability",
+          "warn_percent",
+          "order_flag",
+          "oversea",
+          "group_number_limit",
+          "group_ticket_limit",
+          "group_limit",
+          "relation_land_status",
+          "video_url",
+          "sub_type",
+          "sub_sid",
+          "land_version"
+        ],
+        "connection": [
+          {
+            "datasource": "POLAR_myuu",
+            "table": [
+              "uu_land"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_prd_scenic_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "title",
+          "letters",
+          "tel",
+          "fax",
+          "jtype",
+          "opentime",
+          "runtime",
+          "area",
+          "address",
+          "jtzn",
+          "jdjj",
+          "bhjq",
+          "jqts",
+          "qt",
+          "imgpath",
+          "status",
+          "verify_status",
+          "px",
+          "addtime",
+          "passtime",
+          "salerid",
+          "apply_did",
+          "topic",
+          "uptime",
+          "p_type",
+          "taobao_support",
+          "attribute",
+          "terminal",
+          "pft_rflex_id",
+          "delaytime",
+          "sync_id",
+          "sync_status",
+          "areacode",
+          "custom_made",
+          "imgpathgrp",
+          "scenicid_list",
+          "lng_lat_pos",
+          "terminal_type",
+          "venus_id",
+          "mverification",
+          "resourceid",
+          "operater_id",
+          "reception_ability",
+          "warn_percent",
+          "order_flag",
+          "oversea",
+          "group_number_limit",
+          "group_ticket_limit",
+          "group_limit",
+          "relation_land_status",
+          "video_url",
+          "sub_type",
+          "sub_sid",
+          "land_version"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

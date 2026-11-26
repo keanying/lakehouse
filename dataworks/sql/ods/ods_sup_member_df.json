@@ -1,0 +1,129 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "polardb",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "POLAR_myuu",
+        "column": [
+          "id",
+          "account_id",
+          "customer_id",
+          "dtype",
+          "account",
+          "dname",
+          "letters",
+          "status",
+          "CONCAT(LEFT(`mobile`, 7), '#', SHA2(`mobile`, 256))",
+          "creattime",
+          "lasttime",
+          "headphoto",
+          "cname",
+          "CONCAT(LEFT(`ctel`, 7), '#', SHA2(`ctel`, 256))",
+          "endtime",
+          "dcode",
+          "dcodeURL",
+          "CONCAT('#', SHA2(`alipay`, 256))",
+          "CONCAT('#', SHA2(`bank_account1`, 256))",
+          "CONCAT('#', SHA2(`bank_account2`, 256))",
+          "fee_platform",
+          "fee_bank",
+          "fee_sms",
+          "fee_code",
+          "member_auth",
+          "fee_pay_way",
+          "group_id",
+          "salesID",
+          "kefuID",
+          "reg_source",
+          "grouping_id",
+          "create_by",
+          "update_by",
+          "create_at",
+          "update_at"
+        ],
+        "connection": [
+          {
+            "datasource": "POLAR_myuu",
+            "table": [
+              "pft_member"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_sup_member_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "account_id",
+          "customer_id",
+          "dtype",
+          "account",
+          "dname",
+          "letters",
+          "status",
+          "mobile",
+          "creattime",
+          "lasttime",
+          "headphoto",
+          "cname",
+          "ctel",
+          "endtime",
+          "dcode",
+          "dcodeurl",
+          "alipay",
+          "bank_account1",
+          "bank_account2",
+          "fee_platform",
+          "fee_bank",
+          "fee_sms",
+          "fee_code",
+          "member_auth",
+          "fee_pay_way",
+          "group_id",
+          "salesid",
+          "kefuid",
+          "reg_source",
+          "grouping_id",
+          "create_by",
+          "update_by",
+          "create_at",
+          "update_at"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

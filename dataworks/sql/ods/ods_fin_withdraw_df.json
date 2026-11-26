@@ -1,0 +1,103 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "polardb",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "POLAR_myuu",
+        "column": [
+          "id",
+          "fid",
+          "wd_money",
+          "apply_time",
+          "wd_time",
+          "wd_status",
+          "bank_name",
+          "type",
+          "push_status",
+          "credit_balance_present",
+          "bank_ins_code",
+          "bank_accuont",
+          "wd_name",
+          "wd_operator",
+          "batchno",
+          "serial_num",
+          "memo",
+          "fee_bank_once",
+          "cut_fee_way",
+          "accType",
+          "service_charge",
+          "ifprint"
+        ],
+        "connection": [
+          {
+            "datasource": "POLAR_myuu",
+            "table": [
+              "pft_wd_cash"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_fin_withdraw_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "fid",
+          "wd_money",
+          "apply_time",
+          "wd_time",
+          "wd_status",
+          "bank_name",
+          "type",
+          "push_status",
+          "credit_balance_present",
+          "bank_ins_code",
+          "bank_accuont",
+          "wd_name",
+          "wd_operator",
+          "batchno",
+          "serial_num",
+          "memo",
+          "fee_bank_once",
+          "cut_fee_way",
+          "acctype",
+          "service_charge",
+          "ifprint"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

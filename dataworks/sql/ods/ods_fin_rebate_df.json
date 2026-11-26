@@ -1,0 +1,87 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "ecs_pft001",
+        "column": [
+          "id",
+          "sid",
+          "name",
+          "target",
+          "cycle",
+          "paymode",
+          "deal_type",
+          "account_type",
+          "begin",
+          "end",
+          "status",
+          "money",
+          "money_type",
+          "pid"
+        ],
+        "connection": [
+          {
+            "datasource": "ecs_pft001",
+            "table": [
+              "pft_rebate"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_fin_rebate_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "sid",
+          "name",
+          "target",
+          "cycle",
+          "paymode",
+          "deal_type",
+          "account_type",
+          "begin",
+          "end",
+          "status",
+          "money",
+          "money_type",
+          "pid"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

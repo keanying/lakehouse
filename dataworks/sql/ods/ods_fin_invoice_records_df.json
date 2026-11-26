@@ -1,0 +1,113 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "ecs_pft001",
+        "column": [
+          "id",
+          "sid",
+          "member_id",
+          "ordernum",
+          "out_trade_no",
+          "serial_num",
+          "CONCAT(LEFT(`ordertel`, 7), '#', SHA2(`ordertel`, 256))",
+          "CASE WHEN CHAR_LENGTH(`personid`) = 18 THEN CONCAT(LEFT(`personid`, 6), SUBSTR(`personid`, 7, 4), SUBSTR(`personid`, 17, 1), '#', SHA2(UPPER(`personid`), 256)) ELSE CONCAT('#', SHA2(UPPER(`personid`), 256)) END",
+          "enterprise_name",
+          "enterprise_code",
+          "tariff_number",
+          "image_url",
+          "add_time",
+          "operator_id",
+          "invoice_code",
+          "invoice_num",
+          "sys_id",
+          "invoice_type",
+          "records_type",
+          "invoice_status",
+          "order_type",
+          "invoice_state",
+          "red_info",
+          "original_order_info",
+          "reason",
+          "is_complex",
+          "source"
+        ],
+        "connection": [
+          {
+            "datasource": "ecs_pft001",
+            "table": [
+              "pft_invoice_records"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_fin_invoice_records_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "sid",
+          "member_id",
+          "ordernum",
+          "out_trade_no",
+          "serial_num",
+          "ordertel",
+          "personid",
+          "enterprise_name",
+          "enterprise_code",
+          "tariff_number",
+          "image_url",
+          "add_time",
+          "operator_id",
+          "invoice_code",
+          "invoice_num",
+          "sys_id",
+          "invoice_type",
+          "records_type",
+          "invoice_status",
+          "order_type",
+          "invoice_state",
+          "red_info",
+          "original_order_info",
+          "reason",
+          "is_complex",
+          "source"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

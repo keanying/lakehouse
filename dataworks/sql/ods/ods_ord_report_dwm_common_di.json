@@ -1,0 +1,185 @@
+{bizdate} and operated_at < ${bizdate}+INTERVAL 1 DAY —— 只取当天新建记录，之后的状态变化漏采，已改为按 created_at
+--   · 写入：truncate 当日分区（幂等，可重跑）；ORC + SNAPPY；脏数据 0 容忍（errorLimit=0），有脏数据直接失败告警
+-- DataWorks 数据集成 · 脚本模式（JSON）：
+-- ================================================================================================
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "doris",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "RDS_selectdb_report",
+        "column": [
+          "operated_at",
+          "merchant_id",
+          "business_no",
+          "sort_key",
+          "order_no",
+          "trade_no",
+          "external_operate_no",
+          "parent_order_no",
+          "product_type",
+          "sub_type",
+          "parent_merchant_id",
+          "distributor_id",
+          "operate_type",
+          "poi_id",
+          "spu_id",
+          "sku_id",
+          "sale_channel",
+          "operate_channel",
+          "cost_pay_mode",
+          "sale_pay_mode",
+          "sell_operator_id",
+          "operator_id",
+          "operate_site_id",
+          "sell_site_id",
+          "cost_unit_price",
+          "sale_unit_price",
+          "pack_type",
+          "show_bind_type",
+          "annual_card_type",
+          "exchange_coupon_type",
+          "target_audience",
+          "pay_count",
+          "pay_cost_price",
+          "pay_cost_discount_price",
+          "pay_sale_price",
+          "pay_sale_discount_price",
+          "verify_count",
+          "verify_cost_price",
+          "verify_cost_discount_price",
+          "verify_sale_price",
+          "verify_sale_discount_price",
+          "cancel_count",
+          "cancel_cost_price",
+          "cancel_cost_discount_price",
+          "cancel_cost_fee",
+          "cancel_sale_price",
+          "cancel_sale_discount_price",
+          "cancel_sale_fee",
+          "revoke_count",
+          "revoke_cost_price",
+          "revoke_cost_discount_price",
+          "revoke_cost_fee",
+          "revoke_sale_price",
+          "revoke_sale_discount_price",
+          "revoke_sale_fee",
+          "after_sale_count",
+          "after_cost_price",
+          "collect_count",
+          "reprint_count",
+          "after_sale_price",
+          "created_at"
+        ],
+        "connection": [
+          {
+            "datasource": "RDS_selectdb_report",
+            "table": [
+              "r_report_dwm_common"
+            ]
+          }
+        ],
+        "where": "`created_at` >= STR_TO_DATE('${bizdate}', '%Y%m%d') AND `created_at` < DATE_ADD(STR_TO_DATE('${bizdate}', '%Y%m%d'), INTERVAL 1 DAY)",
+        "splitPk": "",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_ord_report_dwm_common_di",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "operated_at",
+          "merchant_id",
+          "business_no",
+          "sort_key",
+          "order_no",
+          "trade_no",
+          "external_operate_no",
+          "parent_order_no",
+          "product_type",
+          "sub_type",
+          "parent_merchant_id",
+          "distributor_id",
+          "operate_type",
+          "poi_id",
+          "spu_id",
+          "sku_id",
+          "sale_channel",
+          "operate_channel",
+          "cost_pay_mode",
+          "sale_pay_mode",
+          "sell_operator_id",
+          "operator_id",
+          "operate_site_id",
+          "sell_site_id",
+          "cost_unit_price",
+          "sale_unit_price",
+          "pack_type",
+          "show_bind_type",
+          "annual_card_type",
+          "exchange_coupon_type",
+          "target_audience",
+          "pay_count",
+          "pay_cost_price",
+          "pay_cost_discount_price",
+          "pay_sale_price",
+          "pay_sale_discount_price",
+          "verify_count",
+          "verify_cost_price",
+          "verify_cost_discount_price",
+          "verify_sale_price",
+          "verify_sale_discount_price",
+          "cancel_count",
+          "cancel_cost_price",
+          "cancel_cost_discount_price",
+          "cancel_cost_fee",
+          "cancel_sale_price",
+          "cancel_sale_discount_price",
+          "cancel_sale_fee",
+          "revoke_count",
+          "revoke_cost_price",
+          "revoke_cost_discount_price",
+          "revoke_cost_fee",
+          "revoke_sale_price",
+          "revoke_sale_discount_price",
+          "revoke_sale_fee",
+          "after_sale_count",
+          "after_cost_price",
+          "collect_count",
+          "reprint_count",
+          "after_sale_price",
+          "created_at"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

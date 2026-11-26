@@ -1,0 +1,91 @@
+{bizdate}') and create_time <UNIX_TIMESTAMP(DATE_ADD('${bizdate}',INTERVAL 1 day)) —— 只取当天新建记录，之后的状态变化漏采，已改为按 update_time
+--   · 写入：truncate 当日分区（幂等，可重跑）；ORC + SNAPPY；脏数据 0 容忍（errorLimit=0），有脏数据直接失败告警
+-- DataWorks 数据集成 · 脚本模式（JSON）：
+-- ================================================================================================
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "ECS_pft_business_case",
+        "column": [
+          "id",
+          "ordernum",
+          "sid",
+          "member_id",
+          "order_member_id",
+          "operate_id",
+          "balance_pay_money",
+          "award_pay_money",
+          "refund_status",
+          "pay_status",
+          "error_msg",
+          "money",
+          "create_time",
+          "update_time"
+        ],
+        "connection": [
+          {
+            "datasource": "ECS_pft_business_case",
+            "table": [
+              "pft_card_order_journal"
+            ]
+          }
+        ],
+        "where": "`update_time` >= UNIX_TIMESTAMP(STR_TO_DATE('${bizdate}', '%Y%m%d')) AND `update_time` < UNIX_TIMESTAMP(DATE_ADD(STR_TO_DATE('${bizdate}', '%Y%m%d'), INTERVAL 1 DAY))",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_fin_card_order_journal_di",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "ordernum",
+          "sid",
+          "member_id",
+          "order_member_id",
+          "operate_id",
+          "balance_pay_money",
+          "award_pay_money",
+          "refund_status",
+          "pay_status",
+          "error_msg",
+          "money",
+          "create_time",
+          "update_time"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

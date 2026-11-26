@@ -1,0 +1,79 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "polardb",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "POLAR_auth_center",
+        "column": [
+          "id",
+          "certificate_type",
+          "CASE WHEN CHAR_LENGTH(`certificate_no`) = 18 THEN CONCAT(LEFT(`certificate_no`, 6), SUBSTR(`certificate_no`, 7, 4), SUBSTR(`certificate_no`, 17, 1), '#', SHA2(UPPER(`certificate_no`), 256)) ELSE CONCAT('#', SHA2(UPPER(`certificate_no`), 256)) END",
+          "real_name",
+          "sex",
+          "birthday",
+          "create_by",
+          "update_by",
+          "create_time",
+          "update_time"
+        ],
+        "connection": [
+          {
+            "datasource": "POLAR_auth_center",
+            "table": [
+              "tourist_info"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_cus_tourist_info_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "certificate_type",
+          "certificate_no",
+          "real_name",
+          "sex",
+          "birthday",
+          "create_by",
+          "update_by",
+          "create_time",
+          "update_time"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

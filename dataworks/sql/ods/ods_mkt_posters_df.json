@@ -1,0 +1,109 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "ecs_pft002",
+        "column": [
+          "id",
+          "member_id",
+          "lid",
+          "sid",
+          "url",
+          "new_url",
+          "type",
+          "extra",
+          "is_supply",
+          "create_time",
+          "pid",
+          "begin",
+          "end",
+          "stick",
+          "desc",
+          "status",
+          "is_update",
+          "bg_url",
+          "tid",
+          "share_name",
+          "share_content",
+          "follow_push",
+          "propaganda",
+          "logo_show",
+          "distributor_sync"
+        ],
+        "connection": [
+          {
+            "datasource": "ecs_pft002",
+            "table": [
+              "pft_posters"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_mkt_posters_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "member_id",
+          "lid",
+          "sid",
+          "url",
+          "new_url",
+          "type",
+          "extra",
+          "is_supply",
+          "create_time",
+          "pid",
+          "begin",
+          "end",
+          "stick",
+          "desc",
+          "status",
+          "is_update",
+          "bg_url",
+          "tid",
+          "share_name",
+          "share_content",
+          "follow_push",
+          "propaganda",
+          "logo_show",
+          "distributor_sync"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

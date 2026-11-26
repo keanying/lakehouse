@@ -1,0 +1,77 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "ecs_pft002",
+        "column": [
+          "id",
+          "ordernum",
+          "data",
+          "create_time",
+          "sid",
+          "mid",
+          "sale_channel",
+          "activity_id",
+          "group_id"
+        ],
+        "connection": [
+          {
+            "datasource": "ecs_pft002",
+            "table": [
+              "pft_group_booking_orders"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_mkt_group_booking_orders_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "ordernum",
+          "data",
+          "create_time",
+          "sid",
+          "mid",
+          "sale_channel",
+          "activity_id",
+          "group_id"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

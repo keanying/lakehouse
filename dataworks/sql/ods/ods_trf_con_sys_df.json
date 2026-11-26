@@ -1,0 +1,99 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "pft_open",
+        "column": [
+          "id",
+          "name",
+          "Mpath",
+          "sourceT",
+          "Mdetails",
+          "system_type",
+          "account_name",
+          "CONCAT('#', SHA2(`password_name`, 256))",
+          "if_Pftcode",
+          "sms",
+          "coopB",
+          "encoding_products",
+          "timeout",
+          "errortime",
+          "is_offline",
+          "offline_time",
+          "contact_info",
+          "notice_code",
+          "white_ip",
+          "create_time"
+        ],
+        "connection": [
+          {
+            "datasource": "pft_open",
+            "table": [
+              "pft_con_sys"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_trf_con_sys_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "name",
+          "mpath",
+          "sourcet",
+          "mdetails",
+          "system_type",
+          "account_name",
+          "password_name",
+          "if_pftcode",
+          "sms",
+          "coopb",
+          "encoding_products",
+          "timeout",
+          "errortime",
+          "is_offline",
+          "offline_time",
+          "contact_info",
+          "notice_code",
+          "white_ip",
+          "create_time"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

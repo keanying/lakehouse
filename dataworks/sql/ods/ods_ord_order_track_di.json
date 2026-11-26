@@ -1,0 +1,105 @@
+{ds}, '%Y%m%d') AND insertTime < DATE_ADD(STR_TO_DATE(${ds}, '%Y%m%d'), INTERVAL 1 DAY) —— 只取当天新建记录，之后的状态变化漏采，已改为按 update_time
+--   · 历史库 / 归档 16 个（history_201801.pft_order_track、history_201802.pft_order_track、history_201901.pft_order_track、history_201902.pft_order_track …）：只在首次初始化时一次性补数，日任务不再读
+--   · 读端脱敏（明文不落数仓）：id_card：证件号：保留地区 6 位 + 出生年 4 位 + 性别位，其余 SHA256
+--   · 写入：truncate 当日分区（幂等，可重跑）；ORC + SNAPPY；脏数据 0 容忍（errorLimit=0），有脏数据直接失败告警
+-- DataWorks 数据集成 · 脚本模式（JSON）：
+-- ================================================================================================
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "polardb",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "POLAR_myuu",
+        "column": [
+          "id",
+          "ordernum",
+          "action",
+          "tid",
+          "tnum",
+          "left_num",
+          "source",
+          "terminal",
+          "branchTerminal",
+          "SalerID",
+          "CASE WHEN CHAR_LENGTH(`id_card`) = 18 THEN CONCAT(LEFT(`id_card`, 6), SUBSTR(`id_card`, 7, 4), SUBSTR(`id_card`, 17, 1), '#', SHA2(UPPER(`id_card`), 256)) ELSE CONCAT('#', SHA2(UPPER(`id_card`), 256)) END",
+          "insertTime",
+          "oper_member",
+          "msg",
+          "ext_content",
+          "order_time",
+          "update_time",
+          "order_month",
+          "apply_did",
+          "sync_state"
+        ],
+        "connection": [
+          {
+            "datasource": "POLAR_myuu",
+            "table": [
+              "pft_order_track"
+            ]
+          }
+        ],
+        "where": "`update_time` >= UNIX_TIMESTAMP(STR_TO_DATE('${bizdate}', '%Y%m%d')) AND `update_time` < UNIX_TIMESTAMP(DATE_ADD(STR_TO_DATE('${bizdate}', '%Y%m%d'), INTERVAL 1 DAY))",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_ord_order_track_di",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "ordernum",
+          "action",
+          "tid",
+          "tnum",
+          "left_num",
+          "source",
+          "terminal",
+          "branchterminal",
+          "salerid",
+          "id_card",
+          "inserttime",
+          "oper_member",
+          "msg",
+          "ext_content",
+          "order_time",
+          "update_time",
+          "order_month",
+          "apply_did",
+          "sync_state"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 8
+    }
+  }
+}

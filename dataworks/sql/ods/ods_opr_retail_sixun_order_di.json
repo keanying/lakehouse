@@ -1,0 +1,96 @@
+{ds}' AND create_time< DATE_ADD('${ds}',INTERVAL 1 day) —— 只取当天新建记录，之后的状态变化漏采，已改为按 sync_update_time
+--   · 别名数据源 BI_RDS_pft_open_cooperate 指向同一业务表：只保留 RDS_pft_open_cooperate，其余同步任务下线
+--   · 写入：truncate 当日分区（幂等，可重跑）；ORC + SNAPPY；脏数据 0 容忍（errorLimit=0），有脏数据直接失败告警
+-- DataWorks 数据集成 · 脚本模式（JSON）：
+-- ================================================================================================
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "RDS_pft_open_cooperate",
+        "column": [
+          "id",
+          "con_sys_bind",
+          "member_id",
+          "sync_create_time",
+          "sync_update_time",
+          "shop_code",
+          "order_no",
+          "status",
+          "sale_money",
+          "payment_money",
+          "settlement_money",
+          "table_number",
+          "number_of_people",
+          "pos_name",
+          "operator",
+          "create_time"
+        ],
+        "connection": [
+          {
+            "datasource": "RDS_pft_open_cooperate",
+            "table": [
+              "retail_sixun_order"
+            ]
+          }
+        ],
+        "where": "`sync_update_time` >= STR_TO_DATE('${bizdate}', '%Y%m%d') AND `sync_update_time` < DATE_ADD(STR_TO_DATE('${bizdate}', '%Y%m%d'), INTERVAL 1 DAY)",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_opr_retail_sixun_order_di",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "con_sys_bind",
+          "member_id",
+          "sync_create_time",
+          "sync_update_time",
+          "shop_code",
+          "order_no",
+          "status",
+          "sale_money",
+          "payment_money",
+          "settlement_money",
+          "table_number",
+          "number_of_people",
+          "pos_name",
+          "operator",
+          "create_time"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

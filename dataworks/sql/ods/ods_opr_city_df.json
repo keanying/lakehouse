@@ -1,0 +1,81 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "BI_RDS_bi_datav",
+        "column": [
+          "id",
+          "city_code",
+          "city_name",
+          "province_code",
+          "province_name",
+          "country_code",
+          "country_name",
+          "area_code",
+          "zip_code",
+          "lng",
+          "lat"
+        ],
+        "connection": [
+          {
+            "datasource": "BI_RDS_bi_datav",
+            "table": [
+              "dim_city"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_opr_city_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "city_code",
+          "city_name",
+          "province_code",
+          "province_name",
+          "country_code",
+          "country_name",
+          "area_code",
+          "zip_code",
+          "lng",
+          "lat"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

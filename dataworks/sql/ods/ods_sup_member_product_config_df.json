@@ -1,0 +1,85 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "ecs_pft001",
+        "column": [
+          "id",
+          "fid",
+          "product_type",
+          "package_id",
+          "begin_time",
+          "expire_time",
+          "open_status",
+          "is_deleted",
+          "remark",
+          "amount",
+          "operate_id",
+          "create_time",
+          "update_time"
+        ],
+        "connection": [
+          {
+            "datasource": "ecs_pft001",
+            "table": [
+              "pft_member_product_config"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_sup_member_product_config_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "fid",
+          "product_type",
+          "package_id",
+          "begin_time",
+          "expire_time",
+          "open_status",
+          "is_deleted",
+          "remark",
+          "amount",
+          "operate_id",
+          "create_time",
+          "update_time"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

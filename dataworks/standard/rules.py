@@ -154,7 +154,7 @@ def id_comment(name, old=''):
     return None
 
 
-SENSITIVE = re.compile(r'(phone|mobile$|tel$|id_card|idcard|personid|id_number|card_no|bank_no|address|passport|email|password|pwd)', re.I)
+SENSITIVE = re.compile(r'(phone|mobile$|(?<!ho)tel$|id_card|idcard|personid|id_number|card_no|bank_no|bank_account|bank_card|alipay|address|passport|email|password|pwd)', re.I)
 DROP = re.compile(r'^(password|pwd|passwd|salt|secret)$', re.I)
 
 
@@ -186,3 +186,17 @@ def std_type(t):
     if base == 'DECIMAL':
         return t
     return HIVE_TYPE.get(base, t if base in ('BIGINT', 'STRING', 'INT', 'DECIMAL', 'BOOLEAN') else 'STRING')
+
+
+# 旧 DDL 注释有误 / 缺失的核心字段：(源表, 字段) -> 中文名（ODS / SRC 两处都用）
+FIELD_FIX = {
+    ('pft_member', 'dname'): '账号名称（商户名称）', ('pft_member', 'salesid'): '签约销售人员ID', ('pft_member', 'kefuid'): '客服人员ID',
+    ('pft_member', 'creattime'): '注册时间', ('pft_member', 'lasttime'): '最近登录时间', ('pft_member', 'dcode'): '推广码',
+    ('pft_member', 'grouping_id'): '账号分组ID', ('pft_member', 'group_id'): '账号分组（2、3 为测试账号）', ('pft_member', 'dtype'): '账号类型（码表 member_type）',
+    ('uu_land', 'reception_ability'): '最大接待能力（人）', ('uu_land', 'jtype'): '景区等级', ('uu_land', 'p_type'): '景区类型编码（码表 scenic_type）',
+    ('uu_land', 'area'): '所在地区编码（省|市|区县）', ('uu_land', 'topic'): '景区主题（逗号分隔，码表 scenic_topic）',
+    ('uu_jq_ticket', 'delaydays'): '有效天数', ('uu_jq_ticket', 'status'): '票状态：1-上架 2-下架 6-删除', ('uu_jq_ticket', 'tprice'): '门市价（分）',
+    ('uu_ss_order', 'tprice'): '结算单价（分）', ('uu_ss_order', 'ordertel'): '取票人手机号', ('uu_ss_order', 'personid'): '取票人证件号',
+    ('uu_ss_order', 'contacttel'): '联系人手机号', ('uu_ss_order', 'status'): '订单状态（码表 order_status）', ('uu_ss_order', 'paymode'): '支付方式（码表 dim_fin_pay_channel_f）',
+    ('uu_ss_order', 'ordermode'): '下单渠道（码表 dim_trf_channel_f）', ('pft_order_track', 'action'): '操作类型（码表 track_action_src）',
+}

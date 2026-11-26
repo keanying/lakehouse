@@ -1,0 +1,97 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "polardb",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "POLAR_rcenter",
+        "column": [
+          "id",
+          "sid",
+          "pid",
+          "ticket_id",
+          "lid",
+          "price_spread",
+          "add_time",
+          "update_time",
+          "status",
+          "opid",
+          "max_expiration_date",
+          "shop",
+          "platform_status",
+          "ddays",
+          "dhour",
+          "refund_rule",
+          "ticket_name",
+          "px",
+          "billing_state"
+        ],
+        "connection": [
+          {
+            "datasource": "POLAR_rcenter",
+            "table": [
+              "pft_resource_product"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_prd_resource_product_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "sid",
+          "pid",
+          "ticket_id",
+          "lid",
+          "price_spread",
+          "add_time",
+          "update_time",
+          "status",
+          "opid",
+          "max_expiration_date",
+          "shop",
+          "platform_status",
+          "ddays",
+          "dhour",
+          "refund_rule",
+          "ticket_name",
+          "px",
+          "billing_state"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

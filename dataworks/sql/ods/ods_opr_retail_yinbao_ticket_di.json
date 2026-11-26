@@ -1,0 +1,127 @@
+{ds2}' AND date_time < DATE_ADD('${ds2}',INTERVAL 1 day) —— 只取当天新建记录，之后的状态变化漏采，已改为按 sync_update_time
+--   · 写入：truncate 当日分区（幂等，可重跑）；ORC + SNAPPY；脏数据 0 容忍（errorLimit=0），有脏数据直接失败告警
+-- DataWorks 数据集成 · 脚本模式（JSON）：
+-- ================================================================================================
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "RDS_pft_open_cooperate",
+        "column": [
+          "id",
+          "con_sys_bind",
+          "member_id",
+          "sync_create_time",
+          "sync_update_time",
+          "app_id",
+          "sn",
+          "uid",
+          "ticket_type",
+          "cashier_uid",
+          "cashier",
+          "customer_uid",
+          "date_time",
+          "sys_update_time",
+          "total_amount",
+          "total_profit",
+          "discount",
+          "external_order_no",
+          "remark",
+          "service_fee",
+          "gratuity",
+          "cover_charge",
+          "box_fee",
+          "rounding",
+          "sell_ticket_uid",
+          "invalid",
+          "web_order_no",
+          "payments",
+          "ticket_spend_detail",
+          "ticket_on_table",
+          "point_usage",
+          "ticket_store_appid_or_account"
+        ],
+        "connection": [
+          {
+            "datasource": "RDS_pft_open_cooperate",
+            "table": [
+              "retail_yinbao_ticket"
+            ]
+          }
+        ],
+        "where": "`sync_update_time` >= STR_TO_DATE('${bizdate}', '%Y%m%d') AND `sync_update_time` < DATE_ADD(STR_TO_DATE('${bizdate}', '%Y%m%d'), INTERVAL 1 DAY)",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_opr_retail_yinbao_ticket_di",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "con_sys_bind",
+          "member_id",
+          "sync_create_time",
+          "sync_update_time",
+          "app_id",
+          "sn",
+          "uid",
+          "ticket_type",
+          "cashier_uid",
+          "cashier",
+          "customer_uid",
+          "date_time",
+          "sys_update_time",
+          "total_amount",
+          "total_profit",
+          "discount",
+          "external_order_no",
+          "remark",
+          "service_fee",
+          "gratuity",
+          "cover_charge",
+          "box_fee",
+          "rounding",
+          "sell_ticket_uid",
+          "invalid",
+          "web_order_no",
+          "payments",
+          "ticket_spend_detail",
+          "ticket_on_table",
+          "point_usage",
+          "ticket_store_appid_or_account"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

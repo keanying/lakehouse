@@ -1,0 +1,117 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "ecs_pft002",
+        "column": [
+          "id",
+          "sid",
+          "begin",
+          "end",
+          "poster_id",
+          "quantity_sold",
+          "is_cycle",
+          "cycle_type",
+          "cycle_detail",
+          "price",
+          "storage",
+          "cancel_time",
+          "buy_limit",
+          "status",
+          "create_time",
+          "sale_channel",
+          "activity_name",
+          "limit_type",
+          "suit_type",
+          "start_time",
+          "end_time",
+          "down_type",
+          "activity_id",
+          "is_pre",
+          "start_type",
+          "saleout_down",
+          "over_down",
+          "lid",
+          "is_custom_poster"
+        ],
+        "connection": [
+          {
+            "datasource": "ecs_pft002",
+            "table": [
+              "pft_seckill_v2"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_mkt_seckill_v2_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "sid",
+          "begin",
+          "end",
+          "poster_id",
+          "quantity_sold",
+          "is_cycle",
+          "cycle_type",
+          "cycle_detail",
+          "price",
+          "storage",
+          "cancel_time",
+          "buy_limit",
+          "status",
+          "create_time",
+          "sale_channel",
+          "activity_name",
+          "limit_type",
+          "suit_type",
+          "start_time",
+          "end_time",
+          "down_type",
+          "activity_id",
+          "is_pre",
+          "start_type",
+          "saleout_down",
+          "over_down",
+          "lid",
+          "is_custom_poster"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

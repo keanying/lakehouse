@@ -1,0 +1,117 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "ECS_summary_eco_mms",
+        "column": [
+          "id",
+          "seller_id",
+          "order_num",
+          "sid",
+          "land_id",
+          "ticket_id",
+          "distribute_item_id",
+          "real_pay_money",
+          "reward_status",
+          "total_reward",
+          "ticket_num",
+          "ticket_price",
+          "ticket_source_price",
+          "order_member_id",
+          "order_time",
+          "settle_time",
+          "sync",
+          "last_sync_time",
+          "order_status",
+          "all_use_time",
+          "is_delete",
+          "mch_id",
+          "created_by",
+          "created_date",
+          "last_modified_by",
+          "last_modified_date",
+          "snap_level",
+          "write_off_time",
+          "trade_order_num"
+        ],
+        "connection": [
+          {
+            "datasource": "ECS_summary_eco_mms",
+            "table": [
+              "pft_distribute_order"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_trf_distribute_order_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "seller_id",
+          "order_num",
+          "sid",
+          "land_id",
+          "ticket_id",
+          "distribute_item_id",
+          "real_pay_money",
+          "reward_status",
+          "total_reward",
+          "ticket_num",
+          "ticket_price",
+          "ticket_source_price",
+          "order_member_id",
+          "order_time",
+          "settle_time",
+          "sync",
+          "last_sync_time",
+          "order_status",
+          "all_use_time",
+          "is_delete",
+          "mch_id",
+          "created_by",
+          "created_date",
+          "last_modified_by",
+          "last_modified_date",
+          "snap_level",
+          "write_off_time",
+          "trade_order_num"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

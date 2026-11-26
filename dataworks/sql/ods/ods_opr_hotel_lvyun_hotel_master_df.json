@@ -1,0 +1,159 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "RDS_pft_open_cooperate",
+        "column": [
+          "id",
+          "con_sys_bind",
+          "member_id",
+          "sync_create_time",
+          "sync_update_time",
+          "hotel_code",
+          "hotel_name",
+          "accnt",
+          "sta",
+          "rsv_id",
+          "master_id",
+          "grp_accnt",
+          "rsv_man",
+          "rsv_no",
+          "ota_rsv_no",
+          "compan_id",
+          "company_name",
+          "source_id",
+          "source_name",
+          "agent_id",
+          "agent_name",
+          "CONCAT('#', SHA2(`card_no`, 256))",
+          "sales_man",
+          "CONCAT(LEFT(`mobile`, 7), '#', SHA2(`mobile`, 256))",
+          "market",
+          "market_des",
+          "src",
+          "src_des",
+          "rate_code",
+          "ratecode_des",
+          "channel",
+          "channel_des",
+          "rsv_type",
+          "rsv_type_des",
+          "rmtype",
+          "rmtype_des",
+          "rmnum",
+          "real_rate",
+          "rmno",
+          "charge",
+          "pay",
+          "deposit",
+          "arr",
+          "dep",
+          "adult",
+          "children",
+          "rsv_date",
+          "remark",
+          "create_date",
+          "modify_date"
+        ],
+        "connection": [
+          {
+            "datasource": "RDS_pft_open_cooperate",
+            "table": [
+              "hotel_lvyun_hotel_master"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_opr_hotel_lvyun_hotel_master_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "con_sys_bind",
+          "member_id",
+          "sync_create_time",
+          "sync_update_time",
+          "hotel_code",
+          "hotel_name",
+          "accnt",
+          "sta",
+          "rsv_id",
+          "master_id",
+          "grp_accnt",
+          "rsv_man",
+          "rsv_no",
+          "ota_rsv_no",
+          "compan_id",
+          "company_name",
+          "source_id",
+          "source_name",
+          "agent_id",
+          "agent_name",
+          "card_no",
+          "sales_man",
+          "mobile",
+          "market",
+          "market_des",
+          "src",
+          "src_des",
+          "rate_code",
+          "ratecode_des",
+          "channel",
+          "channel_des",
+          "rsv_type",
+          "rsv_type_des",
+          "rmtype",
+          "rmtype_des",
+          "rmnum",
+          "real_rate",
+          "rmno",
+          "charge",
+          "pay",
+          "deposit",
+          "arr",
+          "dep",
+          "adult",
+          "children",
+          "rsv_date",
+          "remark",
+          "create_date",
+          "modify_date"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

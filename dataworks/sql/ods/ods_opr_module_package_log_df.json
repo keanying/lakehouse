@@ -1,0 +1,87 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "ecs_pft001",
+        "column": [
+          "id",
+          "member_id",
+          "package_id",
+          "out_trade_no",
+          "remarks",
+          "is_update",
+          "add_time",
+          "begin_time",
+          "end_time",
+          "is_ignore",
+          "saleman",
+          "customer_service",
+          "is_pay",
+          "details"
+        ],
+        "connection": [
+          {
+            "datasource": "ecs_pft001",
+            "table": [
+              "pft_module_package_log"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_opr_module_package_log_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "member_id",
+          "package_id",
+          "out_trade_no",
+          "remarks",
+          "is_update",
+          "add_time",
+          "begin_time",
+          "end_time",
+          "is_ignore",
+          "saleman",
+          "customer_service",
+          "is_pay",
+          "details"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

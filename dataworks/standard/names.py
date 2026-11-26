@@ -247,5 +247,5 @@ class Namer:
 
 
 def needs_name(cmt, col):
-    c = str(cmt or '').strip()
+    c = str(cmt or '').replace('（脱敏）', '').strip()
     return not c or c.lower() == str(col).lower() or not ZH.search(c)

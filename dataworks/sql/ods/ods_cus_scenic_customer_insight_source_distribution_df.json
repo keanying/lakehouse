@@ -1,0 +1,77 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "RDS_pft_ai",
+        "column": [
+          "id",
+          "scenic_id",
+          "scenic_name",
+          "period_granularity",
+          "metric_level",
+          "ranking",
+          "name",
+          "proportion",
+          "etl_time"
+        ],
+        "connection": [
+          {
+            "datasource": "RDS_pft_ai",
+            "table": [
+              "ads_scenic_customer_insight_source_distribution_mo"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_cus_scenic_customer_insight_source_distribution_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "scenic_id",
+          "scenic_name",
+          "period_granularity",
+          "metric_level",
+          "ranking",
+          "name",
+          "proportion",
+          "etl_time"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

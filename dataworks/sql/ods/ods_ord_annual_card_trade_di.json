@@ -1,0 +1,113 @@
+{ds}' - INTERVAL 1 DAY)
+  AND add_time <  UNIX_TIMESTAMP('${ds}' ); —— 只取当天新建记录，之后的状态变化漏采，已改为按 update_time
+--   · 读端脱敏（明文不落数仓）：user_mobile：手机号：保留前 7 位号段（归属地），其余 SHA256；user_id_card：证件号：保留地区 6 位 + 出生年 4 位 + 性别位，其余 SHA256；card_no：卡号 / 证件类：SHA256（仍可作关联键）
+--   · 写入：truncate 当日分区（幂等，可重跑）；ORC + SNAPPY；脏数据 0 容忍（errorLimit=0），有脏数据直接失败告警
+-- DataWorks 数据集成 · 脚本模式（JSON）：
+-- ================================================================================================
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "ECS_pft_business_case",
+        "column": [
+          "id",
+          "card_id",
+          "member_id",
+          "sid",
+          "type",
+          "payway",
+          "source",
+          "pay_money",
+          "num",
+          "ordernum",
+          "ticket_id",
+          "add_time",
+          "operator_id",
+          "remark",
+          "update_time",
+          "user_name",
+          "CONCAT(LEFT(`user_mobile`, 7), '#', SHA2(`user_mobile`, 256))",
+          "CASE WHEN CHAR_LENGTH(`user_id_card`) = 18 THEN CONCAT(LEFT(`user_id_card`, 6), SUBSTR(`user_id_card`, 7, 4), SUBSTR(`user_id_card`, 17, 1), '#', SHA2(UPPER(`user_id_card`), 256)) ELSE CONCAT('#', SHA2(UPPER(`user_id_card`), 256)) END",
+          "virtual_no",
+          "CONCAT('#', SHA2(`card_no`, 256))",
+          "physics_no",
+          "p_name",
+          "pid",
+          "wrist_id"
+        ],
+        "connection": [
+          {
+            "datasource": "ECS_pft_business_case",
+            "table": [
+              "pft_annual_card_trade"
+            ]
+          }
+        ],
+        "where": "`update_time` >= UNIX_TIMESTAMP(STR_TO_DATE('${bizdate}', '%Y%m%d')) AND `update_time` < UNIX_TIMESTAMP(DATE_ADD(STR_TO_DATE('${bizdate}', '%Y%m%d'), INTERVAL 1 DAY))",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_ord_annual_card_trade_di",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "card_id",
+          "member_id",
+          "sid",
+          "type",
+          "payway",
+          "source",
+          "pay_money",
+          "num",
+          "ordernum",
+          "ticket_id",
+          "add_time",
+          "operator_id",
+          "remark",
+          "update_time",
+          "user_name",
+          "user_mobile",
+          "user_id_card",
+          "virtual_no",
+          "card_no",
+          "physics_no",
+          "p_name",
+          "pid",
+          "wrist_id"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

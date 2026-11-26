@@ -1,0 +1,87 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "polardb",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "POLAR_myuu",
+        "column": [
+          "id",
+          "customer_id",
+          "bsn_les",
+          "opt_les",
+          "auth_les",
+          "org_les",
+          "tax_les",
+          "CASE WHEN CHAR_LENGTH(`id_card`) = 18 THEN CONCAT(LEFT(`id_card`, 6), SUBSTR(`id_card`, 7, 4), SUBSTR(`id_card`, 17, 1), '#', SHA2(UPPER(`id_card`), 256)) ELSE CONCAT('#', SHA2(UPPER(`id_card`), 256)) END",
+          "CASE WHEN CHAR_LENGTH(`id_card_hand`) = 18 THEN CONCAT(LEFT(`id_card_hand`, 6), SUBSTR(`id_card_hand`, 7, 4), SUBSTR(`id_card_hand`, 17, 1), '#', SHA2(UPPER(`id_card_hand`), 256)) ELSE CONCAT('#', SHA2(UPPER(`id_card_hand`), 256)) END",
+          "CASE WHEN CHAR_LENGTH(`id_card_B`) = 18 THEN CONCAT(LEFT(`id_card_B`, 6), SUBSTR(`id_card_B`, 7, 4), SUBSTR(`id_card_B`, 17, 1), '#', SHA2(UPPER(`id_card_B`), 256)) ELSE CONCAT('#', SHA2(UPPER(`id_card_B`), 256)) END",
+          "certi_status",
+          "ref_reason",
+          "apply_time",
+          "pass_time"
+        ],
+        "connection": [
+          {
+            "datasource": "POLAR_myuu",
+            "table": [
+              "pft_customer_certification"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_sup_customer_certification_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "customer_id",
+          "bsn_les",
+          "opt_les",
+          "auth_les",
+          "org_les",
+          "tax_les",
+          "id_card",
+          "id_card_hand",
+          "id_card_b",
+          "certi_status",
+          "ref_reason",
+          "apply_time",
+          "pass_time"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

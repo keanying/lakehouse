@@ -1,0 +1,97 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "mysql",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "ECS_pft_business_case",
+        "column": [
+          "id",
+          "mid",
+          "sid",
+          "paymode",
+          "ordermode",
+          "pay_money",
+          "tnum",
+          "tid",
+          "pid",
+          "lid",
+          "dname",
+          "CONCAT(LEFT(`mobile`, 7), '#', SHA2(`mobile`, 256))",
+          "operator_id",
+          "remark",
+          "order_time",
+          "create_time",
+          "update_time",
+          "t_status",
+          "task_type"
+        ],
+        "connection": [
+          {
+            "datasource": "ECS_pft_business_case",
+            "table": [
+              "pft_annual_card_order_task"
+            ]
+          }
+        ],
+        "where": "",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_ord_annual_card_order_task_df",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "mid",
+          "sid",
+          "paymode",
+          "ordermode",
+          "pay_money",
+          "tnum",
+          "tid",
+          "pid",
+          "lid",
+          "dname",
+          "mobile",
+          "operator_id",
+          "remark",
+          "order_time",
+          "create_time",
+          "update_time",
+          "t_status",
+          "task_type"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

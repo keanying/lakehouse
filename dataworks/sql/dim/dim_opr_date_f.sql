@@ -1,0 +1,15 @@
+-- ================================================================================================
+-- dim.dim_opr_date_f  日期维度
+-- 粒度：1行=1天
+-- 分区：无分区
+-- 调度：每日，ODS 全部完成后；维表之间按上游顺序
+-- 上游：scripts/dim_date/gen_dim_opr_date_f.py
+-- 替代旧任务 3 个（上线对数一致后下线）：
+--   · 数据中台/DIM/dim_date_isoweek_o_f_copy（EMR_SPARK_SQL，cron 00 00 15 * * ?）
+--   · 数据平台/DIM/dim_common_date_info_df（SERVERLESS_SPARK_SQL，cron 00 24 00 * * ?）
+--   · 数据中台/数据维度(DIM)/dim_用户域/dim_company_report_date_d_f（EMR_SPARK_SQL，cron 00 21 00 * * ?）
+-- 业务规则 / 修正：
+--   · 与 PFT3.0 共用：表结构与加工逻辑同 3.0（scripts/dim_date/gen_dim_opr_date_f.py 生成日期与节假日）
+-- ================================================================================================
+-- 日期维度：由 scripts/dim_date/gen_dim_opr_date_f.py 生成近 3 年 + 未来 2 年（含法定节假日、调休、农历），与 PFT3.0 同一份
+-- python3 scripts/dim_date/gen_dim_opr_date_f.py --sql > dim_opr_date_f.sql，在 DataWorks 执行一次；每年 12 月国务院公布次年安排后重跑

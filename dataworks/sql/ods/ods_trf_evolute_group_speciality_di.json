@@ -1,0 +1,115 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "polardb",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "rds_distri_center",
+        "column": [
+          "id",
+          "group_product_id",
+          "fid",
+          "sid",
+          "aids",
+          "group_id",
+          "parent_group_id",
+          "group_ids",
+          "sourceid",
+          "pid",
+          "ticket_id",
+          "gid",
+          "lid",
+          "lvl",
+          "reason",
+          "status",
+          "price_type",
+          "dprice",
+          "origin_type",
+          "rectime",
+          "active",
+          "channel",
+          "px",
+          "tx",
+          "operator_id",
+          "parent_channel",
+          "parent_px",
+          "parent_tx"
+        ],
+        "connection": [
+          {
+            "datasource": "rds_distri_center",
+            "table": [
+              "pft_evolute_group_speciality"
+            ]
+          }
+        ],
+        "where": "`rectime` >= STR_TO_DATE('${bizdate}', '%Y%m%d') AND `rectime` < DATE_ADD(STR_TO_DATE('${bizdate}', '%Y%m%d'), INTERVAL 1 DAY)",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_trf_evolute_group_speciality_di",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "group_product_id",
+          "fid",
+          "sid",
+          "aids",
+          "group_id",
+          "parent_group_id",
+          "group_ids",
+          "sourceid",
+          "pid",
+          "ticket_id",
+          "gid",
+          "lid",
+          "lvl",
+          "reason",
+          "status",
+          "price_type",
+          "dprice",
+          "origin_type",
+          "rectime",
+          "active",
+          "channel",
+          "px",
+          "tx",
+          "operator_id",
+          "parent_channel",
+          "parent_px",
+          "parent_tx"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 2
+    }
+  }
+}

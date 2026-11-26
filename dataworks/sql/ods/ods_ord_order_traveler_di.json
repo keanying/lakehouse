@@ -1,0 +1,101 @@
+{
+  "type": "job",
+  "version": "2.0",
+  "steps": [
+    {
+      "stepType": "polardb",
+      "category": "reader",
+      "name": "Reader",
+      "parameter": {
+        "datasource": "POLAR_myuu",
+        "column": [
+          "id",
+          "orderid",
+          "tourist",
+          "CASE WHEN CHAR_LENGTH(`idcard`) = 18 THEN CONCAT(LEFT(`idcard`, 6), SUBSTR(`idcard`, 7, 4), SUBSTR(`idcard`, 17, 1), '#', SHA2(UPPER(`idcard`), 256)) ELSE CONCAT('#', SHA2(UPPER(`idcard`), 256)) END",
+          "voucher_type",
+          "CONCAT(LEFT(`mobile`, 7), '#', SHA2(`mobile`, 256))",
+          "check_state",
+          "idx",
+          "print_state",
+          "check_time",
+          "lid",
+          "chk_code",
+          "member_id",
+          "is_checked",
+          "order_time",
+          "update_time",
+          "order_month",
+          "apply_did",
+          "sync_state",
+          "mobile_area",
+          "mobile_region"
+        ],
+        "connection": [
+          {
+            "datasource": "POLAR_myuu",
+            "table": [
+              "uu_order_tourist_info"
+            ]
+          }
+        ],
+        "where": "`update_time` >= UNIX_TIMESTAMP(STR_TO_DATE('${bizdate}', '%Y%m%d')) AND `update_time` < UNIX_TIMESTAMP(DATE_ADD(STR_TO_DATE('${bizdate}', '%Y%m%d'), INTERVAL 1 DAY))",
+        "splitPk": "id",
+        "encoding": "UTF-8"
+      }
+    },
+    {
+      "stepType": "hive",
+      "category": "writer",
+      "name": "Writer",
+      "parameter": {
+        "datasource": "BI_hive",
+        "table": "ods.ods_ord_order_traveler_di",
+        "partition": "travel_date=${bizdate}",
+        "writeMode": "truncate",
+        "column": [
+          "id",
+          "orderid",
+          "tourist",
+          "idcard",
+          "voucher_type",
+          "mobile",
+          "check_state",
+          "idx",
+          "print_state",
+          "check_time",
+          "lid",
+          "chk_code",
+          "member_id",
+          "is_checked",
+          "order_time",
+          "update_time",
+          "order_month",
+          "apply_did",
+          "sync_state",
+          "mobile_area",
+          "mobile_region"
+        ],
+        "fileType": "orc",
+        "compress": "SNAPPY"
+      }
+    }
+  ],
+  "order": {
+    "hops": [
+      {
+        "from": "Reader",
+        "to": "Writer"
+      }
+    ]
+  },
+  "setting": {
+    "errorLimit": {
+      "record": "0"
+    },
+    "speed": {
+      "throttle": false,
+      "concurrent": 8
+    }
+  }
+}
