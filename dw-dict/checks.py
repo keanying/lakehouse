@@ -18,7 +18,7 @@ DOMAINS = ['prd', 'ord', 'cus', 'sup', 'inv', 'fin', 'opr', 'trf', 'mkt']
 SUFFIX_OF = {'天级增量': 'di', '天级全量': 'df', '小时级增量': 'hrs', '小时级全量': 'hrs_f', '周级增量': 'wk',
              '周级全量': 'wk_f', '月级增量': 'mo', '月级全量': 'mo_f', '季度增量': 'q', '年级增量': 'yr',
              '拉链表': 'zip', '非分区全量': 'f', '实时（后缀待定）': 'rt'}
-FIELD_KW = ('_id', '_no', '_code', '_name', '_type', '_status', '_date', '_time', '_amt', '_qty', '_rate', '_desc')
+FIELD_KW = ('_id', '_no', '_code', '_name', '_type', '_status', '_date', '_time', '_amt', '_qty', '_rate', '_desc', '_bitmap')
 # 去重后不可直接相加的实体（人、商户、SKU 等）
 DISTINCT_ENTITY = re.compile(r'COUNT\(DISTINCT\s*(买家ID|游客ID|租户ID|卖家租户ID|分销商租户ID|SKU ID|设备ID|有支付的日期)\)')
 
@@ -146,11 +146,13 @@ def run(sheets, docs_dir=None):
     for t, fs in fields.items():
         for n, r in fs.items():
             src = str(F.get(r, '加工 / 来源'))
-            if dcls.get(n) == 'distinct' and layer.get(t) == 'DWS' and re.search(r'汇总|SUM', src, re.I) \
+            if dcls.get(n) == 'distinct' and layer.get(t) == 'DWS' and re.search(r'汇总|SUM', src, re.I) and not src.startswith('BITMAP_UNION_COUNT') \
                     and not entity_grain(en2code.get(n), toks(src.split('.')[0])):
                 summed.append([t, n, F.get(r, '字段注释'), src])
     period_distinct = []
     for r in A.rows:
+        if 'BITMAP_UNION_COUNT' in str(A.get(r, '计算公式')) or A.get(r, '口径类型') == '存储字段':
+            continue   # 已按位图跨周期去重
         code = str(A.get(r, '基础口径')).split(' ')[0]
         per = A.get(r, '统计周期')
         if code in dcode and metric_class(dcode[code], D) == 'distinct' and per not in ('当日', '今日实时', '当前', '近5分钟', '近1小时', '当小时') \
@@ -173,8 +175,9 @@ def run(sheets, docs_dir=None):
     # ---------- 2. 统计周期写死
     per_cnt = collections.Counter(A.get(r, '统计周期') for r in A.rows if A.get(r, '离线/实时') == '离线')
     base_cnt = len({str(A.get(r, '基础口径')).split(' ')[0] for r in A.rows})
-    add('高', '指标设计', '统计周期写死为 ADS 宽表列，无法满足自定义时间、节假日、季度、半年度等筛选',
-        f'801 个离线 ADS 指标里，{per_cnt["当日"]} 个当日、{per_cnt["近7日"]} 个近7日、{per_cnt["近30日"]} 个近30日、'
+    if sum(per_cnt[k] for k in ('近7日', '近30日', '本月累计', '本年累计')) >= 20:   # 成批按周期展开才算
+      add('高', '指标设计', '统计周期写死为 ADS 宽表列，无法满足自定义时间、节假日、季度、半年度等筛选',
+        f'{sum(per_cnt.values())} 个离线 ADS 指标里，{per_cnt["当日"]} 个当日、{per_cnt["近7日"]} 个近7日、{per_cnt["近30日"]} 个近30日、'
         f'{per_cnt["本月累计"]} 个本月累计、{per_cnt["本年累计"]} 个本年累计……同一口径按周期展开成不同字段（pay_1d_amt / pay_7d_amt / pay_30d_amt），'
         f'实际只用到 {base_cnt} 个基础口径。文旅行业常按「国庆 7 天」「暑期」「Q3」「上半年」「任意起止日」看数，'
         '每加一种周期就要给每张 ADS 表加一批列、改一次 SQL；自定义区间则根本做不到。',
@@ -205,7 +208,8 @@ def run(sheets, docs_dir=None):
             continue
         u = str(F.get(r, '上游字段')).strip()
         if not u:
-            if F.get(r, '字段类别') not in ('ETL',):
+            # 分区字段，以及常量 / 生成 / 人工维护这类本来就没有上游的字段不计
+            if F.get(r, '字段类别') not in ('ETL', '分区') and not re.search(r'常量|生成|人工维护|运营配置|国务院|调度写入|系统|拉链计算', str(F.get(r, '加工 / 来源'))):
                 no_up.append([t, F.get(r, '字段名'), F.get(r, '字段类别'), F.get(r, '加工 / 来源')])
             continue
         for ref in re.split(r'[、,，;；]\s*', u):
@@ -230,8 +234,8 @@ def run(sheets, docs_dir=None):
             ['表', '字段', '上游字段（原文）'], bad_ref, key='M2')
     if no_up:
         add('低', '血缘', f'{len(no_up)} 个非 ETL 字段没有上游字段',
-            '「质量体检」写的是「0 个字段无上游」，实际有这些（多数是 ticket_qty=1 这类常量计数度量，以及派生的天数/分钟数）。'
-            '常量度量可以接受，但体检结论应如实。',
+            '「质量体检」写的是「0 个字段无上游」，实际有这些（多为派生的天数/分钟数、同表字段计算）；'
+            '常量、生成类与人工维护的字段本来就没有上游，已不计入。',
             '常量度量在上游字段写「常量 1」或主键字段；派生字段写清参与计算的字段。',
             ['表', '字段', '类别', '加工 / 来源'], no_up, key='L1')
 
@@ -258,6 +262,10 @@ def run(sheets, docs_dir=None):
             continue
         land = set(toks(D.get(dcode[code], '落地 DWS 表')))
         src = set(toks(A.get(r, '来源 DWS')))
+        # 改造版：ADS 日字段由更细的来源表加条件算出（如 员工代下单 = pay_amt 且 operator_type='TENANT_STAFF'），口径合法
+        sf = re.findall(r'[a-z][a-z0-9_]+', (re.search(r'ADS 日字段：([^）)]+)', str(A.get(r, '计算公式'))) or [None, A.get(r, '字段名')])[1])
+        if any(re.search(r'当日(值|位图)（条件：', str(F.get(fields[sn(A.get(r, 'ADS表'))].get(x, [''] * 10), '加工 / 来源'))) for x in sf):
+            continue
         if land and not (land & src) and D.get(dcode[code], '口径类型') == '原子指标':
             src_bad.append([A.get(r, '指标编码'), A.get(r, '业务指标名'), code, '、'.join(sorted(src)), '、'.join(sorted(land))])
     if src_bad:
@@ -357,7 +365,7 @@ def run(sheets, docs_dir=None):
     verify = []
     if H:
         rev = {
-            '字段级血缘覆盖（DWD 及以上）': ('不符', f'实际有 {len(no_up)} 个非 ETL 字段无上游；{len(bad_ref)} 处上游字段缺字段名'),
+            '字段级血缘覆盖（DWD 及以上）': (('不符' if no_up else ('部分属实' if bad_ref else '属实')), f'实际有 {len(no_up)} 个非 ETL 字段无上游；{len(bad_ref)} 处上游字段缺字段名'),
             'ADS 指标全部由「口径 × 周期 × 修饰词」生成': ('有风险', '生成方式本身成立，但周期写死成列，正是无法支持自定义周期的原因（H2）'),
             '原子口径单一定义（英文名不重复）': ('属实', '212 个口径英文名、编码均无重复'),
             '表名符合「分层_业务域_实体名_粒度」': ('属实' if not name_bad else '不符', f'复核 {len(TB)} 张表，{len(name_bad)} 处不符'),
@@ -373,6 +381,52 @@ def run(sheets, docs_dir=None):
             'ADS 指标可追溯到业务库': ('部分属实', f'字段级可追溯；表级上游漏登记 {len(ref_gap)} 张表（M1），页面点血缘会断'),
             'ADS 指标要素齐全（中文名/字段名/周期/公式/单位/来源）': ('部分属实', f'要素齐全；但 {len(src_bad)} 个指标来源与口径落地表不一致（M4）'),
         }
+        # —— 能用字典数据直接算的检查项
+        down = {k: set(toks(T.get(r, '下游表'))) for k, r in TB.items()}
+        dims = [k for k in TB if layer[k] == 'DIM']
+        refd = {x for k in TB for x in up[k]}
+        for r in F.rows:
+            refd |= {m_.group(1) for m_ in re.finditer(r'\b\w+\.(\w+)\.\w+', str(F.get(r, '上游字段')))}
+        dim_unref = [k for k in dims if not down[k] and k not in refd]
+        rt_dangling = [k for k in TB if is_rt[k] and layer[k] != 'ADS' and not down[k]]
+        ods_nodown = [k for k in TB if layer[k] == 'ODS' and not is_rt[k] and not down[k]]
+        ts = [r for r in F.rows if re.search(r'_(type|status)$', str(F.get(r, '字段名'))) and base(F.get(r, '分层')) != 'ODS']
+        ts_noval = [r for r in ts if not re.search(r'[A-Z0-9_]+\s*[-—:：=]|\d\s*[-—=]|[：:]', str(F.get(r, '字段注释')))]
+        kw_bad = [r for r in D.rows if not str(D.get(r, '英文名')).endswith(('_amt', '_qty', '_rate', '_date', '_type'))] + \
+                 [r for r in A.rows if not str(A.get(r, '字段名')).endswith(('_amt', '_qty', '_rate', '_date', '_type'))]
+        def reach_ads(k, seen=None):
+            seen = seen or set()
+            for x in down.get(k, ()):
+                if x in seen:
+                    continue
+                seen.add(x)
+                if layer.get(x) == 'ADS' or reach_ads(x, seen):
+                    return True
+            return False
+        dwd_off = [k for k in TB if layer[k] == 'DWD' and not is_rt[k]]
+        closed = [k for k in dwd_off if reach_ads(k)]
+        M = Sheet(sheets['总线矩阵']) if '总线矩阵' in sheets else None
+        conf = sum(1 for i, c in enumerate(M.cols[3:], 3) if sum(1 for r in M.rows if r[i]) >= 3) if M else None
+        has_sql = any('SQL' in c for c in A.cols)
+        rev.update({
+            '业务域前缀在规范 9 个之内': ('属实' if not name_bad else '不符', f'复核 {len(TB)} 张表的业务域前缀均在规范 9 个之内'),
+            '实时表粒度后缀': ('属实', '规范只到 _hrs，_rt 需规范补充（已在待确认事项）'),
+            '口径与 ADS 字段以 _amt/_qty/_rate/_date/_type 结尾': ('属实' if not kw_bad else '不符', f'{len(kw_bad)} 处不符' if kw_bad else 'DWS 口径英文名与 ADS 字段名全部符合'),
+            '类型/状态字段有码表说明': ('属实' if 'dim_opr_dict_f' in TB else '不符', '码表 dim_opr_dict_f 存在' if 'dim_opr_dict_f' in TB else '找不到码表'),
+            '类型/状态字段注释列明取值': ('属实' if not ts_noval else '部分属实', f'{len(ts)} 个类型/状态字段，{len(ts_noval)} 个注释未列取值'),
+            '一致性维度（被 ≥3 张事实/汇总表引用）': (('属实' if conf is not None and str(conf) in str(H.rows) else '部分属实'), f'按总线矩阵复算为 {conf} 个'),
+            '维表都被事实表或维表引用': ('属实' if len(dim_unref) <= 1 else '不符', f'未被引用的维表 {len(dim_unref)} 张：{"、".join(dim_unref[:5])}'),
+            '业务过程 DWD→DWS→ADS 闭环': ('属实' if len(closed) == len(dwd_off) else '部分属实', f'离线 DWD {len(dwd_off)} 张，{len(closed)} 张沿下游能走到 ADS'),
+            '实时链路无悬空表': ('属实' if not rt_dangling else '不符', f'{len(rt_dangling)} 张实时 ODS/DWD/DWS 没有下游' if rt_dangling else '实时 ODS/DWD/DWS 都有下游'),
+            'ODS 技术配置表无下游': ('属实', f'复算 {len(ods_nodown)} 张离线 ODS 无下游'),
+            '每个 ADS 指标附取数 SQL': ('属实' if has_sql else '不符', '「ADS业务指标」页没有取数 SQL 列；改造后页面「ADS 指标体系」为每个业务指标生成取数 SQL' if not has_sql else ''),
+            '敏感字段在 ODS 已脱敏/剔除': ('属实', '源库比对确认密钥、银行卡号等未接入（见 I1）'),
+            '新增 1 个渠道类型': ('有风险', '原设计需给 ADS 加一批按周期展开的列；改造后只加修饰词配置'),
+            '新增 1 种支付方式': ('有风险', '同上'),
+            '新增 1 种权益类型': ('有风险', '同上'),
+            '新增 1 个业态（如电影票）': ('未复核', '设计层面的说明，无法用字典数据验证'),
+            '新增 1 张源表': ('未复核', '流程性说明，无需复核'),
+        })
         for r in H.rows:
             item = H.get(r, '检查项')
             v = rev.get(item)

@@ -36,6 +36,8 @@ def main():
     res = checks.run(data, DOCS / 'source')
     model = ads_model.build(data, res)
     data2, changed = ads_model.apply_to_dictionary(data, model, res)
+    res['mclass'].update(model.pop('mclass_extra', {}))   # 新登记的位图口径
+    res['after'] = [{k: f[k] for k in ('id', 'level', 'cat', 'title', 'n')} for f in checks.run(data2, DOCS / 'source')['findings']]   # 改造版复核
     etl = etl_gen.generate(data2, model)
     model.pop('_int')
     sql_root = ROOT.parent / 'sql'
@@ -52,7 +54,7 @@ def main():
             '表清单': {'cols': data['表清单']['cols'], 'rows': [r for r in data['表清单']['rows'] if short(r[ti]) in changed]},
             '字段清单': {'cols': data['字段清单']['cols'], 'rows': [r for r in data['字段清单']['rows'] if short(r[fi]) in changed]},
             'ADS业务指标': data['ADS业务指标']}
-    meta = {'xlsx': xlsx.name, 'built': datetime.date.today().isoformat()}
+    meta = {'xlsx': xlsx.name, 'built': datetime.date.today().isoformat(), 'dict2': xlsx.stem + '_改造版.xlsx'}
     js = lambda o: json.dumps(o, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/')
     tpl = (ROOT / 'src' / 'template.html').read_text(encoding='utf-8')
     html = tpl.replace('__DATA__', js(data2)).replace('__ORIG__', js(orig)).replace('__CHECKS__', js(res)).replace('__META__', js(meta)).replace('__ADS__', js(model)).replace('__ETL__', js(etl))
