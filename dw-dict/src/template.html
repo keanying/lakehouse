@@ -244,7 +244,7 @@ pre.code.sm{flex:none;max-height:none}
 </div>
 <div class="mask" id="mask"></div>
 <aside class="drawer" id="drawer"><div class="dh2"><h2 id="dt"></h2><button class="btn" id="dx">关闭 ✕</button></div><div class="body" id="dbd"></div></aside>
-<script>const RAW=__DATA__;const CHK=__CHECKS__;const BMETA=__META__;const ADS=__ADS__;const ETL=__ETL__;const ORIG=__ORIG__;const CHG=ORIG.changed;const SRC=__SRC__;RAW['表清单'].rows.unshift(...SRC.tables);RAW['字段清单'].rows.unshift(...SRC.fields);</script>
+<script>const RAW=__DATA__;const CHK=__CHECKS__;const BMETA=__META__;const ADS=__ADS__;const ETL=__ETL__;const ORIG=__ORIG__;const CHG=ORIG.changed;const LEG=BMETA.mode==='legacy';const LEGACY=__LEGACY__;const SRC=__SRC__;RAW['表清单'].rows.unshift(...SRC.tables);RAW['字段清单'].rows.unshift(...SRC.fields);</script>
 <script>
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -286,7 +286,7 @@ const tokens=s=>String(s||'').split(/[、,，\s;；]+/).map(x=>shortN(x.trim()))
 
 /* ---------- DDL ---------- */
 function ddl(t){
-  if(t.b==='SRC')return `-- ${t.name}（MySQL 业务库原始 DDL，摘自 docs/source/pft-arch-02-database.md）\n`+SRC.ddl[t.name];
+  if(t.b==='SRC')return `-- ${t.name}（${SRC.ddlNote||'MySQL 业务库原始 DDL，摘自 docs/source/pft-arch-02-database.md'}）\n`+SRC.ddl[t.name];
   const q=s=>String(s??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,' ');
   const parts=t.fields.filter(f=>f.k==='分区'),cols=t.fields.filter(f=>f.k!=='分区');
   // 字段清单没登记分区字段时，按「表清单·分区」列补出 travel_date（离线 Hive 表）
@@ -379,18 +379,20 @@ const ICON={
  shield:'<path d="M12 3l8 3v6c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V6l8-3z"/>',
  check:'<path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/>'};
 const NAV=[['overview','总览','home'],['tables','表清单','table'],['fields','字段','cols'],['metrics','指标口径','sigma'],['period','ADS 指标体系','clock'],['gov','调度与治理','shield'],['review','核对报告','check']];
+if(LEG){NAV.splice(NAV.length-1,0,['legacy','旧系统对照','layers']);NAV[NAV.length-1][1]='标准化自检'}
 $('#rail').innerHTML='<div class="lg"></div>'+NAV.map(([k,l,i])=>`<a href="#/${k}" data-k="${k}" ><svg viewBox="0 0 24 24">${ICON[i]}</svg><span>${l}</span></a>`).join('');
 const go=h=>{location.hash=h};
 const META={overview:['总览','PFT3.0 数仓分层、业务域与修饰词，及核对与下载'],tables:['表清单','左侧选表，右侧查看概览、字段与 DDL'],fields:['字段清单','全部分层表的字段明细，点表名跳转到表详情'],metrics:['指标口径','① 口径字典 → ② ADS 指标清单 → ③ 业务指标（指标 × 统计周期）'],
  period:['ADS 指标体系','基础指标 × 统计周期（当日/周/月/季/半年/年/近N日/节假日/自定义）× 派生方式（数/钱/率/日均/环比/同比/占比）'],
  gov:['调度与治理','调度工作流 · 质量规则 · 一致性维度总线矩阵 · 待确认事项'],
  review:['核对报告','对照命名规范、业务库 DDL 与字典内部一致性的自动核对结果']};
+if(LEG){META.overview=['总览',BMETA.desc||''];META.legacy=['旧系统对照','现状问题 · 旧表 → 标准表映射 · 旧节点清单'];META.review=['标准化自检','用 PFT3.0 同一套核对规则检查标准化后的字典']}
 function route(){
   const h=location.hash.replace(/^#\/?/,'');const[p,a,b]=h.split('/');const k=NAV.some(n=>n[0]===p)?p:'overview';
   document.querySelectorAll('.rail a').forEach(x=>x.classList.toggle('on',x.dataset.k===k));
   $('#ttl').textContent=META[k][0];$('#dsc').textContent=META[k][1];closeD();
-  const v=$('#view');v.className='view'+(['overview','period','review'].includes(k)?' scroll':'');v.innerHTML='';
-  ({overview:vOverview,tables:vTables,fields:vFields,metrics:vMetrics,period:vPeriod,gov:vGov,review:vReview})[k](v,a,b);
+  const v=$('#view');v.className='view'+(['overview','period','review'].includes(k)||(k==='legacy'&&(!a||a==='issues'))?' scroll':'');v.innerHTML='';
+  ({overview:vOverview,tables:vTables,fields:vFields,metrics:vMetrics,period:vPeriod,gov:vGov,review:vReview,legacy:vLegacy})[k](v,a,b);
 }
 window.addEventListener('hashchange',route);
 
@@ -414,6 +416,9 @@ function vOverview(v){
   <div class="two"><div class="card sec"><h3>业务域分布<small>点击域名筛选表清单</small></h3><div class="bars">${dk.map(d=>{const tot=Object.values(dom[d]).reduce((x,y)=>x+y,0);return`<div class="brow" data-d="${d}"><span class="bk">${d}</span><div class="bg" style="width:${tot/mx*100}%">${LAY.filter(l=>dom[d][l]).map(l=>`<div class="bt" style="flex:${dom[d][l]};background:var(--${l})" title="${l} ${dom[d][l]}"></div>`).join('')}</div><span class="bn">${tot} 张</span></div>`}).join('')}</div></div>
   <div class="card sec"><h3>业务域前缀说明</h3><div class="glos" style="grid-template-columns:1fr">${glossary('业务域前缀')}</div></div></div>
   <div class="card sec" style="margin-top:14px"><h3>修饰词<small>取值</small></h3><div class="glos" style="grid-template-columns:1fr">${glossary('修饰词')}</div></div>`;
+  if(LEG){const b=v.querySelector('.banner');const L=LEGACY.summary;b.dataset.go='#/legacy';
+    b.innerHTML=`<span class="pill r">旧系统</span><b style="white-space:nowrap">现状问题：高 ${L['高']} · 中 ${L['中']} · 低 ${L['低']}</b><span style="color:var(--sub)">${esc(L.text)}</span><span class="grow"></span><a>查看旧系统对照 →</a>`;
+    const d=b.nextElementSibling;d.innerHTML='<b style="font-size:13px">下载</b>'+BMETA.downloads.map(([h,l])=>`<a class="btn" href="${esc(h)}" download style="display:inline-flex;align-items:center;text-decoration:none">${esc(l)}</a>`).join('')+`<span style="color:var(--muted);font-size:12px">${esc(BMETA.dlNote||'')}</span>`}
   v.onclick=e=>{const l=e.target.closest('[data-l]');if(l)return go('#/tables/layer:'+l.dataset.l);const d=e.target.closest('[data-d]');if(d)return go('#/tables/domain:'+d.dataset.d);const q=e.target.closest('[data-go]');if(q)go(q.dataset.go)};
 }
 /* 分层汇总里的小词典：以“表头行”(第3列起为空 & 后续行也为空) 切段 */
@@ -436,7 +441,7 @@ function vTables(v,a,b){
   v.innerHTML=`<div class="bar"><input class="inp" id="tq" placeholder="搜索表名 / 中文名 / 来源 / 字段…" value="${esc(TS.q)}">
    <div class="chips" id="lc"><button class="chip ${!TS.layer?'on':''}" data-l="">全部<i>${TB.length}</i></button>${TLAY.map(l=>`<button class="chip ${TS.layer===l?'on':''}" data-l="${l}">${LNAME[l]||l}<i>${TB.filter(t=>t.b===l).length}</i></button>`).join('')}</div>
    <select class="sel ${TS.domain?'act':''}" id="td"><option value="">业务域：全部</option>${doms.map(d=>`<option ${TS.domain===d?'selected':''}>${d}</option>`).join('')}</select>
-   <button class="chip ${TS.chg?'on':''}" id="tchg">只看改造<i>${Object.keys(CHG).length}</i></button>
+   <button class="chip ${TS.chg?'on':''}" id="tchg" style="${Object.keys(CHG).length?'':'display:none'}">只看改造<i>${Object.keys(CHG).length}</i></button>
    <select class="sel ${TS.rt?'act':''}" id="tr"><option value="">离线 + 实时</option><option value="0" ${TS.rt==='0'?'selected':''}>仅离线</option><option value="1" ${TS.rt==='1'?'selected':''}>仅实时</option></select>
    <span class="grow"></span><span class="cnt" id="tc"></span></div>
    <div class="split"><div class="pane"><div class="card tw" id="tl"></div></div><div class="pane"><div class="card det" id="td2"></div></div></div>`;
@@ -470,8 +475,8 @@ function vTables(v,a,b){
       body.innerHTML='';const box=document.createElement('div');box.style.cssText='flex:1;min-height:0;display:flex;flex-direction:column';body.appendChild(box);
       grid(box,{cols:H,rows:F,cls:['c-n','c-id','c-s','c-s','c-cm','c-kou','c-src'],filters:[3],searchPh:'筛选字段名 / 注释…',pageSize:200,csvName:t.short+'_fields',rowCls:r=>isGK(r[3])?'gk':'',state:{q:TS.fq,f:{},sort:null,page:0},cell:(i,v,q)=>i===3?catPill(v):i===5?(v?`<span class="kou">${hl(esc(v),q)}</span>`:'<span style="color:#c3c8d3">—</span>'):hl(esc(v),q),onRow:r=>{const f=t.fields.find(x=>x.no===r[0]&&x.n===r[1]);drawer(f.n,t.name,(caliber(t,f)?`<div class="sub">口径说明</div><div class="formula" style="font-family:inherit">${esc(caliber(t,f))}</div>`:'')+kvHtml([['序号',f.no],['类型',esc(f.t)],['类别',catPill(f.k)],['字段注释',esc(f.c)],['加工 / 来源',esc(f.s)],['上游字段',esc(f.u)]]))}});
     }else if(TS.tab==='etl'){
-      const e=ETL[t.short],st=e.stats;const KN={hive:'Spark SQL / Hive（离线日调度）',flink:'Flink SQL（实时）',starrocks:'StarRocks 物化视图（实时）'};
-      body.innerHTML=`<div class="dtool" style="flex-wrap:wrap"><span class="sub" style="margin:0">${KN[e.kind]} · <span class="mono-s">${esc(e.path)}</span></span><span class="pill g">直接翻译 ${st.auto||0}</span><span class="pill b">规则翻译 ${st.rule||0}</span>${st.review?`<span class="pill o">待确认 ${st.review}</span><button class="btn" id="etodo" style="height:26px">定位待确认</button>`:''}<span class="grow" style="flex:1"></span><button class="btn pri" id="cpe">复制 SQL</button></div><pre class="code" id="esql">${sqlHtml(e.sql)}</pre>`;
+      const e=ETL[t.short],st=e.stats;const KN={hive:'Spark SQL / Hive（离线日调度）',flink:'Flink SQL（实时）',starrocks:'StarRocks 物化视图（实时）',legacy:'旧系统实现（参考，按标准模型重写）'};
+      body.innerHTML=`<div class="dtool" style="flex-wrap:wrap"><span class="sub" style="margin:0">${KN[e.kind]} · <span class="mono-s">${esc(e.path)}</span></span>${e.kind==='legacy'?`<span class="pill o">旧任务 ${st.nodes||0} 个</span>`:`<span class="pill g">直接翻译 ${st.auto||0}</span><span class="pill b">规则翻译 ${st.rule||0}</span>`}${st.review?`<span class="pill o">待确认 ${st.review}</span><button class="btn" id="etodo" style="height:26px">定位待确认</button>`:''}<span class="grow" style="flex:1"></span><button class="btn pri" id="cpe">复制${e.kind==='legacy'?'':' SQL'}</button></div><pre class="code" id="esql">${sqlHtml(e.sql)}</pre>`;
       $('#cpe').onclick=ev=>copy(e.sql,ev.target);
       const tb=$('#etodo');if(tb){let k=0;tb.onclick=()=>{const L=[...document.querySelectorAll('#esql .todo')];if(!L.length)return;L.forEach(x=>x.classList.remove('cur'));const x=L[k%L.length];x.classList.add('cur');x.scrollIntoView({block:'center'});tb.textContent=`定位待确认 ${k%L.length+1}/${L.length}`;k++}}
     }else if(TS.tab==='sch'){
@@ -570,18 +575,44 @@ function catDrawer(m){
    `<div class="sub">该口径的 ADS 指标（${m.ads.length}）</div>`+(m.ads.length?`<table class="st"><thead><tr><th>编码</th><th>指标名</th><th>字段</th><th>周期</th><th>ADS 表</th></tr></thead><tbody>${m.ads.map(r=>`<tr><td class="mono">${esc(r[ag('指标编码')])}</td><td>${esc(r[ag('业务指标名')])}</td><td class="mono">${esc(r[ag('字段名')])}</td><td>${esc(r[ag('统计周期')])}</td><td>${linksHtml(r[ag('ADS表')])}</td></tr>`).join('')}</tbody></table>`:'<div class="empty" style="padding:12px">未被 ADS 使用</div>'));
 }
 
+/* ---------- 旧系统对照 ---------- */
+const LS={};
+function vLegacy(v,a){
+  const T=[['issues','现状问题',LEGACY.findings.length],['map','旧表 → 标准表',LEGACY.mapping.rows.length],['nodes','旧节点清单',LEGACY.nodes.rows.length]];
+  const tab=T.some(x=>x[0]===a)?a:'issues';
+  v.innerHTML=`<div class="bar" style="margin-bottom:10px"><div class="chips" style="align-items:center">${T.map(([k,l,n])=>`<button class="chip ${tab===k?'on':''}" data-k="${k}" style="height:30px;padding:0 14px">${l}<i>${n.toLocaleString()}</i></button>`).join('')}${qi(LEGACY.tips[tab])}</div><span class="grow"></span>${tab==='issues'?`<a class="btn" href="${esc(LEGACY.reportHref)}" style="display:inline-flex;align-items:center;text-decoration:none">问题清单（Markdown）</a>`:''}</div><div id="lh" style="${tab==='issues'?'':'flex:1;min-height:0;display:flex;flex-direction:column'}"></div>`;
+  v.querySelector('.chips').onclick=e=>{const b=e.target.closest('.chip');if(b)go('#/legacy/'+b.dataset.k)};
+  const h=$('#lh');LS[tab]??={};
+  if(tab==='issues'){
+    const S=LEGACY.summary;
+    h.innerHTML=`<div class="rv-head">${['高','中','低'].map(l=>`<div class="card rv-k" style="--c:${LVC[l]}"><b>${S[l]}</b><span>${({'高':'高 · 数据正确性 / 安全 / 重复建设','中':'中 · 性能 / 可维护性','低':'低 · 规范与治理'})[l]}</span></div>`).join('')}
+      <div class="card rv-meta">诊断对象：<b>${esc(LEGACY.zip)}</b>（${esc(LEGACY.stats)}）<br>由 dataworks/audit.py 自动生成，明细可在每条问题里展开</div></div>
+      <div>${LEGACY.findings.map((f,i)=>`<div class="card fd" style="--c:${LVC[f.level]}"><div class="fh"><span class="pill ${LVP[f.level]}">${f.level}</span><span class="mono-s">${f.id}</span><b>${esc(f.title)}</b><span class="grow"></span><span class="pill">${esc(f.cat)}</span></div><div class="fdd">${esc(f.detail)}</div><div class="fs"><span>建议</span>${esc(f.suggest)}</div>${f.rows.length?`<a class="fmore" data-i="${i}">查看明细 ${f.total.toLocaleString()} 条 →</a>`:''}</div>`).join('')}</div>`;
+    h.onclick=e=>{const x=e.target.closest('a.fmore[data-i]');if(!x)return;const f=LEGACY.findings[+x.dataset.i];
+      drawer(f.title,f.id+' · '+f.level+' · 共 '+f.total+' 条'+(f.total>f.rows.length?`（页面显示前 ${f.rows.length} 条，完整见 dataworks/output/${f.id}.csv）`:''),'<div id="fdg" style="height:calc(100vh - 110px);display:flex;flex-direction:column"></div>');
+      grid($('#fdg'),{cols:f.cols,rows:f.rows,pageSize:100,csvName:f.id,searchPh:'筛选…'})};
+    return;
+  }
+  const D=tab==='map'?LEGACY.mapping:LEGACY.nodes;const c=D.cols;
+  const AP={'合并':'b','改名':'g','回流改造':'o','移出数仓':'r','下线':'r','项目专用':'','保留':'g'};
+  grid(h,{state:LS[tab],cols:c,rows:D.rows,wide:true,filters:D.filters,searchPh:tab==='map'?'搜索旧表名 / 标准表…':'搜索节点路径 / 读写表…',csvName:tab==='map'?'旧表映射':'旧节点清单',pageSize:200,
+    extra:`<div class="sub" style="margin:-2px 0 8px">${esc(D.note)}</div>`,
+    cell:(i,v,q)=>c[i]==='标准表'&&v?tlink(v,q):c[i]==='处理'?`<span class="pill ${AP[v]??''}">${esc(v)}</span>`:/表|路径/.test(c[i])?`<span class="c-id">${hl(esc(v),q)}</span>`:hl(esc(v),q),
+    onRow:r=>{const k=c.indexOf('标准表');if(k>=0&&TBM[r[k]])go('#/tables/'+r[k])}});
+}
+
 /* ---------- 核对报告 ---------- */
 const LVC={'高':'#b42318','中':'#b54708','低':'#2d4bc0','提示':'#667085'},LVP={'高':'r','中':'o','低':'b','提示':''};
 function vReview(v){
   const s=CHK.summary;
   const VC={'属实':'g','部分属实':'o','有风险':'o','不符':'r','未复核':''};
   v.innerHTML=`<div class="rv-head">${['高','中','低','提示'].map(l=>`<div class="card rv-k" style="--c:${LVC[l]}"><b>${s[l]}</b><span>${({'高':'高 · 影响数据正确性，必须修改','中':'中 · 影响可维护性/口径一致','低':'低 · 规范与细节','提示':'提示 · 已核对无误的部分'})[l]}</span></div>`).join('')}
-    <div class="card rv-meta">核对对象：<b>${esc(BMETA.xlsx)}</b>（${s.tables} 张表 · ${s.fields.toLocaleString()} 个字段 · ${s.dws} 个口径 · ${s.ads} 个 ADS 指标）<br>对照依据：数仓命名规范 · ${s.srcTables} 张业务库 DDL（docs/source）· 字典各页交叉校验<br>由 checks.py 在构建时自动生成 · ${esc(BMETA.built)}</div></div>
+    <div class="card rv-meta">${LEG?'核对对象（标准化后的字典）':'核对对象'}：<b>${esc(BMETA.xlsx)}</b>（${s.tables} 张表 · ${s.fields.toLocaleString()} 个字段 · ${s.dws} 个口径 · ${s.ads} 个 ADS 指标）<br>对照依据：数仓命名规范 · ${s.srcTables} 张业务库 DDL（docs/source）· 字典各页交叉校验<br>由 checks.py 在构建时自动生成 · ${esc(BMETA.built)}</div></div>
     <div>${CHK.findings.map((f,i)=>`<div class="card fd" style="--c:${LVC[f.level]}"><div class="fh"><span class="pill ${LVP[f.level]}">${f.level}</span><span class="mono-s">${f.id}</span><b>${esc(f.title)}</b><span class="grow"></span><span class="pill">${esc(f.cat)}</span></div><div class="fdd">${esc(f.detail)}</div><div class="fs"><span>建议</span>${esc(f.suggest)}</div>${f.n?`<a class="fmore" data-i="${i}">查看明细 ${f.n} 条 →</a>`:''}${['H1','H2','M6'].includes(f.id)?` <a class="fmore" href="#/period" style="margin-left:14px">ADS 指标体系 →</a>`:''}</div>`).join('')}</div>
     ${CHK.after?`<div class="card sec" style="margin:4px 0 12px;border-left:4px solid #0e9384"><h3>改造版复核<small>同一套规则核对改造后的字典（dist/*_改造版.xlsx）</small></h3>
       <p style="margin:0 0 8px;color:var(--sub)">原版 ${CHK.findings.filter(f=>f.level!=='提示').length} 类问题，改造版剩 ${CHK.after.filter(f=>f.level!=='提示').length} 类；剩下的都需要客户决定，未在改造中擅自修改：</p>
       <table class="st"><thead><tr><th>编号</th><th>级别</th><th>问题</th><th>涉及</th><th>为什么没改</th></tr></thead><tbody>${CHK.after.filter(f=>f.level!=='提示').map(f=>`<tr><td class="mono">${f.id}</td><td><span class="pill ${LVP[f.level]}">${f.level}</span></td><td>${esc(f.title)}</td><td>${f.n}</td><td style="color:var(--sub)">${esc(({M5:'两份设计文档哪份为准需客户确认',L2:'字段改名影响上下游，需客户确认新名称',L3:'时间字段类型属于全局设计，需客户确认是否统一改为 TIMESTAMP'})[f.id]||'需客户确认')}</td></tr>`).join('')}</tbody></table></div>`:''}
-    <div class="card sec" style="margin-top:4px"><h3>「质量体检」结论复核<small>客户在 Excel「质量体检」页的自评，逐条复核</small></h3>
+    <div class="card sec" style="margin-top:4px;${CHK.verify.length?'':'display:none'}"><h3>「质量体检」结论复核<small>客户在 Excel「质量体检」页的自评，逐条复核</small></h3>
     <table class="st"><thead><tr><th>维度</th><th>检查项</th><th>客户结论</th><th>复核</th><th>说明</th></tr></thead><tbody>${CHK.verify.map(r=>`<tr><td style="white-space:nowrap">${esc(r[0])}</td><td>${esc(r[1])}</td><td style="white-space:nowrap">${esc(r[2])} <span class="pill ${r[3]==='通过'?'g':'o'}">${esc(r[3])}</span></td><td style="white-space:nowrap"><span class="pill ${VC[r[4]]??''}">${esc(r[4])}</span></td><td style="color:var(--sub)">${esc(r[5])}</td></tr>`).join('')}</tbody></table></div>`;
   v.onclick=e=>{const a=e.target.closest('a.fmore[data-i]');if(!a)return;const f=CHK.findings[+a.dataset.i];const cols=f.cols.filter(Boolean);
     drawer(f.title,f.id+' · '+f.level+' · 共 '+f.n+' 条','<div id="fdg" style="height:calc(100vh - 110px);display:flex;flex-direction:column"></div>');
@@ -818,7 +849,8 @@ const AS={};
 function vPeriod(v,a){
   const s=ADS.summary;
   const tabs=[['plan','方案'],['periods','时间表',ADS.periods.length],['derivs','派生方式',ADS.derivs.length],['base','基础指标',s.combos],['ddl','表结构与查询',s.tables]];
-  const tab=tabs.some(t=>t[0]===a)?a:'plan';const flow=!['plan','periods','derivs'].includes(tab);
+  if(LEG)tabs.shift();
+  const tab=tabs.some(t=>t[0]===a)?a:tabs[0][0];const flow=!['plan','periods','derivs'].includes(tab);
   v.className='view'+(flow?'':' scroll');
   v.innerHTML=`<div class="bar" style="margin-bottom:8px"><div class="chips">${tabs.map(([k,l,n])=>`<button class="chip ${tab===k?'on':''}" data-k="${k}" style="height:30px;padding:0 14px">${l}${n!=null?`<i>${n.toLocaleString()}</i>`:''}</button>`).join('')}</div><span class="grow"></span><a class="btn pri" href="ADS指标体系.xlsx" download style="display:inline-flex;align-items:center;text-decoration:none">下载 ADS指标体系.xlsx</a></div><div id="ah" style="${flow?'flex:1;min-height:0;display:flex;flex-direction:column':''}"></div>`;
   v.querySelector('.chips').onclick=e=>{const b=e.target.closest('.chip');if(b)go('#/period/'+b.dataset.k)};
@@ -849,7 +881,7 @@ function vPeriod(v,a){
     const cols=['基础指标','ADS表','口径','修饰词','指标名','聚合方式','单位','ADS 日字段','合并的原字段','可查询指标'];
     const rows=ADS.combos.map(c=>[c.mcode,c.t,c.code,c.mod,c.base_cn,KIND[c.kind]?.[0]||c.kind,c.unit,c.store.join('、'),c.old_fields.join('、'),c.fields.length]);
     grid(h,{state:AS[tab],cols,rows,wide:true,filters:[1,5,6],searchPh:'搜索指标名 / 字段 / 口径…',csvName:'基础指标',cls:['c-s','c-id','c-s','c-m','c-m','c-s','c-s','c-l','c-l','c-n'],
-      extra:`<div class="sub" style="margin:-2px 0 8px">基础指标 = ADS 表 × 口径 × 修饰词。原来按周期写死的 ${s.oldCols} 个 ADS 指标列合并为 ${s.combos} 个基础指标、${s.store} 个日字段（另 ${s.skipped} 个原指标不改造，见「表结构与查询」底部）。点行看可查询的指标与周期。</div>`,
+      extra:LEG?`<div class="sub" style="margin:-2px 0 8px">基础指标 = ADS 表 × 口径。旧系统按 日 / 月 / 年 × 维度组合 各建一张表，标准化后 ADS 统一日粒度：${s.combos} 个基础指标、${s.store} 个日字段，任意周期在查询时关联时间表。点行看可查询的指标与周期。</div>`:`<div class="sub" style="margin:-2px 0 8px">基础指标 = ADS 表 × 口径 × 修饰词。原来按周期写死的 ${s.oldCols} 个 ADS 指标列合并为 ${s.combos} 个基础指标、${s.store} 个日字段（另 ${s.skipped} 个原指标不改造，见「表结构与查询」底部）。点行看可查询的指标与周期。</div>`,
       cell:(i,v,q)=>i===1?tlink(v,q):i===5?kindPill(Object.keys(KIND).find(k=>KIND[k][0]===v)):i===7||i===8?`<span class="mono-s">${hl(esc(v),q)}</span>`:hl(esc(v),q),
       onRow:r=>baseDrawer(CM[r[0]])});
     return;

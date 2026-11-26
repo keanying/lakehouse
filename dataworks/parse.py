@@ -92,7 +92,7 @@ def _di(js):
         out[side].update({'type': st.get('stepType'), 'datasource': p.get('datasource') or (p.get('connection') or [{}])[0].get('datasource'),
                           'tables': [str(t) for t in tables if t], 'columns': p.get('column') or [], 'where': p.get('where', ''),
                           'partition': p.get('partition', ''), 'writeMode': p.get('writeMode', ''), 'splitPk': p.get('splitPk', ''),
-                          'preSql': p.get('preSql', []), 'postSql': p.get('postSql', [])})
+                          'preSql': p.get('preSql', []), 'postSql': p.get('postSql', []), 'tableComment': p.get('tableComment', '')})
     out['cu'] = (js.get('extend') or {}).get('cu')
     out['setting'] = js.get('setting', {})
     return out

@@ -62,7 +62,7 @@ def main():
     for r in cal['holiday_rows']:
         hol.setdefault(r[1], []).append([r[3], r[2], d10(r[4]), d10(r[5])])
     src = source_tables.build(DOCS / 'source', data2)   # 业务库原始表（ODS 上游）
-    html = tpl.replace('__SRC__', js(src)).replace('__HOL__', js(hol)).replace('__DATA__', js(data2)).replace('__ORIG__', js(orig)).replace('__CHECKS__', js(res)).replace('__META__', js(meta)).replace('__ADS__', js(model)).replace('__ETL__', js(etl))
+    html = tpl.replace('__LEGACY__', 'null').replace('__SRC__', js(src)).replace('__HOL__', js(hol)).replace('__DATA__', js(data2)).replace('__ORIG__', js(orig)).replace('__CHECKS__', js(res)).replace('__META__', js(meta)).replace('__ADS__', js(model)).replace('__ETL__', js(etl))
     (ROOT / 'dist').mkdir(exist_ok=True)
     (ROOT / 'dist' / 'index.html').write_text(html, encoding='utf-8')
     DOCS.mkdir(exist_ok=True)
