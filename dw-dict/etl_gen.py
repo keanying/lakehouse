@@ -25,6 +25,7 @@ MODS = {
     '退款发起方': ('initiator_type', {}),
     '分销层级': ('chain_level_no', {'一级': '1', '二级': '2', '三级': '3', '四级': '4'}),
     '冻结类型': ('freeze_type', {'利润冻结': 'PROFIT', '采购款冻结': 'SETTLEMENT', '全款冻结': 'FULL'}),
+    '操作人类型': ('operator_type', {'B端员工': 'TENANT_STAFF', 'C端游客': 'CUSTOMER'}),
     '通知渠道': ('notify_channel_type', {'短信': 'SMS', '小程序消息': 'MINI_PROGRAM_MSG', '邮件': 'EMAIL', 'Webhook': 'WEBHOOK'}),
 }
 LAYER_DB = {'ods': 'ods', 'dwd': 'dwd', 'dim': 'dim', 'dws': 'dws', 'ads': 'ads'}
@@ -345,12 +346,20 @@ class RowGen:
             return base, 'auto', ''
         if re.fullmatch(r'[÷/]\s*100(\s*转元)?', rest):
             return f'ROUND({base} / 100, 2)', 'auto', ''
+        # 时长：「A / B − C」里 / 表示「或」，如 revoked_at / expires_at - create_time
+        tm = re.fullmatch(r'\s*/\s*(\w+)\s*[-−]\s*(\w+)\s*', rest)
+        if tm and all(re.search(r'(_at|_time)$', x) for x in (c, tm.group(1), tm.group(2))):
+            al0 = base.split('.')[0]
+            unit = 3600 if 'hour' in n else (86400 if 'day' in n else 60)
+            return (f'(UNIX_TIMESTAMP(COALESCE({base}, {al0}.{tm.group(1)})) - UNIX_TIMESTAMP({al0}.{tm.group(2)})) / {unit}'), 'rule', ''
         # 纯算术：把 表.字段 换成 别名.字段，×÷− 换成运算符
         arith = p
         for s2, c2 in refs:
             al2 = 'a' if s2 == self.main else (None if s2 == self.t else self.alias(s2, hint))
             arith = arith.replace(f'{s2}.{c2}', f'{al2}.{c2}' if al2 else f'({done.get(c2, c2)})', 1)
         arith = re.sub(r'，?(改名|转元|冗余)', '', arith).replace('÷', '/').replace('×', '*').replace('−', '-').strip(' ，')
+        mc_ = self.main_cols()
+        arith = re.sub(r'(?<![\w.])([a-z][a-z0-9_]*)\b(?!\s*\()', lambda mm: f'a.{mm.group(1)}' if mm.group(1) in mc_ and s == self.main else mm.group(1), arith)
         if re.fullmatch(r'[A-Za-z0-9_.\s*/+\-()]+', arith) and re.search(r'[*/+\-]', arith) and valid_sql(arith):
             if '/' in arith and '100' not in arith.split('/')[-1]:
                 l_, r_ = arith.rsplit('/', 1)
@@ -807,6 +816,7 @@ def gen_agg(D, t, ads_store=None):
     per_src = collections.OrderedDict()     # 来源表 -> [(目标字段, 表达式, 外层聚合, 状态, 说明, 额外关联)]
     outer = []                               # (字段, 外层表达式, 状态, 说明)
     is_df = t.endswith('_df')
+    hidden = []
     for x in mets:
         p = re.sub(r'（原为[^）]*）', '', x['p'])
         mm = re.match(r'^((?:dwd|dws|dim)_\w+)[：:]\s*(.*)$', p)
@@ -825,6 +835,17 @@ def gen_agg(D, t, ads_store=None):
             fm = re.match(r'\s*(min|max)\s*\(', mm.group(2), re.I)
             agg = 'BITMAP_UNION' if x['type'] == 'BITMAP' else (fm.group(1).upper() if fm else 'SUM')
             per_src.setdefault(s, []).append((x['n'], e, agg, st, note))
+        elif '当日差值' in p:
+            refs2 = [u.split('.')[-2:] for u in re.split(r'[、,]', x['up']) if u.strip()][:2]
+            if len(refs2) == 2 and refs2[0][0] == refs2[1][0]:
+                per_src.setdefault(refs2[0][0], []).append((x['n'], f'SUM({refs2[0][1]}) - SUM({refs2[1][1]})', 'SUM', 'rule', ''))
+            elif len(refs2) == 2:
+                for k_, (s_, c_) in enumerate(refs2, 1):
+                    per_src.setdefault(s_, []).append((f'{x["n"]}_part{k_}', f'SUM({c_})', 'SUM', 'rule', ''))
+                    hidden.append(f'{x["n"]}_part{k_}')
+                outer.append((x['n'], f'{x["n"]}_part1 - {x["n"]}_part2', 'rule', ''))
+            else:
+                outer.append((x['n'], 'NULL', 'review', p))
         elif ref and ref.group(1) in D.t and ref.group(1) != t:
             s, c = ref.group(1), ref.group(2)
             if ads_store is not None or '：' in p:
@@ -882,7 +903,7 @@ def gen_agg(D, t, ads_store=None):
             agg_of[n] = agg
     for x in outer:
         stats[x[2]] += 1
-    src_cols = [n for n in ordered if n in agg_of]
+    src_cols = [n for n in ordered + hidden if n in agg_of]
     src_ctes, pre = [], []
     for s, v in per_src.items():
         kx, gb, joins = [], [], []
@@ -931,11 +952,15 @@ def gen_agg(D, t, ads_store=None):
     for n in ordered:
         if n in agg_of:
             out_cols.append(f"  {agg_of[n]}(u.{n}) AS {n}")
-    agg_cols = {n for n in ordered if n in agg_of}
+    agg_cols = {n for n in ordered + hidden if n in agg_of}
+    done_outer = {}
     for n, e, st, note in outer:
         ee = e
+        for nm_ in sorted(done_outer, key=len, reverse=True):      # 引用了前面的派生指标：代入其表达式
+            ee = re.sub(rf'(?<![\w.]){nm_}\b', f'({done_outer[nm_]})', ee)
         for nm_ in sorted(agg_cols, key=len, reverse=True):
-            ee = re.sub(rf'(?<![\w.]){nm_}\b', f'{agg_of[nm_]}(u.{nm_})', ee)
+            ee = re.sub(rf'(?<![\w.]){nm_}\b', f'{agg_of[nm_]}(u.{nm_})', ee) if nm_ not in done_outer else ee
+        done_outer[n] = ee
         out_cols.append(f'  {ee} AS {n}' + (f'  -- 待确认：{note}' if st == 'review' else ''))
     order = [x['n'] for x in fs if x['cat'] != '分区' or m['rt']]
     attr_list = []
@@ -967,7 +992,12 @@ def _ads_val(D, t, x, s, c):
     p = x['p']
     st, note = 'auto', ''
     cond = ''
-    mm = re.search(r'条件：([^=）]+)=([^）]+)', p)
+    if '待确认：上游字段与口径不一致' in p:
+        return 'NULL', 'review', '上游字段与口径不一致，需按口径重写：' + p[:60]
+    raw = re.search(r'条件：([a-z_]+\s*[<>=]+\s*[\d\']+\w*\'?)）', p)
+    mm = None if raw else re.search(r'条件：([^=）]+)=([^）]+)', p)
+    if raw:
+        cond, st = raw.group(1), 'rule'
     if mm:
         dim, val = mm.group(1).strip(), mm.group(2).strip()
         col, codes = MODS.get(dim, (None, {}))
@@ -997,6 +1027,8 @@ def _ads_val(D, t, x, s, c):
             st, note = 'review', f'{s} 中没有字段 {c}'
     v = f'CASE WHEN {cond} THEN {c} END' if cond else c
     if x['type'] == 'BITMAP':
+        if not c.endswith('_bitmap'):
+            return f'BITMAP_UNION(TO_BITMAP({v}))', st, note
         return f'BITMAP_UNION({v})', st, note
     return f'SUM({v})', st, note
 
@@ -1045,6 +1077,10 @@ def gen_ads_legacy(D, t):
             stats['review'] += 1
             continue
         w = win_of(x['n'])
+        if w and not all('window_start_time' in D.cols.get(a_, set()) for a_, _ in ups):
+            outs.append(f"  NULL AS {x['n']}  -- 待确认：来源表没有分钟窗口字段，{x['n']} 需要的时间窗口算不出（{x['p'][:40]}）")
+            stats['review'] += 1
+            continue
         f = re.split(r'[，；;]', str(x['p']).split('=', 1)[-1])[0]
         if re.search(r'_(wow|mom|dod)_?rate$|_(wow|mom|dod)_', x['n']) and len(ups) < 2:
             outs.append(f"  NULL AS {x['n']}  -- 待确认：{x['p']}（需上一周期的值：关联时间表 prev_* 区间计算）")

@@ -260,8 +260,11 @@ const TB=[];const TBM={};
  RAW['字段清单'].rows.forEach(r=>{const t=TBM[shortN(r[g('表名（库.表）')])];if(t)t.fields.push({no:r[g('序号')],n:r[g('字段名')],t:r[g('类型')],k:r[g('字段类别')],c:r[g('字段注释')],s:r[g('加工 / 来源')],u:r[g('上游字段')]});});}
 // 指标口径：DIM/DWD/DWS/ADS 层字段类别为 度量/指标 的字段
 function parseCmt(c){c=String(c||'');let name='',kou=c,unit='';
-  const m=c.match(/^([^：:]{1,40})[：:]([\s\S]+)$/);if(m&&!/[，,；;]/.test(m[1])){name=m[1].trim();kou=m[2].trim()}
+  const m=c.match(/^([^：:]{1,40})[：:]([\s\S]+)$/);if(m&&!/[，,；;]/.test(m[1])){name=m[1].trim();kou=m[2].trim();
+    if((name.match(/[（(]/g)||[]).length!==(name.match(/[）)]/g)||[]).length){name=name.split(/[（(]/)[0].trim();kou=c}}   // 冒号在括号里：名称截到括号前
   const u=kou.match(/[，,]\s*单位[：:]\s*([^，,；;]+)\s*$/);if(u){unit=u[1].trim();kou=kou.slice(0,u.index)}
+  if(!name&&c){const h=c.match(/^([^，,；;：:。（(]{1,24})/);name=h?h[1].trim():c.slice(0,16);
+    if(!unit){const uu=c.match(/^[^，,；;]{0,24}?（(元|个|张|次|人|单|天|分钟|小时|%|家)）/);if(uu)unit=uu[1]}}
   return{name,kou,unit}}
 const MLAY=['DIM','DWD','DWS','ADS'];const MET={DIM:[],DWD:[],DWS:[],ADS:[]};
 TB.forEach(t=>{if(!MET[t.b])return;t.metrics=[];t.fields.forEach(f=>{const p=parseCmt(f.c);const o=[t.short,t.cn,f.n,p.name||'',p.kou,p.unit,f.t,f.s,f.u,t.rt?'实时':'离线',f.k];MET[t.b].push(o);if(['粒度键','度量','指标'].includes(f.k))t.metrics.push(o)})});
@@ -401,6 +404,10 @@ function vOverview(v){
   const nf=TB.reduce((a,t)=>a+t.fields.length,0);
   const cs=CHK.summary;
   v.innerHTML=`<div class="card banner" data-go="#/review"><span class="pill r">核对</span><b>客户交付字典核对：高 ${cs['高']} 项 · 中 ${cs['中']} 项 · 低 ${cs['低']} 项</b><span style="color:var(--sub)">${esc(CHK.findings.filter(f=>f.level==='高').map(f=>f.title.split('，')[0]).join('；'))}</span><span class="grow"></span><a>查看核对报告 →</a></div>
+  <div class="card" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 16px;margin-bottom:14px"><b style="font-size:13px">下载</b>
+    <a class="btn" href="${esc(BMETA.dict2)}" download style="display:inline-flex;align-items:center;text-decoration:none">改造版字典（Excel，改动行标黄）</a>
+    <a class="btn" href="ADS指标体系.xlsx" download style="display:inline-flex;align-items:center;text-decoration:none">ADS 指标体系（Excel）</a>
+    <span style="color:var(--muted);font-size:12px">加工 SQL 在仓库 sql/ 目录，与调度工作流「执行」列路径一致</span></div>
   <div class="grid5">${LAY.map(l=>{const r=LINFO[l];const all=cnt(l),rt=all.filter(t=>t.rt).length;return`<div class="card lc" style="--c:var(--${l})" data-l="${l}"><div class="k">${l} · ${esc(r[1])}</div><div class="n">${all.length-rt}<small>张离线${rt?` + ${rt} 实时`:''}</small></div><div class="d">${esc(r[3])}</div><div class="x">${esc(r[4])}</div></div>`}).join('')}</div>
   <div class="two"><div class="card sec"><h3>业务域分布<small>点击域名筛选表清单</small></h3><div class="bars">${dk.map(d=>{const tot=Object.values(dom[d]).reduce((x,y)=>x+y,0);return`<div class="brow" data-d="${d}"><span class="bk">${d}</span><div class="bg" style="width:${tot/mx*100}%">${LAY.filter(l=>dom[d][l]).map(l=>`<div class="bt" style="flex:${dom[d][l]};background:var(--${l})" title="${l} ${dom[d][l]}"></div>`).join('')}</div><span class="bn">${tot} 张</span></div>`}).join('')}</div></div>
   <div class="card sec"><h3>业务域前缀说明</h3><div class="glos" style="grid-template-columns:1fr">${glossary('业务域前缀')}</div></div></div>
@@ -611,6 +618,9 @@ function vReview(v){
   v.innerHTML=`<div class="rv-head">${['高','中','低','提示'].map(l=>`<div class="card rv-k" style="--c:${LVC[l]}"><b>${s[l]}</b><span>${({'高':'高 · 影响数据正确性，必须修改','中':'中 · 影响可维护性/口径一致','低':'低 · 规范与细节','提示':'提示 · 已核对无误的部分'})[l]}</span></div>`).join('')}
     <div class="card rv-meta">核对对象：<b>${esc(BMETA.xlsx)}</b>（${s.tables} 张表 · ${s.fields.toLocaleString()} 个字段 · ${s.dws} 个口径 · ${s.ads} 个 ADS 指标）<br>对照依据：数仓命名规范 · ${s.srcTables} 张业务库 DDL（docs/source）· 字典各页交叉校验<br>由 checks.py 在构建时自动生成 · ${esc(BMETA.built)}</div></div>
     <div>${CHK.findings.map((f,i)=>`<div class="card fd" style="--c:${LVC[f.level]}"><div class="fh"><span class="pill ${LVP[f.level]}">${f.level}</span><span class="mono-s">${f.id}</span><b>${esc(f.title)}</b><span class="grow"></span><span class="pill">${esc(f.cat)}</span></div><div class="fdd">${esc(f.detail)}</div><div class="fs"><span>建议</span>${esc(f.suggest)}</div>${f.n?`<a class="fmore" data-i="${i}">查看明细 ${f.n} 条 →</a>`:''}${['H1','H2','M6'].includes(f.id)?` <a class="fmore" href="#/period" style="margin-left:14px">ADS 指标体系 →</a>`:''}</div>`).join('')}</div>
+    ${CHK.after?`<div class="card sec" style="margin:4px 0 12px;border-left:4px solid #0e9384"><h3>改造版复核<small>同一套规则核对改造后的字典（dist/*_改造版.xlsx）</small></h3>
+      <p style="margin:0 0 8px;color:var(--sub)">原版 ${CHK.findings.filter(f=>f.level!=='提示').length} 类问题，改造版剩 ${CHK.after.filter(f=>f.level!=='提示').length} 类；剩下的都需要客户决定，未在改造中擅自修改：</p>
+      <table class="st"><thead><tr><th>编号</th><th>级别</th><th>问题</th><th>涉及</th><th>为什么没改</th></tr></thead><tbody>${CHK.after.filter(f=>f.level!=='提示').map(f=>`<tr><td class="mono">${f.id}</td><td><span class="pill ${LVP[f.level]}">${f.level}</span></td><td>${esc(f.title)}</td><td>${f.n}</td><td style="color:var(--sub)">${esc(({M5:'两份设计文档哪份为准需客户确认',L2:'字段改名影响上下游，需客户确认新名称',L3:'时间字段类型属于全局设计，需客户确认是否统一改为 TIMESTAMP'})[f.id]||'需客户确认')}</td></tr>`).join('')}</tbody></table></div>`:''}
     <div class="card sec" style="margin-top:4px"><h3>「质量体检」结论复核<small>客户在 Excel「质量体检」页的自评，逐条复核</small></h3>
     <table class="st"><thead><tr><th>维度</th><th>检查项</th><th>客户结论</th><th>复核</th><th>说明</th></tr></thead><tbody>${CHK.verify.map(r=>`<tr><td style="white-space:nowrap">${esc(r[0])}</td><td>${esc(r[1])}</td><td style="white-space:nowrap">${esc(r[2])} <span class="pill ${r[3]==='通过'?'g':'o'}">${esc(r[3])}</span></td><td style="white-space:nowrap"><span class="pill ${VC[r[4]]??''}">${esc(r[4])}</span></td><td style="color:var(--sub)">${esc(r[5])}</td></tr>`).join('')}</tbody></table></div>`;
   v.onclick=e=>{const a=e.target.closest('a.fmore[data-i]');if(!a)return;const f=CHK.findings[+a.dataset.i];const cols=f.cols.filter(Boolean);

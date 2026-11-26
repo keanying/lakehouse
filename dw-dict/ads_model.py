@@ -250,17 +250,46 @@ def build(sheets, chk, anchor=None):
             return ''
 
         up0 = '、'.join(ups)
-        if kind in ('additive', 'once'):
+        en0 = str(base_row[di['英文名']]) if base_row else ''
+        ucols = [u.split('.')[-1] for u in ups]
+        mismatch = bool(ucols) and en0 and en0 not in ucols and f'{stem}_{kw}' not in ucols
+        if kind in ('additive', 'once') and mismatch:
+            if len(ups) >= 2 and re.search(r'[-−]', str(calc).split('=', 1)[-1]):
+                how = '当日差值（' + ' − '.join(sn(u) for u in ups[:2]) + '）'
+            else:
+                conds = [c_ for c_ in re.findall(r'([^；;：:=]+)=([^；;，,]+)', str(calc).split('条件', 1)[-1]) if c_[0].strip() in ('操作人类型',)]
+                how = '当日值' + ''.join(f'（条件：{a_.strip()}={b_.strip()}）' for a_, b_ in conds) if conds else '待确认：上游字段与口径不一致'
+            col(f'{stem}_{kw}', r0[ai['数据类型']], f'{name_core}（日）：{kou}{cond}，单位：{unit}',
+                f'{sn(up0) or "来源 DWS"}：{how}{cond}', up0)
+            c['expr'] = {'v': f'SUM({{C}}{stem}_{kw})'}
+        elif kind in ('additive', 'once'):
             col(f'{stem}_{kw}', r0[ai['数据类型']], f'{name_core}（日）：{kou}{cond}，单位：{unit}',
                 f'{sn(up0) or "来源 DWS"}：当日值{cond}', up0)
             c['expr'] = {'v': f'SUM({{C}}{stem}_{kw})'}
         elif kind == 'snapshot':
-            col(f'{stem}_{kw}', r0[ai['数据类型']], f'{name_core}（日快照）：{kou}{cond}，单位：{unit}',
-                f'{sn(up0) or "来源 DWS"}：统计日日终快照{cond}', up0)
+            # 商户快照表上按口径直接计数的派生指标
+            KNOWN = {'silent_tenant_qty': 'count(seller_tenant_id) where pay_30d_amt = 0 and total_pay_amt > 0',
+                     'churn_tenant_qty': "count(seller_tenant_id) where last_pay_date < DATE_FORMAT(DATE_SUB('${bizdate_dash}', 89), 'yyyy-MM-dd')"}
+            tb0 = sn(ups[0].rsplit('.', 1)[0]) if ups else ''
+            if mismatch and en0 in KNOWN and tb0:
+                how = f'{tb0}：{KNOWN[en0]}'
+            else:
+                how = f'{sn(up0) or "来源 DWS"}：统计日日终快照{cond}' + ('（待确认：上游字段与口径不一致）' if mismatch else '')
+            col(f'{stem}_{kw}', r0[ai['数据类型']], f'{name_core}（日快照）：{kou}{cond}，单位：{unit}', how, up0)
             c['expr'] = {'v': f'SUM({{C}}{stem}_{kw})', 'snap': 1}
         elif kind == 'distinct':
             b = f'{stem}_bitmap'
             bu = re.sub(r'_qty\b', '_bitmap', up0)
+            if ups and not re.search(r'_(qty|bitmap)$', ucols[0]):
+                # 上游给的是金额等度量（如 pay_amt）：按口径的去重实体建位图，条件为该度量 > 0
+                ent = {'卖家租户ID': 'seller_tenant_id', '租户ID': 'tenant_id', '买家ID': 'buyer_customer_id', '游客ID': 'customer_id',
+                       '分销商租户ID': 'distributor_tenant_id', 'SKU ID': 'sku_id'}
+                me = re.search(r'COUNT\(DISTINCT\s*([^)]+)\)', str(calc))
+                ec = ent.get(me.group(1).strip()) if me else None
+                tbl = ups[0].rsplit('.', 1)[0]
+                if ec and ec in {x[fi['字段名']] for x in fields.get(sn(tbl), [])}:
+                    cond = cond + f'（条件：{ucols[0]} > 0）'
+                    bu = f'{tbl}.{ec}'
             col(b, 'BITMAP', f'{name_core}去重位图（日）：{kou}{cond}；任意区间 BITMAP_UNION_COUNT 去重，单位：人',
                 f'{sn(bu) or "来源 DWS"}：当日位图{cond}', bu)
             c['expr'] = {'v': f'BITMAP_UNION_COUNT({{C}}{b})'}
@@ -756,6 +785,7 @@ def apply_to_dictionary(sheets, model, chk):
         new = [blank(p[0], f'{p[1]}：{p[3]}' + ('（前端传入起止日）' if not p[6] else '')) for p in PERIODS]
         rows[k + 1:e] = new + rt
         rows[k][1] = '含义（时间表 dim_opr_period_f 的 period_type_code，查询时关联）'
+    model['finalize_log'] = finalize_dictionary(S, model, changed)
     return S, changed
 
 
@@ -788,3 +818,222 @@ def dict_xlsx(sheets, changed, path):
         ws.append([k, v])
     ws.column_dimensions['A'].width, ws.column_dimensions['B'].width = 40, 100
     wb.save(path)
+
+
+# ---------------------------------------------------------------- 改造版收尾：字典内部一致性
+def finalize_dictionary(S, model, changed):
+    """补齐改造版字典的内部一致性（分区字段、表级血缘、质量规则、调度、待确认事项）"""
+    T, F, A, Q, W, TD = S['表清单'], S['字段清单'], S['ADS业务指标'], S['质量规则'], S['调度工作流'], S['待确认事项']
+    ti = {c: i for i, c in enumerate(T['cols'])}
+    fi = {c: i for i, c in enumerate(F['cols'])}
+    ai = {c: i for i, c in enumerate(A['cols'])}
+    qi = {c: i for i, c in enumerate(Q['cols'])}
+    sn = lambda s: re.sub(r'^\w+\.', '', str(s or '').strip())
+    trow = {sn(r[ti['表名（库.表）']]): r for r in T['rows']}
+    by_t = collections.OrderedDict()
+    for r in F['rows']:
+        by_t.setdefault(sn(r[fi['表名（库.表）']]), []).append(r)
+    log = collections.Counter()
+
+    def frow(src, name, typ, cat, cmt, proc, up):
+        r = list(src)
+        for k, v in (('字段名', name), ('类型', typ), ('字段类别', cat), ('字段注释', cmt), ('加工 / 来源', proc), ('上游字段', up)):
+            r[fi[k]] = v
+        return r
+
+    # 1. 离线分区表补登记分区字段 travel_date（核对报告 H3）
+    for t, r in trow.items():
+        rows = by_t.get(t)
+        if not rows or '实时' in str(r[ti['分层']]) or 'travel_date' not in str(r[ti['分区']]):
+            continue
+        if any(x[fi['字段名']] == 'travel_date' for x in rows):
+            continue
+        rows.append(frow(rows[0], 'travel_date', 'STRING', '分区', '数据日期，格式 YYYYMMDD（分区字段）', '${bizdate}', ''))
+        log['分区字段'] += 1
+
+    # 2. 上游字段只写了表名的（以「.」结尾）：从加工说明里找该表的字段补齐（核对报告 M2）
+    cols = {t: {x[fi['字段名']] for x in rows} for t, rows in by_t.items()}
+    for t, rows in by_t.items():
+        for x in rows:
+            ups = [u.strip() for u in str(x[fi['上游字段']]).split('、') if u.strip()]
+            if not any(u.endswith('.') for u in ups):
+                continue
+            new = []
+            for u in ups:
+                if u.endswith('.'):
+                    db, tt = u.rstrip('.').split('.', 1)
+                    cand = [w for w in re.findall(r'[a-z][a-z0-9_]+', str(x[fi['加工 / 来源']])) if w in cols.get(tt, set())]
+                    new += [f'{db}.{tt}.{w}' for w in dict.fromkeys(cand)] or [u + x[fi['字段名']]]
+                    log['上游字段补字段名'] += 1
+                else:
+                    new.append(u)
+            x[fi['上游字段']] = '、'.join(new)
+
+    # 3. 新增时间表的上游字段
+    for t, src in (('dim_opr_period_f', 'dim.dim_opr_date_f.date_code'),):
+        for x in by_t.get(t, []):
+            if x[fi['字段类别']] != 'ETL' and not x[fi['上游字段']]:
+                x[fi['上游字段']] = ('dim.dim_opr_holiday_period_f.' + x[fi['字段名']]) if 'holiday' in x[fi['字段名']] else src
+    for x in by_t.get('dim_opr_date_f', []):
+        if not x[fi['上游字段']] and x[fi['字段名']] in ('holiday_period_code', 'holiday_day_no', 'last_year_same_day_date'):
+            x[fi['上游字段']] = 'dim.dim_opr_holiday_period_f.holiday_period_code、dim.dim_opr_holiday_period_f.start_date'
+
+    # 4. 表级上游/下游按字段级血缘补全（核对报告 M1）
+    known = set(trow)
+    ups_of = collections.defaultdict(set)
+    for t, rows in by_t.items():
+        for x in rows:
+            for u in str(x[fi['上游字段']]).split('、'):
+                m = re.match(r'^\s*\w+\.(\w+)\.\w+', u)
+                if m and m.group(1) in known and m.group(1) != t:
+                    ups_of[t].add(m.group(1))
+    for t, r in trow.items():
+        cur = [x for x in re.split(r'[、,，\s]+', str(r[ti['上游表']])) if x]
+        add = sorted(ups_of[t] - set(cur))
+        if add:
+            r[ti['上游表']] = '、'.join(cur + add)
+            log['补上游表'] += len(add)
+            for u in add:
+                ur = trow[u]
+                dn = [x for x in re.split(r'[、,，\s]+', str(ur[ti['下游表']])) if x]
+                if t not in dn and not str(ur[ti['下游表']]).startswith('查询时'):
+                    ur[ti['下游表']] = '、'.join(dn + [t])
+
+    # 5. ADS 指标的「来源 DWS」取实际上游表
+    st_up = collections.defaultdict(set)
+    for x in model['store']:
+        for u in str(x['up']).split('、'):
+            m = re.match(r'^\s*\w+\.(dws_\w+)\.', u)
+            if m:
+                st_up[x['m']].add(m.group(1))
+    for r in A['rows']:
+        mc = str(r[ai['指标编码']]).split('-')[0]
+        if mc in st_up and st_up[mc]:
+            r[ai['来源 DWS']] = '、'.join(sorted(st_up[mc]))
+
+    # 6. 质量规则：ADS 改造表上引用旧周期字段的规则 → 能对应到日字段的改写，否则删除；再按新结构补规则
+    redesigned = {c['t'] for c in model['combos']}
+    tok = re.compile(r'_(1d|7d|30d|90d|mtd|ytd|td|1w|1m)(?=_|\b)')
+    keep, dropped, remapped = [], 0, 0
+    for r in Q['rows']:
+        t = r[qi['表']]
+        if t not in redesigned:
+            keep.append(r)
+            continue
+        sql = str(r[qi['检测 SQL']])
+        flds = set(re.findall(r'\b([a-z][a-z0-9_]*_(?:amt|qty|rate))\b', re.sub(r"'[^']*'", '', sql)))
+        if all(f in cols.get(t, set()) for f in flds):
+            keep.append(r)
+            continue
+        if re.search(r'_(7d|30d|90d|mtd|ytd|1w|1m)_', sql) or not re.search(r'_1d_', sql):
+            dropped += 1
+            continue
+        sql2, rule2 = tok.sub('', sql), tok.sub('', str(r[qi['规则']]))
+        if all(f in cols.get(t, set()) for f in set(re.findall(r'\b([a-z][a-z0-9_]*_(?:amt|qty|rate))\b', re.sub(r"'[^']*'", '', sql2)))):
+            r = list(r)
+            r[qi['检测 SQL']], r[qi['规则']] = sql2, rule2 + '（日字段）'
+            keep.append(r)
+            remapped += 1
+        else:
+            dropped += 1
+    nid = 1 + max(int(re.sub(r'\D', '', str(r[0])) or 0) for r in Q['rows'])
+    newq = []
+
+    def rule(t, dim_, text, lvl, fail, expect, note, sql):
+        nonlocal nid
+        r = [''] * len(Q['cols'])
+        for k, v in (('规则编号', f'R{nid:04d}'), ('工作流', '日调度'), ('质检节点', f'dq.{t}'), ('表', t), ('质量维度', dim_), ('规则', text),
+                     ('级别', lvl), ('失败处理', fail), ('期望', expect), ('说明', note), ('检测 SQL', sql)):
+            r[qi[k]] = v
+        nid += 1
+        newq.append(r)
+    for t in redesigned:
+        st = [x for x in model['store'] if x['t'] == t]
+        nn = [x['f'] for x in st if x['type'] != 'BITMAP' and re.search(r'_(amt|qty)$', x['f']) and not re.search(r'(profit|net|change|diff)', x['f'])]
+        if nn:
+            rule(t, '有效性', f'日字段非负（{len(nn)} 个）', '弱', '告警', 'neg_cnt = 0', '利润、净额、变动类字段允许为负，已排除；分子分母、日值均应 ≥ 0',
+                 f"SELECT COUNT(*) AS neg_cnt FROM ads.{t}\nWHERE travel_date = '${{bizdate}}'\n  AND (" + '\n    OR '.join(f'{f} < 0' for f in nn) + ');')
+        pairs = [(x['f'], x['f'].replace('_numerator_', '_denominator_')) for x in st if '_numerator_' in x['f'] and x['type'] != 'BITMAP']
+        pairs = [(a, b) for a, b in pairs if b in cols.get(t, set()) and not b.endswith('_bitmap')]
+        if pairs:
+            rule(t, '一致性', f'比率分子 ≤ 分母（{len(pairs)} 组，率 ≤ 100%）', '弱', '告警', 'bad_cnt = 0',
+                 '退款、核销等跨日事件可能使当日分子大于分母，告警人确认后放行',
+                 f"SELECT COUNT(*) AS bad_cnt FROM ads.{t}\nWHERE travel_date = '${{bizdate}}'\n  AND (" + '\n    OR '.join(f'COALESCE({a}, 0) > COALESCE({b}, 0)' for a, b in pairs) + ');')
+        first = next((f for f in nn if f.endswith('_amt')), None)
+        if first:
+            rule(t, '及时性/波动', f'{first} 当日合计与近 7 日日均相比波动 ≤ 50%', '弱', '告警', 'avg7 = 0 或 |cur / avg7 − 1| ≤ 50%',
+                 '节假日首日、大促日会触发，告警人确认后放行',
+                 f"WITH d AS (\n  SELECT travel_date, SUM({first}) AS v FROM ads.{t}\n  WHERE travel_date BETWEEN '${{bizdate_minus_7}}' AND '${{bizdate}}' GROUP BY travel_date\n)\n"
+                 "SELECT MAX(CASE WHEN travel_date = '${bizdate}' THEN v END) AS cur,\n       AVG(CASE WHEN travel_date < '${bizdate}' THEN v END) AS avg7\nFROM d;")
+    # 时间表的质量规则（年调度）
+    for t, rows_ in (('dim_opr_period_f', None),):
+        for txt, dim_, lvl, fail, exp_, note, sql in (
+                ('每个截止日 17 种预置周期齐全（不含节假日）', '完整性', '强', '阻断下游', 'bad_cnt = 0', '少一种周期，对应的周期筛选会查不到数',
+                 "SELECT COUNT(*) AS bad_cnt FROM (\n  SELECT anchor_date_no, COUNT(DISTINCT period_type_code) AS c FROM dim.dim_opr_period_f\n  WHERE period_type_code <> 'HOL' GROUP BY anchor_date_no HAVING COUNT(DISTINCT period_type_code) <> 16\n) x;"),
+                ('区间合法：开始日 ≤ 结束日，天数 = 区间长度', '有效性', '强', '阻断下游', 'bad_cnt = 0', '',
+                 "SELECT COUNT(*) AS bad_cnt FROM dim.dim_opr_period_f\nWHERE start_date_no > end_date_no OR prev_start_date_no > prev_end_date_no OR ly_start_date_no > ly_end_date_no\n   OR period_day_qty <> DATEDIFF(TO_DATE(end_date_no, 'yyyyMMdd'), TO_DATE(start_date_no, 'yyyyMMdd')) + 1;"),
+                ('主键唯一（anchor_date_no + period_type_code + holiday_period_code）', '唯一性', '强', '阻断下游', 'dup_cnt = 0', '重复会让关联统计翻倍',
+                 "SELECT COUNT(*) AS dup_cnt FROM (\n  SELECT anchor_date_no, period_type_code, holiday_period_code, COUNT(*) AS c FROM dim.dim_opr_period_f\n  GROUP BY anchor_date_no, period_type_code, holiday_period_code HAVING COUNT(*) > 1\n) x;")):
+            rule(t, dim_, txt, lvl, fail, exp_, note, sql)
+            newq[-1][qi['工作流']] = '年调度'
+    rule('dim_opr_holiday_period_f', '完整性', '下一年度节假日已录入', '强', '阻断下游', 'cnt >= 7',
+         '每年 12 月国务院公布次年放假安排后人工录入；未录入则次年节假日周期为空',
+         "SELECT COUNT(*) AS cnt FROM dim.dim_opr_holiday_period_f WHERE year_no = YEAR(CURRENT_DATE()) + 1;")
+    newq[-1][qi['工作流']] = '年调度'
+    Q['rows'] = keep + newq
+    log['质量规则删除'], log['质量规则改写'], log['质量规则新增'] = dropped, remapped, len(newq)
+    # 调度：质检节点规则数、年调度加入时间表
+    nrule = collections.Counter(r[qi['质检节点']] for r in Q['rows'])
+    wi = {c: i for i, c in enumerate(W['cols'])}
+    for r in W['rows']:
+        if str(r[wi['节点']]).startswith('dq.') and r[wi['节点']] in nrule:
+            r[wi['规则数']] = nrule[r[wi['节点']]]
+    nodes = {r[wi['节点']] for r in W['rows']}
+    if 'dim_opr_period_f' not in nodes:
+        pos = next(i for i, r in enumerate(W['rows']) if r[wi['节点']] == 'end.yearly')
+
+        def wrow(step, node, typ, desc, wait, fail, n, run):
+            r = [''] * len(W['cols'])
+            for k, v in (('工作流', '年调度'), ('步骤', step), ('节点', node), ('类型', typ), ('说明', desc), ('分层', 'DIM'),
+                         ('失败处理', fail), ('规则数', n), ('等待（上游）', wait), ('执行 / 说明', run)):
+                r[wi[k]] = v
+            return r
+        add = [wrow(2, 'dim_opr_holiday_period_f', '任务', '节假日放假区间（每年 12 月人工录入次年后触发）', 'start.yearly', '', 0, 'sql/dim/dim_opr_holiday_period_f.sql'),
+               wrow(3, 'dq.dim_opr_holiday_period_f', '质检', '节假日放假区间 质检', 'dim_opr_holiday_period_f', '阻断', nrule['dq.dim_opr_holiday_period_f'], ''),
+               wrow(4, 'dim_opr_period_f', '任务', '统计周期时间表（重算全部截止日，约 6 千行/年）', 'dq.dim_opr_date_f、dq.dim_opr_holiday_period_f', '', 0, 'sql/dim/dim_opr_period_f.sql'),
+               wrow(5, 'dq.dim_opr_period_f', '质检', '统计周期时间表 质检', 'dim_opr_period_f', '阻断', nrule['dq.dim_opr_period_f'], '')]
+        W['rows'][pos:pos] = add
+        end = W['rows'][pos + len(add)]
+        end[wi['等待（上游）']] = 'dq.dim_opr_date_f、dq.dim_opr_period_f'
+        end[wi['步骤']] = 6
+        log['调度新增节点'] = len(add)
+    # 7. 待确认事项：改造带来的需客户确认项
+    ti2 = {c: i for i, c in enumerate(TD['cols'])}
+    base = len(TD['rows'])
+    items = [
+        ('命名规范', '去重位图字段后缀 _bitmap 不在规范关键字内', '新增 *_bitmap（BITMAP 类型）存去重集合，建议规范补充 _bitmap 关键字', '影响 6 张 DWS、ADS 去重类字段'),
+        ('技术选型', 'ADS 去重指标依赖 BITMAP_UNION 查询', 'ADS 与 DWS 的 *_bitmap 列需在 StarRocks 以 BITMAP 类型存储与查询；仅用 Hive 查询时需回明细按区间去重', '影响买家数、动销商户/SKU 数等去重指标'),
+        ('口径', 'ADS 统计周期改为查询时关联时间表', 'ADS 保持日粒度；本周/本月/近半年/节假日/自定义等周期、环比/同比/日均在查询时关联 dim_opr_period_f 计算，原 *_7d_* / *_30d_* / *_mtd_* / *_ytd_* 列下线', '影响全部 ADS 报表查询方式'),
+        ('数据维护', '节假日放假区间需每年人工维护', '每年 12 月国务院公布次年放假安排后录入 dim_opr_holiday_period_f，年调度重算时间表', '影响节假日周期及同比'),
+        ('口径', '实时去重指标仍为分钟计数相加', '实时 DWS 的买家数等仍按分钟窗口 COUNT(DISTINCT) 后相加，跨窗口会重复计人；如需准确需实时 DWS 也存位图', '影响实时今日买家数'),
+        ('源系统缺口', '字典引用了上游不存在的字段', '如买家条件 kind=\'REAL\' 在 dwd_ord_order_di 中不存在；加工 SQL 中以「待确认」标出，需客户确认口径或补字段', '影响新注册游客数、支付买家数等'),
+        ('口径', '日存储的比率分子可能大于分母', '退款、核销等跨日事件按事件日入账，单日的退票率等可能超过 100%；区间汇总后正常', '影响单日比率的展示'),
+    ]
+    for i, (cat, q, s_, imp) in enumerate(items, 1):
+        r = [''] * len(TD['cols'])
+        for k, v in (('序号', base + i), ('类别', cat), ('问题', q), ('当前处理 / 建议', s_), ('影响', imp)):
+            if k in ti2:
+                r[ti2[k]] = v
+        TD['rows'].append(r)
+    log['待确认事项新增'] = len(items)
+    # 字段清单重排
+    F['rows'] = []
+    for r in T['rows']:
+        t = sn(r[ti['表名（库.表）']])
+        for i, x in enumerate(by_t.get(t, []), 1):
+            x[fi['序号']] = i
+            F['rows'].append(x)
+    changed.setdefault('质量规则', f"删除失效规则 {dropped} 条、改写 {remapped} 条、新增 {len(newq)} 条")
+    changed.setdefault('调度工作流', '年调度加入节假日区间表与统计周期时间表')
+    changed.setdefault('待确认事项', f'新增 {len(items)} 项改造相关待确认')
+    return dict(log)

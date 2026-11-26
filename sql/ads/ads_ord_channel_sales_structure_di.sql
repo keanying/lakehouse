@@ -1,7 +1,7 @@
 -- ads.ads_ord_channel_sales_structure_di  渠道销售结构
 -- 粒度：travel_date × seller_tenant_id
 -- 来源：dws_ord_tenant_sku_channel_trade_di
--- 生成方式：Spark SQL / Hive；字段 29 个：直接翻译 4 · 规则翻译 25 · 待确认 0
+-- 生成方式：Spark SQL / Hive；字段 29 个：直接翻译 3 · 规则翻译 26 · 待确认 0
 -- 来源先按粒度键预聚合
 
 WITH
@@ -39,7 +39,7 @@ src_tenant_sku_channel_trade AS (                                               
     SUM(CASE WHEN ch.channel_type = 'API' THEN pay_amt END) AS api_channel_pay_share_numerator_amt,  -- OTA/API渠道销售占比分子（日）
     SUM(CASE WHEN ch.channel_type = 'API' THEN pay_amt END) AS api_channel_pay_share_denominator_amt,  -- OTA/API渠道销售占比分母（日）
     SUM(staff_order_qty) AS staff_order_qty,                                      -- 员工代下单数（日）
-    SUM(pay_amt) AS staff_pay_amt                                                 -- 员工代下单支付金额（日）
+    SUM(CASE WHEN operator_type = 'TENANT_STAFF' THEN pay_amt END) AS staff_pay_amt  -- 员工代下单支付金额（日）
   FROM dws.dws_ord_tenant_sku_channel_trade_di s                                  -- 来源表「商户×SKU×渠道 交易日汇总」
   LEFT JOIN channel_dim ch ON ch.channel_id = s.channel_id
   WHERE s.travel_date = '${bizdate}'                                              -- 只取当日分区

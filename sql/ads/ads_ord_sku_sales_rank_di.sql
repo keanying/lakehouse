@@ -1,7 +1,7 @@
 -- ads.ads_ord_sku_sales_rank_di  SKU销售排行
 -- 粒度：travel_date × seller_tenant_id × sku_id
 -- 来源：dws_ord_tenant_sku_channel_trade_di, dws_ord_tenant_refund_di
--- 生成方式：Spark SQL / Hive；字段 17 个：直接翻译 17 · 规则翻译 0 · 待确认 0
+-- 生成方式：Spark SQL / Hive；字段 19 个：直接翻译 15 · 规则翻译 4 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总
 
 WITH
@@ -11,8 +11,7 @@ src_tenant_sku_channel_trade AS (                             -- 来源「商户
     sku_id AS sku_id,                                         -- SKU ID
     SUM(pay_amt) AS pay_amt,                                  -- 支付金额（GMV）（日）
     SUM(pay_ticket_qty) AS pay_ticket_qty,                    -- 支付票数（日）
-    SUM(pay_amt) AS net_pay_amt,                              -- 净成交金额（日）
-    SUM(pay_amt) AS gross_profit_amt,                         -- 毛利额（日）
+    SUM(pay_amt) - SUM(cost_amt) AS gross_profit_amt,         -- 毛利额（日）
     NULL AS refund_ticket_qty,
     SUM(pay_amt) AS avg_ticket_price_numerator_amt,           -- 平均票价分子（日）
     SUM(pay_ticket_qty) AS avg_ticket_price_denominator_qty,  -- 平均票价分母（日）
@@ -21,7 +20,9 @@ src_tenant_sku_channel_trade AS (                             -- 来源「商户
     SUM(pay_order_qty) AS pay_conversion_numerator_qty,       -- 下单支付转化率分子（日）
     SUM(order_qty) AS pay_conversion_denominator_qty,         -- 下单支付转化率分母（日）
     NULL AS refund_numerator_qty,
-    SUM(pay_ticket_qty) AS refund_denominator_qty             -- 退票率分母（日）
+    SUM(pay_ticket_qty) AS refund_denominator_qty,            -- 退票率分母（日）
+    SUM(pay_amt) AS net_pay_amt_part1,
+    NULL AS net_pay_amt_part2
   FROM dws.dws_ord_tenant_sku_channel_trade_di s              -- 来源表「商户×SKU×渠道 交易日汇总」
   WHERE s.travel_date = '${bizdate}'                          -- 只取当日分区
   GROUP BY seller_tenant_id, sku_id                           -- 按粒度键汇总
@@ -32,7 +33,6 @@ src_tenant_refund AS (                                        -- 来源「商户
     sku_id AS sku_id,                                         -- SKU ID
     NULL AS pay_amt,
     NULL AS pay_ticket_qty,
-    NULL AS net_pay_amt,
     NULL AS gross_profit_amt,
     SUM(refund_ticket_qty) AS refund_ticket_qty,              -- 退款票数（日）
     NULL AS avg_ticket_price_numerator_amt,
@@ -42,7 +42,9 @@ src_tenant_refund AS (                                        -- 来源「商户
     NULL AS pay_conversion_numerator_qty,
     NULL AS pay_conversion_denominator_qty,
     SUM(refund_ticket_qty) AS refund_numerator_qty,           -- 退票率分子（日）
-    NULL AS refund_denominator_qty
+    NULL AS refund_denominator_qty,
+    NULL AS net_pay_amt_part1,
+    SUM(refund_amt) AS net_pay_amt_part2
   FROM dws.dws_ord_tenant_refund_di s                         -- 来源表「商户×SKU 退款日汇总」
   WHERE s.travel_date = '${bizdate}'                          -- 只取当日分区
   GROUP BY seller_tenant_id, sku_id                           -- 按粒度键汇总
@@ -58,7 +60,6 @@ merged AS (                                                   -- 按粒度键汇
     u.sku_id,                                                 -- SKU ID
     SUM(u.pay_amt) AS pay_amt,                                -- 支付金额（GMV）（日）
     SUM(u.pay_ticket_qty) AS pay_ticket_qty,                  -- 支付票数（日）
-    SUM(u.net_pay_amt) AS net_pay_amt,                        -- 净成交金额（日）
     SUM(u.gross_profit_amt) AS gross_profit_amt,              -- 毛利额（日）
     SUM(u.refund_ticket_qty) AS refund_ticket_qty,            -- 退款票数（日）
     SUM(u.avg_ticket_price_numerator_amt) AS avg_ticket_price_numerator_amt,  -- 平均票价分子（日）
@@ -69,6 +70,7 @@ merged AS (                                                   -- 按粒度键汇
     SUM(u.pay_conversion_denominator_qty) AS pay_conversion_denominator_qty,  -- 下单支付转化率分母（日）
     SUM(u.refund_numerator_qty) AS refund_numerator_qty,      -- 退票率分子（日）
     SUM(u.refund_denominator_qty) AS refund_denominator_qty,  -- 退票率分母（日）
+    SUM(u.net_pay_amt_part1) - SUM(u.net_pay_amt_part2) AS net_pay_amt,  -- 净成交金额（日）
     CURRENT_TIMESTAMP() AS etl_time                           -- ETL 加载时间
   FROM all_src u
   GROUP BY u.seller_tenant_id, u.sku_id                       -- 按粒度键汇总

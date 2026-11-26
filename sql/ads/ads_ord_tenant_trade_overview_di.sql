@@ -1,7 +1,7 @@
 -- ads.ads_ord_tenant_trade_overview_di  商户经营概览
 -- 粒度：travel_date × seller_tenant_id
 -- 来源：dws_sup_tenant_trade_di
--- 生成方式：Spark SQL / Hive；字段 24 个：直接翻译 24 · 规则翻译 0 · 待确认 0
+-- 生成方式：Spark SQL / Hive；字段 24 个：直接翻译 23 · 规则翻译 1 · 待确认 0
 -- 来源先按粒度键预聚合
 
 WITH
@@ -17,7 +17,7 @@ src_tenant_trade AS (                               -- 来源「商户经营日�
     SUM(verify_amt) AS verify_amt,                  -- 核销金额（日）
     SUM(refund_amt) AS refund_amt,                  -- 退款金额（日）
     SUM(cost_amt) AS cost_amt,                      -- 成本金额（日）
-    SUM(pay_amt) AS gross_profit_amt,               -- 毛利额（日）
+    SUM(pay_amt) - SUM(cost_amt) AS gross_profit_amt,  -- 毛利额（日）
     SUM(pay_amt) AS per_customer_numerator_amt,     -- 客单价分子（日）
     BITMAP_UNION(pay_buyer_bitmap) AS per_customer_denominator_bitmap,  -- 客单价分母（日）
     SUM(pay_amt) AS avg_ticket_price_numerator_amt,  -- 平均票价分子（日）

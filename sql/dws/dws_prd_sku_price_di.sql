@@ -74,7 +74,7 @@ SELECT
   SUM(u.list_price_amt) AS list_price_amt,      -- 生效标价
   SUM(u.price_change_qty) AS price_change_qty,  -- 调价次数
   SUM(u.pay_amt) / NULLIF(SUM(u.pay_ticket_qty), 0) AS avg_deal_price_amt,  -- 平均成交价
-  avg_deal_price_amt * 100 / NULLIF(SUM(u.list_price_amt), 0) AS discount_rate,  -- 成交折扣率
+  (SUM(u.pay_amt) / NULLIF(SUM(u.pay_ticket_qty), 0)) * 100 / NULLIF(SUM(u.list_price_amt), 0) AS discount_rate,  -- 成交折扣率
   SUM(u.pay_amt) AS pay_amt,                    -- 支付金额（GMV）
   SUM(u.pay_ticket_qty) AS pay_ticket_qty,      -- 支付票数
   SUM(u.sku_change_qty) AS sku_change_qty,      -- SKU属性变更次数
