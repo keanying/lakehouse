@@ -514,13 +514,24 @@ function vFields(v){
 const MS={};
 function metCell(i,v,q){return i===0?tlink(v,q):i===2?`<span class="c-id">${hl(esc(v),q)}</span>`:i===3?`<b>${hl(esc(v),q)}</b>`:i===8?tokens(v).map(x=>`<span class="mono-s">${hl(esc(x),q)}</span>`).join('<br>'):i===9?`<span class="pill ${v==='实时'?'o':'g'}">${v}</span>`:i===10?catPill(v):hl(esc(v),q)}
 function metDrawer(r){drawer(r[3]||r[2],r[0]+'.'+r[2],`<div class="sub">业务口径</div><div class="formula" style="font-family:inherit">${esc(r[4])||'—'}</div><div class="sub">计算逻辑 / 加工</div><div class="formula">${esc(r[7])||'—'}</div>`+kvHtml([['所属表',linksHtml(r[0])+`<div class="sub" style="margin:2px 0 0">${esc(r[1])}</div>`],['字段名',`<span class="c-id">${esc(r[2])}</span>`],['单位',esc(r[5])],['类型',esc(r[6])],['类别',catPill(r[10])],['上游字段',esc(r[8])],['离线/实时',r[9]]]))}
+/* 覆盖检查：字段清单里的度量/指标字段是否都在口径/指标字典里 */
+function coverage(L){
+  const fs=TB.filter(t=>t.b===L).flatMap(t=>t.fields.filter(f=>f.k==='度量'||f.k==='指标').map(f=>[t.short,f.n]));
+  if(L==='DIM'||L==='DWD')return `<span class="pill g">覆盖检查</span> 字段清单中 ${L} 层（含实时）全部 ${fs.length} 个度量字段均已列出`;
+  let miss;
+  if(L==='DWS'){const R=RAW['DWS口径'],c=R.cols,e=c.indexOf('英文名'),l=c.indexOf('落地 DWS 表');const ok=new Set();R.rows.forEach(r=>tokens(r[l]).forEach(t=>ok.add(t+'|'+r[e])));miss=fs.filter(([t,n])=>!ok.has(t+'|'+n))}
+  else{const R=RAW['ADS业务指标'],c=R.cols,a=c.indexOf('ADS表'),f=c.indexOf('字段名');const ok=new Set(R.rows.map(r=>shortN(r[a])+'|'+r[f]));miss=fs.filter(([t,n])=>!ok.has(t+'|'+n))}
+  const dict=L==='DWS'?'DWS 口径字典':'ADS 指标字典';
+  return miss.length?`<span class="pill o">覆盖检查</span> ${L} 层 ${fs.length} 个指标字段中 ${miss.length} 个未登记到${dict}：${miss.slice(0,8).map(x=>esc(x.join('.'))).join('、')}${miss.length>8?' …':''}`
+    :`<span class="pill g">覆盖检查</span> ${L} 层（含实时）全部 ${fs.length} 个指标字段都已登记到${dict}`;
+}
 function vMetrics(v,a){
   const keys=['catalog','dim','dwd','dws','ads','dwsdict','adsdict'];const tab=keys.includes(a)?a:'catalog';
   const T=[['dim','DIM 度量',MET.DIM.length],['dwd','DWD 度量',MET.DWD.length],['dws','DWS 指标',MET.DWS.length],['ads','ADS 指标',MET.ADS.length]];
-  const T2=[['dwsdict','DWS 口径字典',RAW['DWS口径'].rows.length],['adsdict','ADS 指标字典',RAW['ADS业务指标'].rows.length]];
+  const T2=[['dwsdict','DWS 口径字典',RAW['DWS口径'].rows.length],['adsdict','ADS 指标字典',RAW['ADS业务指标'].rows.length],['bizall','ADS 业务指标（周期展开）→',ADS.summary.biz]];
   const chip=([k,l,n])=>`<button class="chip ${tab===k?'on':''}" data-k="${k}" style="height:30px;padding:0 14px">${l}<i>${n}</i></button>`;
   v.innerHTML=`<div class="bar" style="margin-bottom:6px"><div class="chips">${chip(['catalog','指标目录（按口径）',CATALOG.length])}</div><span class="sep"></span><div class="chips">${T.map(chip).join('')}</div><span class="sep"></span><div class="chips">${T2.map(chip).join('')}</div></div><div id="mh" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>`;
-  v.querySelectorAll('.chips').forEach(c=>c.onclick=e=>{const b=e.target.closest('.chip');if(b)go('#/metrics/'+b.dataset.k)});
+  v.querySelectorAll('.chips').forEach(c=>c.onclick=e=>{const b=e.target.closest('.chip');if(b)go(b.dataset.k==='bizall'?'#/period/biz':'#/metrics/'+b.dataset.k)});
   const h=$('#mh');MS[tab]??={};
   if(tab==='catalog'){vCatalog(h);return}
   if(['dim','dwd','dws','ads'].includes(tab)){
@@ -533,20 +544,21 @@ function vMetrics(v,a){
     grid(h,{state:MS[tab],cols,rows:view,wide:true,filters:[0,idx.indexOf(5),idx.indexOf(9)].filter(i=>i>=0),searchPh:`搜索 ${L} 表 / 字段 / 指标名 / 口径…`,csvName:L+'_指标口径',
       cls:idx.map(i=>({0:'c-id',2:'c-id',3:'c-m',4:'c-l',5:'c-s',6:'c-s',7:'c-l',9:'c-s'})[i]),
       cell:(j,v,q)=>metCell(idx[j],v,q),onRow:vr=>{const k=view.indexOf(vr);metDrawer(rows[k])},
-      extra:`<div class="sub" style="margin:-2px 0 8px">${L} 层共 ${tbls.length} 张表含${L==='DIM'||L==='DWD'?'度量':'指标'}字段 · 口径取自字段清单「字段注释」，计算逻辑取自「加工 / 来源」· 点行查看完整口径</div>`});
+      extra:`<div class="sub" style="margin:-2px 0 8px">${L} 层共 ${tbls.length} 张表含${L==='DIM'||L==='DWD'?'度量':'指标'}字段 · 口径取自字段清单「字段注释」，计算逻辑取自「加工 / 来源」· 点行查看完整口径</div><div class="sub" style="margin:-4px 0 8px">${coverage(L)}</div>`});
   }else if(tab==='dwsdict'){
     const R=RAW['DWS口径'],c=R.cols,tcols=['落地 DWS 表','来源明细表','被哪些 ADS 表使用'];
-    grid(h,{state:MS[tab],cols:c,rows:R.rows,wide:true,filters:[3,4,7],searchPh:'搜索口径编码 / 中文名 / 公式…',csvName:'DWS口径',
+    grid(h,{state:MS[tab],cols:c,rows:R.rows,wide:true,filters:[3,4,7],searchPh:'搜索口径编码 / 中文名 / 公式…',csvName:'DWS口径',extra:`<div class="sub" style="margin:-2px 0 8px">${coverage('DWS')}。编码带 B 的是改造补登记的去重位图口径。</div>`,
       cell:(i,v,q)=>c[i]==='口径类型'?typePill(v):tcols.includes(c[i])?tokens(v).map(x=>tlink(x,q)).join('<br>'):hl(esc(v),q),
       onRow:r=>metricDrawer(c,r,r[2],r[0]+' · '+r[1],5,6,tcols)});
   }else{
     const R=RAW['ADS业务指标'],c=R.cols,tcols=['ADS表','来源 DWS'];
     grid(h,{state:MS[tab],cols:c,rows:R.rows,wide:true,filters:[c.indexOf('统计周期'),c.indexOf('口径类型'),c.indexOf('离线/实时'),c.indexOf('使用端'),c.indexOf('ADS表')],searchPh:'搜索指标编码 / 名称 / 字段名 / 公式…',csvName:'ADS业务指标',
+      extra:`<div class="sub" style="margin:-2px 0 8px">${coverage('ADS')}。字典按「查询指标」登记（口径类型 = 原子/计算/派生指标），日存储的分子、分母、位图登记为「存储字段」；每个查询指标再乘以统计周期共 ${ADS.summary.biz.toLocaleString()} 个业务指标，见 <a href="#/period/biz">ADS 业务指标（周期展开）</a>。</div>`,
       cell:(i,v,q)=>c[i]==='口径类型'?typePill(v):tcols.includes(c[i])?tokens(v).map(x=>tlink(x,q)).join('<br>'):c[i]==='离线/实时'?`<span class="pill ${v==='实时'?'o':'g'}">${esc(v)}</span>`:hl(esc(v),q),
       onRow:r=>metricDrawer(c,r,r[1],r[0]+' · '+r[2],3,4,tcols)});
   }
 }
-const typePill=v=>v?`<span class="pill ${v==='原子指标'?'b':v==='派生指标'?'o':'p'}">${esc(v)}</span>`:'';
+const typePill=v=>v?`<span class="pill ${v==='原子指标'?'b':v==='派生指标'?'o':v==='存储字段'?'':'p'}">${esc(v)}</span>`:'';
 function metricDrawer(c,r,title,sub,ki,fi,tcols){
   drawer(title,sub,`<div class="sec-t sub">业务口径</div><div class="formula" style="font-family:inherit">${esc(r[ki])}</div><div class="sub">计算公式</div><div class="formula">${esc(r[fi])}</div>`+
    kvHtml(c.map((n,i)=>[n,i===ki||i===fi?null:tcols.includes(n)?linksHtml(r[i]):n==='口径类型'?typePill(r[i]):esc(r[i])]).filter((_,i)=>i!==ki&&i!==fi)));

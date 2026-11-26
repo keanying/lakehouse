@@ -36,6 +36,7 @@ def main():
     res = checks.run(data, DOCS / 'source')
     model = ads_model.build(data, res)
     data2, changed = ads_model.apply_to_dictionary(data, model, res)
+    res['mclass'].update(model.pop('mclass_extra', {}))   # 新登记的位图口径
     etl = etl_gen.generate(data2, model)
     model.pop('_int')
     sql_root = ROOT.parent / 'sql'

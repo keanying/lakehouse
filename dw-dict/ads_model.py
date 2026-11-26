@@ -551,6 +551,7 @@ def apply_to_dictionary(sheets, model, chk):
         by_t.setdefault(sn(r[fi['表名（库.表）']]), []).append(r)
 
     # ---- 1. DWS 去重类口径补 BITMAP 列，SUM 上卷改 BITMAP_UNION
+    bm_land = collections.OrderedDict()     # 口径编码 -> (口径行, 位图字段名, [落地表])
     for r in D['rows']:
         if chk['mclass'].get(r[di['口径编码']]) != 'distinct':
             continue
@@ -576,10 +577,48 @@ def apply_to_dictionary(sheets, model, chk):
                 q[fi['加工 / 来源']] = f'BITMAP_UNION_COUNT({bm})（原为 {proc}；改为位图后可跨周期、跨维度去重）'
                 q[fi['上游字段']] = f'{q[fi["表名（库.表）"]]}.{bm}'
             rows.insert(k + 1, new)
+            bm_land.setdefault(r[di['口径编码']], (r, bm, []))[2].append(t)
             tr = trow[t]
             if '_bitmap' not in str(tr[ti['备注']]):
                 tr[ti['备注']] = (str(tr[ti['备注']]) + '；' if tr[ti['备注']] else '') + '【改造】去重类指标新增 *_bitmap 列，支持任意统计周期去重'
             changed.setdefault(t, '去重类指标新增 BITMAP 列（任意周期去重）；SUM 上卷改为 BITMAP_UNION')
+
+    # ---- 1b. DWS口径字典：位图字段登记为口径；落地表登记错误的按字段清单修正
+    model.setdefault('mclass_extra', {})
+    newD = []
+    for r in D['rows']:
+        newD.append(r)
+        code = r[di['口径编码']]
+        if code in bm_land:
+            _, bm, ts = bm_land[code]
+            b = list(r)
+            vals = {'口径编码': code + 'B', '英文名': bm, '中文名': f"{r[di['中文名']]}（去重位图）",
+                    '计算公式': re.sub(r'COUNT\(DISTINCT\s*([^)]+)\)', r'BITMAP_UNION(TO_BITMAP(\1))', str(r[di['计算公式']])) +
+                               f"；任意统计周期 {r[di['中文名']]} = BITMAP_UNION_COUNT({bm})",
+                    '单位': '位图', '数据类型': 'BITMAP', '精度/展示': '位图（StarRocks BITMAP / Hive BINARY），查询时 BITMAP_UNION_COUNT 得到人数',
+                    '落地 DWS 表': '、'.join(ts), '被哪些 ADS 表使用': '、'.join(sorted({x['t'] for x in model['store'] if x['f'] == bm or x['up'].endswith('.' + bm)}))}
+            for k_, v_ in vals.items():
+                if k_ in di:
+                    b[di[k_]] = v_
+            newD.append(b)
+            model['mclass_extra'][code + 'B'] = 'distinct'
+            changed.setdefault('DWS口径', '补登记去重位图口径')
+    D['rows'] = newD
+    fset = {(t_, x[fi['字段名']]) for t_, xs in by_t.items() for x in xs}
+    dws_tabs = [t_ for t_ in by_t if t_.startswith('dws_')]
+    for r in D['rows']:
+        lands = [sn(x) for x in re.split(r'[、,，\s]+', str(r[di['落地 DWS 表']])) if x]
+        fixed = []
+        for t_ in lands:
+            if (t_, r[di['英文名']]) in fset and t_.startswith('dws_'):
+                fixed.append(t_)
+                continue
+            alt = next((x for x in dws_tabs if (x, r[di['英文名']]) in fset and x.endswith('_rt') == t_.endswith('_rt')), None)
+            if alt:
+                fixed.append(alt)
+        if lands and fixed != lands:
+            r[di['落地 DWS 表']] = '、'.join(dict.fromkeys(fixed))
+            changed.setdefault('DWS口径', '补登记去重位图口径；修正落地表登记错误的口径')
 
     # ---- 2. ADS 表：日粒度不变，周期列合并为可跨天汇总的日字段
     st = model['store']
@@ -676,6 +715,24 @@ def apply_to_dictionary(sheets, model, chk):
         for k, v in vals.items():
             if k in ai:
                 r0[ai[k]] = v
+        new.append(r0)
+    # 分子 / 分母 / 位图这类存储字段不是业务指标，但也登记进字典，保证 ADS 每个指标字段都有口径
+    qnames = {(f['t'], f['f']) for f in model['fields']}
+    for x in model['store']:
+        if (x['t'], x['f']) in qnames:
+            continue
+        c = cm[x['m']]
+        r0 = list(c['old'][0])
+        role = '分子' if '_numerator_' in x['f'] else ('分母' if '_denominator_' in x['f'] else '去重位图')
+        vals = {'指标编码': f"{x['m']}-{'NUM' if role == '分子' else 'DEN' if role == '分母' else 'BMP'}",
+                '业务指标名': f"{c['base_cn']}（{role}）", '字段名': x['f'], '业务口径': x['cmt'],
+                '计算公式': f"{x['proc']}；供 {c['base_cn']} 在任意统计周期汇总后计算", '单位': x['cmt'].rsplit('单位：', 1)[-1] if '单位：' in x['cmt'] else '',
+                '统计周期': '—（日存储字段，查询时关联时间表按区间汇总）', '修饰词': c['mod'] or '—', '数据类型': x['type'],
+                '精度/展示': '位图' if x['type'] == 'BITMAP' else r0[ai['精度/展示']], '口径类型': '存储字段',
+                '更新频率': '每日 T+1（ADS 日数据）', '分析粒度': trow[x['t']][ti['粒度']]}
+        for k_, v_ in vals.items():
+            if k_ in ai:
+                r0[ai[k_]] = v_
         new.append(r0)
     keep = [r for r in A['rows'] if r[ai['离线/实时']] != '离线' or sn(r[ai['ADS表']]) not in tables]
     A['rows'] = new + keep
