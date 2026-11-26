@@ -7,8 +7,8 @@ legacy：旧表名或正则（以 ^ 开头），按顺序匹配，先到先得�
 
 # ---------------------------------------------------------------- 公共维度（DWS / ADS 的粒度键）
 D = {
-    'scenic_id': ('BIGINT', '景区ID，关联 dim_prd_scenic_df'), 'ticket_id': ('BIGINT', '门票ID，关联 dim_prd_ticket_df'),
-    'supplier_id': ('BIGINT', '供应商（景区发布商户）ID，关联 dim_sup_member_df'), 'distributor_id': ('BIGINT', '一级分销商ID，关联 dim_sup_member_df'),
+    'scenic_id': ('BIGINT', '景区ID，关联 dim_prd_scenic_df'), 'ticket_id': ('BIGINT', '票ID，关联 dim_prd_ticket_df'),
+    'supplier_id': ('BIGINT', '供应商ID（租户ID），关联 dim_sup_member_df'), 'distributor_id': ('BIGINT', '一级分销商ID，关联 dim_sup_member_df'),
     'buyer_id': ('BIGINT', '购买者ID（直接下单的商户 / 会员），关联 dim_sup_member_df'), 'member_id': ('BIGINT', '商户ID，关联 dim_sup_member_df'),
     'order_mode': ('INT', '下单渠道编码，关联 dim_trf_channel_f'), 'pay_mode': ('INT', '支付方式编码，关联 dim_fin_pay_channel_f'),
     'distribute_system_code': ('STRING', '对接分销平台编码（OTA / API），关联 dim_trf_channel_f'),
@@ -23,7 +23,7 @@ D = {
     'card_product_id': ('BIGINT', '年卡产品ID'), 'account_id': ('BIGINT', '账户ID'), 'subject_code': ('STRING', '账本科目编码'),
     'contract_no': ('STRING', '合同编号'), 'module_id': ('BIGINT', '应用模块ID，关联 dim_opr_module_package_df'),
     'resource_id': ('BIGINT', '资源中心资源ID，关联 dim_prd_resource_df'), 'page_code': ('STRING', '页面编码'),
-    'hotel_code': ('STRING', '酒店编码'), 'main_ticket_id': ('BIGINT', '套票主票门票ID'), 'sub_ticket_id': ('BIGINT', '套票子票门票ID'),
+    'hotel_code': ('STRING', '酒店编码'), 'main_ticket_id': ('BIGINT', '套票主票票ID'), 'sub_ticket_id': ('BIGINT', '套票子票票ID'),
 }
 
 
@@ -193,11 +193,11 @@ t('dwd_ord_order_di', '订单明细', '1行=1张子订单（ordernum）', 'ods_o
     ('trade_order_no', 'STRING', '外键', '交易订单号（支付单）', 'trade_order_id'),
     ('remote_order_no', 'STRING', '外键', '远端（OTA / API）订单号', 'remotenum / remote_order_id'),
     ('scenic_id', 'BIGINT', '外键', '景区ID，关联 dim_prd_scenic_df', 'lid / land_id / pack_scenic_id / main_lid'),
-    ('ticket_id', 'BIGINT', '外键', '门票ID，关联 dim_prd_ticket_df', 'tid / ticket_id / pack_ticket_id'),
+    ('ticket_id', 'BIGINT', '外键', '票ID，关联 dim_prd_ticket_df', 'tid / ticket_id / pack_ticket_id'),
     ('product_id', 'BIGINT', '外键', '产品ID', 'pid / product_id / main_pid'),
     ('product_type', 'STRING', '状态类型', '产品类型：A-景区 B-线路 C-酒店 F-套票 …', 'p_type / product_type / main_product_type'),
-    ('supplier_id', 'BIGINT', '外键', '供应商（景区发布商户）ID，关联 dim_sup_member_df', 'aid / land_publisher_id / scenic_publisher_id / main_sid'),
-    ('origin_supplier_id', 'BIGINT', '外键', '原始（顶级）供应商ID', 'apply_did / top_supplier_id'),
+    ('supplier_id', 'BIGINT', '外键', '供应商ID（租户ID），关联 dim_sup_member_df', 'sid / aid / land_publisher_id / scenic_publisher_id / main_sid'),
+    ('origin_supplier_id', 'BIGINT', '外键', '原始（顶级）供应商ID（租户ID）', 'apply_did / top_supplier_id'),
     ('buyer_id', 'BIGINT', '外键', '购买者ID（直接下单的商户 / 会员）', 'member / booker_id'),
     ('buyer_type', 'STRING', '状态类型', '购买者身份', 'booker_type / buyer_identity'),
     ('seller_id', 'BIGINT', '外键', '销售者（收款方）ID', 'salerid / seller_id'),
@@ -250,7 +250,7 @@ t('dwd_ord_order_distribution_di', '订单分销链明细', '1行=1张订单×1�
     ('seller_id', 'BIGINT', '外键', '本级卖方', 'sellerid / seller_id'), ('buyer_id', 'BIGINT', '外键', '本级买方', 'buyerid / buyer_id'),
     ('price_amt', 'DECIMAL(18,2)', '度量', '本级结算单价（元）', 'price / distribute_price'), ('cost_price_amt', 'DECIMAL(18,2)', '度量', '本级成本单价（元）', 'cost_price'),
     ('ticket_qty', 'BIGINT', '度量', '票数', 'tnum'), ('settle_amt', 'DECIMAL(18,2)', '度量', '本级结算金额（元）', 'money / amount'),
-    ('pay_mode', 'INT', '外键', '本级支付方式', 'paymode'), ('scenic_id', 'BIGINT', '外键', '景区ID', 'lid'), ('ticket_id', 'BIGINT', '外键', '门票ID', 'tid'),
+    ('pay_mode', 'INT', '外键', '本级支付方式', 'paymode'), ('scenic_id', 'BIGINT', '外键', '景区ID', 'lid'), ('ticket_id', 'BIGINT', '外键', '票ID', 'tid'),
     ('order_time', 'STRING', '时间', '下单时间', 'ordertime'), ('test_flag', 'INT', '状态类型', '是否测试订单', 'is_test')),
   ['dwd_split_d_i', 'dwd_order_split_d_i', 'dwd_ord_split_order_details_di', 'dwd_ord_order_distribute_detail_di', 'dwd_ord_order_distribute_summary_di', 'dwd_order_track_split_d_i',
    'dws_distribution_aggregation_d_i'])
@@ -261,13 +261,13 @@ t('dwd_ord_order_track_di', '订单操作明细', '1行=1次订单操作（支�
     ('left_ticket_qty', 'BIGINT', '度量', '操作后剩余票数', 'left_num'), ('sale_amt', 'DECIMAL(18,2)', '度量', '本次操作金额（元）', 'cancel_sale_money / revoke_sale_money'),
     ('cost_amt', 'DECIMAL(18,2)', '度量', '本次操作成本（元）', 'cancel_cost_money / revoke_cost_money'), ('refund_amt', 'DECIMAL(18,2)', '度量', '退回金额（元）', 'after_sale_refund_money'),
     ('service_fee_amt', 'DECIMAL(18,2)', '度量', '手续费收入（元）', 'service_money / after_sale_income_money'), ('operator_id', 'BIGINT', '外键', '操作人ID', 'oper_member / operate_id'),
-    ('terminal_no', 'STRING', '外键', '操作终端', 'terminal'), ('scenic_id', 'BIGINT', '外键', '景区ID', 'lid'), ('ticket_id', 'BIGINT', '外键', '门票ID', 'tid'),
+    ('terminal_no', 'STRING', '外键', '操作终端', 'terminal'), ('scenic_id', 'BIGINT', '外键', '景区ID', 'lid'), ('ticket_id', 'BIGINT', '外键', '票ID', 'tid'),
     ('order_role', 'STRING', '状态类型', '主子单', 'mo / no_mo'), ('test_flag', 'INT', '状态类型', '是否测试订单', 'is_test')),
   ['dwd_order_track_d_i', 'dws_ord_order_track_wide_di'])
 t('dwd_ord_verify_di', '核销明细', '1行=1次验证（含年卡核销）', 'ods_ord_order_traveler_track_di、ods_trf_qunar_verify_di、dwd_ord_order_di',
   '验证时间、验证票数、验证终端、验证游客；替代 7 张验证 / 游客验证表', F(('verify_id', 'BIGINT', '主键', '验证记录ID', 'id / verify_id'), ('order_no', 'STRING', '外键', '订单号', 'ordernum / order_id'),
     ('main_order_no', 'STRING', '外键', '主票订单号', 'main_order_id'), ('order_role', 'STRING', '状态类型', '主子单', 'mo / no_mo'),
-    ('scenic_id', 'BIGINT', '外键', '景区ID', 'lid / land_id'), ('ticket_id', 'BIGINT', '外键', '门票ID', 'tid'), ('supplier_id', 'BIGINT', '外键', '供应商ID', 'aid'),
+    ('scenic_id', 'BIGINT', '外键', '景区ID', 'lid / land_id'), ('ticket_id', 'BIGINT', '外键', '票ID', 'tid'), ('supplier_id', 'BIGINT', '外键', '供应商ID（租户ID）', 'sid / aid'),
     ('distributor_id', 'BIGINT', '外键', '一级分销商ID', 'reseller_id / distributor_id'), ('order_mode', 'INT', '外键', '下单渠道', 'ordermode'),
     ('verify_time', 'STRING', '时间', '验证时间', 'dtime / verify_time / vertify_time'), ('verify_ticket_qty', 'BIGINT', '度量', '本次验证票数', 'tnum / verify_num / verify_ticket'),
     ('verify_sale_amt', 'DECIMAL(18,2)', '度量', '本次验证金额（元）', 'verify_sale_money'), ('verify_cost_amt', 'DECIMAL(18,2)', '度量', '本次验证成本（元）', 'verify_cost_money / cost_money'),
@@ -280,7 +280,7 @@ t('dwd_ord_verify_di', '核销明细', '1行=1次验证（含年卡核销）', '
 t('dwd_ord_traveler_di', '订单游客明细', '1行=1张订单×1位游客', 'ods_ord_order_traveler_di、ods_ord_order_traveler_ext_di、dim_opr_idcard_area_f、dim_opr_phone_area_f',
   '游客证件（哈希 + 掩码）、性别、年龄段、客源省市（证件 / 手机号解析）；画像类指标的唯一明细来源',
   F(('order_no', 'STRING', '主键', '订单号', 'ordernum / order_id'), ('traveler_seq', 'INT', '主键', '订单内游客序号', 'idx / id'),
-    ('scenic_id', 'BIGINT', '外键', '景区ID', 'lid / land_id'), ('ticket_id', 'BIGINT', '外键', '门票ID', 'tid'), ('order_role', 'STRING', '状态类型', '主子单', 'mo / no_mo'),
+    ('scenic_id', 'BIGINT', '外键', '景区ID', 'lid / land_id'), ('ticket_id', 'BIGINT', '外键', '票ID', 'tid'), ('order_role', 'STRING', '状态类型', '主子单', 'mo / no_mo'),
     ('traveler_name_mask', 'STRING', '维度属性', '游客姓名（掩码）', 'tourist / name'), ('id_card_hash', 'STRING', '维度属性', '证件号哈希', 'idcard / id_card / personid'),
     ('id_card_type', 'STRING', '状态类型', '证件类型', 'voucher_type'), ('phone_hash', 'STRING', '维度属性', '手机号哈希', 'mobile / tel'),
     ('gender', 'STRING', '维度属性', '性别：M / F / U（证件解析）', 'sex / gender'), ('age', 'INT', '维度属性', '年龄（证件解析，按下单日）', 'age'),
