@@ -19,7 +19,7 @@ def now():
     return datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
 
-META = ('at', 'status', 'reason', 'note')   # 每张表的标记行：-- @at / @status / @reason / @note
+META = ('at', 'status', 'reason', 'note', 'tcmt')   # 每张表的标记行：-- @at / @status / @reason / @note / @tcmt（人工修改的表描述）；字段描述为 -- @cmt 字段名 描述
 
 
 def read_file(path):
@@ -35,7 +35,10 @@ def read_file(path):
             m = re.search(rf'^--\s*@{key}\s+(.*)$', body, re.M)
             if m and m.group(1).strip():
                 e[key] = m.group(1).strip()
-        ddl = re.sub(r'^--\s*@(' + '|'.join(META) + r')\b.*$\n?', '', body, flags=re.M).strip()
+        cm = dict(re.findall(r'^--\s*@cmt\s+(\S+)\s+(.+)$', body, re.M))
+        if cm:
+            e['cmts'] = {k2: v.strip() for k2, v in cm.items()}
+        ddl = re.sub(r'^--\s*@(' + '|'.join(META) + r'|cmt)\b.*$\n?', '', body, flags=re.M).strip()
         if ddl:
             e['ddl'] = ddl
         if e.get('ddl') or e.get('status'):
@@ -50,11 +53,12 @@ def write_file(path, entries):
     head = ['-- 业务库表 DDL（dataworks/ddl_tool 业务库 DDL 补齐工具维护，请勿手工改动 -- @ 开头的标记行）',
             f'-- 更新时间：{now()}',
             f'-- 共 {len(keys)} 张：已录入 DDL {ddl_n} 张，标记弃用 {dep_n} 张，未对上业务库表 {sum(1 for k in keys if k.startswith("?:"))} 张',
-            '-- 格式：每张表前为标记行 -- @table 数据源:表名 / @at 录入时间 / @status 弃用 / @reason 原因 / @note 备注，其后为原始 CREATE TABLE 语句（弃用表可以没有）', '']
+            '-- 格式：每张表前为标记行 -- @table 数据源:表名 / @at 录入时间 / @status 弃用 / @reason 原因 / @note 备注 / @tcmt 表描述 / @cmt 字段名 描述（人工修改的描述），其后为原始 CREATE TABLE 语句（弃用表可以没有）', '']
     blocks = []
     for k in keys:
         e = entries[k]
         lines = [f'-- @table {k}'] + [f'-- @{m} {str(e[m]).replace(chr(10), " ").strip()}' for m in META if e.get(m)]
+        lines += [f'-- @cmt {c} {str(v).replace(chr(10), " ").strip()}' for c, v in sorted((e.get('cmts') or {}).items()) if str(v).strip()]
         if e.get('ddl'):
             lines.append(e['ddl'].strip())
         blocks.append('\n'.join(lines) + '\n')
@@ -104,6 +108,9 @@ class H(http.server.SimpleHTTPRequestHandler):
                 if not isinstance(v, dict):
                     continue
                 e = {m: str(v[m]).strip() for m in ('ddl', *META) if str(v.get(m) or '').strip()}
+                cm = {str(c).strip(): str(t).replace('\n', ' ').strip() for c, t in (v.get('cmts') or {}).items() if re.fullmatch(r'[\w$]+', str(c).strip()) and str(t).strip()}
+                if cm:
+                    e['cmts'] = cm
                 if e.get('ddl') or e.get('status'):
                     e.setdefault('at', now())
                     E[k] = e
