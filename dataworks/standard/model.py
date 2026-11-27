@@ -428,8 +428,6 @@ t('dwd_sup_customer_visit_di', '客户拜访 / 接待明细', '1行=1次客户�
   ('union', ['company_id', 'visit_time', 'staff_id']), ['dwd_mkt_oa_customer_reception_detail_df'])
 t('dwd_sup_service_merchant_di', '服务商户明细', '1行=1个服务商户×1个服务项目', 'ods_sup_member_df、ods_sup_cooperation_other_df', '平台服务的商户与合作项目',
   ('union', ['member_id']), ['dwd_service_business_d_f', 'dwd_service_business_d_f_v3', 'dwd_company_cooperation_other_d_f'])
-t('dwd_mkt_social_content_di', '舆情内容明细', '1行=1条发布内容 / 评论', 'ods_trf_social_opinion_comment_core_di', '全网舆情内容与评论（外部采集）',
-  ('union', ['content_id', 'publish_time', 'platform_code']), ['dwd_content_comment_detail_di', 'dwd_content_publish_info_di'])
 
 # ======================= DWS =======================
 t('dws_ord_scenic_ticket_trade_di', '景区门票交易日汇总', '1行=1天×景区×门票×供应商×分销商×下单渠道×支付方式×主子单×团散',

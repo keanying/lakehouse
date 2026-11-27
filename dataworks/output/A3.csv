@@ -307,8 +307,6 @@ dim_user_thirdsystem_d_f,_d_i / _d_f,dim
 dwd_all_dis_orders_d_f,_d_i / _d_f,dwd
 dwd_company_cooperation_other_d_f,_d_i / _d_f,dwd
 dwd_company_login_d_f,_d_i / _d_f,dwd
-dwd_content_comment_detail_di,_di / _df,dwd
-dwd_content_publish_info_di,_di / _df,dwd
 dwd_cus_qualification_auth_df,_di / _df,dwd
 dwd_cus_user_base_bind_df,_di / _df,dwd
 dwd_minutely_inout_detail_d_i,_d_i / _d_f,dwd

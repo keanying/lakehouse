@@ -7,6 +7,7 @@
   <节点>.spec.json              工作流的调度配置
   <节点>.sql / .py / .sh        脚本；数据集成（DI）为 <节点>.json
 """
+import pathlib
 import collections, json, posixpath, re, zipfile
 
 KW = set('''select from where join left right inner outer full cross on and or not in is null as with group by order
@@ -161,4 +162,13 @@ def load(zip_path):
             except Exception as e:  # 少数导出不完整
                 n['di'] = {'error': str(e)}
         nodes.append(n)
-    return nodes
+    ex = excluded()
+    return [n for n in nodes if not any(n['path'] == x or n['path'].startswith(x + '/') for x in ex)]
+
+
+def excluded():
+    """exclude.txt 里的路径前缀：不纳入梳理的旧节点"""
+    f = pathlib.Path(__file__).resolve().parent / 'exclude.txt'
+    if not f.exists():
+        return []
+    return [l.strip().replace('\\', '/').strip('/') for l in f.read_text(encoding='utf-8').splitlines() if l.strip() and not l.strip().startswith('#')]
