@@ -7,6 +7,7 @@
   <节点>.spec.json              工作流的调度配置
   <节点>.sql / .py / .sh        脚本；数据集成（DI）为 <节点>.json
 """
+import pathlib
 import collections, json, posixpath, re, zipfile
 
 KW = set('''select from where join left right inner outer full cross on and or not in is null as with group by order
@@ -161,4 +162,24 @@ def load(zip_path):
             except Exception as e:  # 少数导出不完整
                 n['di'] = {'error': str(e)}
         nodes.append(n)
-    return nodes
+    ex = excluded()
+    drop = [n for n in nodes if any(n['path'] == x or n['path'].startswith(x + '/') for x in ex)]
+    keep = [n for n in nodes if n not in drop]
+    # 只由被排除节点产出的表：其余节点对它的读取一并去掉（视为该表已下线）
+    gone = {t for n in drop for t, _ in n['writes']} - {t for n in keep for t, _ in n['writes']}
+    gone |= {t.split('.')[-1] for t in gone}
+    dead = {x for n in drop for x in [n['name'], n['id'], *n.get('outputs', []), *n.get('output_ids', [])] if x}
+    dead |= {str(x).split('.')[-1] for x in dead}
+    for n in keep:
+        n['reads'] = [t for t in n['reads'] if t not in gone and t.split('.')[-1] not in gone]
+        dep_keys = lambda d: [str(v) for v in (d.values() if isinstance(d, dict) else [d]) if v]
+        n['depends'] = [d for d in n.get('depends', []) if not any(k in dead or k.split('.')[-1] in dead for k in dep_keys(d))]
+    return keep
+
+
+def excluded():
+    """exclude.txt 里的路径前缀：不纳入梳理的旧节点"""
+    f = pathlib.Path(__file__).resolve().parent / 'exclude.txt'
+    if not f.exists():
+        return []
+    return [l.strip().replace('\\', '/').strip('/') for l in f.read_text(encoding='utf-8').splitlines() if l.strip() and not l.strip().startswith('#')]

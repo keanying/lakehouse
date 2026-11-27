@@ -18,7 +18,7 @@ PFT3.0 数仓（文旅票务）资料与数仓字典展示页。
 
 ## 客户现有 DataWorks 治理（dataworks/）
 
-客户旧系统（`DATAWORKS.zip`，1,509 个节点）的现状诊断与按 PFT3.0 标准重构的统一数仓：`dataworks/docs/问题清单.md`（31 类问题）、`dataworks/dist/index.html`（标准化数仓字典页，含旧表 → 标准表映射）。详见 [`dataworks/README.md`](dataworks/README.md)。
+客户旧系统（`DATAWORKS.zip`，1,498 个节点，已按 `dataworks/exclude.txt` 排除全网舆情链路）的现状诊断与按 PFT3.0 标准重构的统一数仓：`dataworks/docs/问题清单.md`（31 类问题）、`dataworks/dist/index.html`（标准化数仓字典页，含旧表 → 标准表映射）。详见 [`dataworks/README.md`](dataworks/README.md)。
 
 ## 目录
 

@@ -34,7 +34,6 @@
 数据平台/ODS/业务流程/归档表增量合并流程/ods_order_pft_order_track_history_di,00 00 00 * * ?
 数据平台/ODS/业务流程/归档表增量合并流程/ods_order_uu_ss_order_history_di,00 00 00 * * ?
 数据平台/平台湖仓工作流/经营数据,00 00 00 * * ?
-业务工厂/手动任务/全网舆论导出/ads_trf_social_opinion_comment_content_oi,00 00 00 * * ?
 业务工厂/手动任务/手动任务_全量导出脚本/m_ads_daily_trade_account_trans_summary_o_i,00 00 00 * * ?
 业务工厂/手动任务/手动任务_全量导出脚本/m_dws_yearly_report_summary_remain_o_i,00 00 00 * * ?
 业务工厂/手动任务/手动任务_全量导出脚本/m_dws_yearly_report_ticket_summary_remain_o_i,00 00 00 * * ?

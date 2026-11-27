@@ -41,6 +41,12 @@ a{color:var(--brand);cursor:pointer;text-decoration:none}a:hover{text-decoration
 .btn:hover{border-color:var(--brand);color:var(--brand)}
 .btn:disabled{opacity:.4;cursor:default;border-color:var(--line);color:inherit}
 .btn.pri{background:#000;border-color:#000;color:#c6ef4e}
+.ta{width:100%;min-height:110px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;resize:vertical;outline:none;background:#fff}
+.ta:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
+.ddl-top{padding:14px 16px;margin-bottom:10px;display:grid;gap:10px}
+.ddl-top .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.ddl-msg{font-size:12.5px;line-height:1.6}
+.ddl-msg .ok{color:#067647}.ddl-msg .warn{color:#b54708}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
 .chip{height:26px;padding:0 11px;border:1px solid var(--line);border-radius:13px;background:#fff;cursor:pointer;color:var(--sub);font-size:12.5px}
 .chip:hover{border-color:var(--brand)}
@@ -286,7 +292,8 @@ const tokens=s=>String(s||'').split(/[、,，\s;；]+/).map(x=>shortN(x.trim()))
 
 /* ---------- DDL ---------- */
 function ddl(t){
-  if(t.b==='SRC')return `-- ${t.name}（${SRC.ddlNote||'MySQL 业务库原始 DDL，摘自 docs/source/pft-arch-02-database.md'}）\n`+SRC.ddl[t.name];
+  if(t.b==='SRC'){const e=DDLS.get(t.name);if(e)return `-- ${t.name}（客户提供 DDL，${e.at} 录入；只在本机浏览器，到「旧系统对照 · 业务库 DDL」导出文件后交给数仓）\n`+e.ddl;
+    return `-- ${t.name}（${SRC.ddlNote||'MySQL 业务库原始 DDL，摘自 docs/source/pft-arch-02-database.md'}）\n`+SRC.ddl[t.name]}
   const q=s=>String(s??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,' ');
   const parts=t.fields.filter(f=>f.k==='分区'),cols=t.fields.filter(f=>f.k!=='分区');
   // 字段清单没登记分区字段时，按「表清单·分区」列补出 travel_date（离线 Hive 表）
@@ -524,7 +531,7 @@ function vMetrics(v,a){
   const TIP={dict:`<div style="font-weight:600;color:var(--text)">① 口径字典</div><div>每个口径一行：业务口径、计算公式、来源明细表、落地 DWS 表、被哪些 ADS 使用。「跨区间聚合方式」决定该口径能否在任意时间区间上直接由日数据算出；「ADS 指标数」是该口径在 ADS 中的指标个数。编码带 B 的是改造补登记的去重位图口径。点行看任意区间的取数 SQL 和 ADS 指标明细。</div>${REL}`,
     adsdict:`<div style="font-weight:600;color:var(--text)">② ADS 指标清单</div><div>每张 ADS 表上的每个指标一行（本期值 / 日均 / 上期 / 环比 / 同比 / 占比）。日存储的分子、分母、位图登记为「存储字段」。</div>${REL}`,
     bizall:bizIntro()};
-  v.innerHTML=`<div class="bar" style="margin-bottom:10px"><div class="chips" style="align-items:center">${T.map(([k,l,n])=>`<button class="chip ${tab===k?'on':''}" data-k="${k}" style="height:30px;padding:0 14px">${l}<i>${n.toLocaleString()}</i></button>`).join('')}${qi(TIP[tab])}</div></div><div id="mh" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>`;
+  v.innerHTML=`<div class="bar" style="margin-bottom:10px"><div class="chips" style="align-items:center">${T.map(([k,l,n])=>`<button class="chip ${tab===k?'on':''}" data-k="${k}" style="height:30px;padding:0 14px">${l}<i>${n.toLocaleString?n.toLocaleString():n}</i></button>`).join('')}${qi(TIP[tab])}</div></div><div id="mh" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>`;
   v.querySelector('.chips').onclick=e=>{const b=e.target.closest('.chip');if(b)go('#/metrics/'+b.dataset.k)};
   const h=$('#mh');MS[tab]??={};
   if(tab==='bizall'){bizGrid(h,MS[tab]);return}
@@ -578,11 +585,12 @@ function catDrawer(m){
 /* ---------- 旧系统对照 ---------- */
 const LS={};
 function vLegacy(v,a){
-  const T=[['issues','现状问题',LEGACY.findings.length],['map','旧表 → 标准表',LEGACY.mapping.rows.length],...(LEGACY.cover?[['cover','导出模型覆盖',LEGACY.cover.rows.length],['unify','口径统一',LEGACY.unify.rows.length]]:[]),['nodes','旧节点清单',LEGACY.nodes.rows.length]];
+  const T=[['issues','现状问题',LEGACY.findings.length],['map','旧表 → 标准表',LEGACY.mapping.rows.length],...(LEGACY.cover?[['cover','导出模型覆盖',LEGACY.cover.rows.length],['unify','口径统一',LEGACY.unify.rows.length]]:[]),['nodes','旧节点清单',LEGACY.nodes.rows.length],...(SRC.tables.length?[['ddl','业务库 DDL',(new Set([...Object.keys(SRC.ddlDone||{}),...Object.keys(DDLS.all()).filter(k=>!k.startsWith('?:'))])).size+' / '+SRC.tables.length]]:[])];
   const tab=T.some(x=>x[0]===a)?a:'issues';
-  v.innerHTML=`<div class="bar" style="margin-bottom:10px"><div class="chips" style="align-items:center">${T.map(([k,l,n])=>`<button class="chip ${tab===k?'on':''}" data-k="${k}" style="height:30px;padding:0 14px">${l}<i>${n.toLocaleString()}</i></button>`).join('')}${qi(LEGACY.tips[tab])}</div><span class="grow"></span>${tab==='issues'?`<a class="btn" href="${esc(LEGACY.reportHref)}" style="display:inline-flex;align-items:center;text-decoration:none">问题清单（Markdown）</a>`:''}</div><div id="lh" style="${tab==='issues'?'':'flex:1;min-height:0;display:flex;flex-direction:column'}"></div>`;
+  v.innerHTML=`<div class="bar" style="margin-bottom:10px"><div class="chips" style="align-items:center">${T.map(([k,l,n])=>`<button class="chip ${tab===k?'on':''}" data-k="${k}" style="height:30px;padding:0 14px">${l}<i>${n.toLocaleString?n.toLocaleString():n}</i></button>`).join('')}${qi(LEGACY.tips[tab])}</div><span class="grow"></span>${tab==='issues'?`<a class="btn" href="${esc(LEGACY.reportHref)}" style="display:inline-flex;align-items:center;text-decoration:none">问题清单（Markdown）</a>`:''}</div><div id="lh" style="${tab==='issues'?'':'flex:1;min-height:0;display:flex;flex-direction:column'}"></div>`;
   v.querySelector('.chips').onclick=e=>{const b=e.target.closest('.chip');if(b)go('#/legacy/'+b.dataset.k)};
   const h=$('#lh');LS[tab]??={};
+  if(tab==='ddl'){vDdl(h);return}
   if(tab==='issues'){
     const S=LEGACY.summary;
     h.innerHTML=`<div class="rv-head">${['高','中','低'].map(l=>`<div class="card rv-k" style="--c:${LVC[l]}"><b>${S[l]}</b><span>${({'高':'高 · 数据正确性 / 安全 / 重复建设','中':'中 · 性能 / 可维护性','低':'低 · 规范与治理'})[l]}</span></div>`).join('')}
@@ -600,6 +608,118 @@ function vLegacy(v,a){
     cell:(i,v,q)=>(c[i]==='标准表'||c[i]==='标准 ADS')&&v?tlink(v,q):['处理','覆盖情况'].includes(c[i])?`<span class="pill ${AP[v]??''}">${esc(v)}</span>`:/表|路径/.test(c[i])?`<span class="c-id">${hl(esc(v),q)}</span>`:hl(esc(v),q),
     onRow:r=>{if(tab==='cover'||tab==='unify'){drawer(r[1]+(tab==='cover'?'（'+r[0]+'）':''),tab==='cover'?(r[4]||r[5]):r[2],kvHtml(c.map((n,i)=>[n,esc(r[i])])));return}
       const k=c.indexOf('标准表');if(k>=0&&TBM[r[k]])go('#/tables/'+r[k])}});
+}
+
+
+/* ---------- 业务库 DDL：页面录入 → 本机保存 → 导出文件交给数仓 ---------- */
+const DDLS=(()=>{
+  const KEY='dwdict.src_ddl.v1';let M={};
+  try{M=JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch(e){M={}}
+  const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(M))}catch(e){alertMsg('浏览器存储不可用：本次录入在刷新后会丢失，请先导出文件')}};
+  return{all:()=>M,get:k=>M[k],set:(k,v)=>{M[k]=v;save()},del:k=>{delete M[k];save()},clear:()=>{M={};save()},
+         count:()=>Object.keys(M).filter(k=>!k.startsWith('?:')).length};
+})();
+function alertMsg(t){const m=$('#ddl-msg');if(m)m.innerHTML=`<span class="warn">${esc(t)}</span>`}
+function splitTop(s){const r=[];let d=0,q=null,b=0;for(let i=0;i<s.length;i++){const ch=s[i];if(q){if(ch==='\\'){i++;continue}if(ch===q)q=null;continue}
+  if(ch==="'"||ch==='"'||ch==='`'){q=ch;continue}if(ch==='(')d++;else if(ch===')')d--;else if(ch===','&&d===0){r.push(s.slice(b,i));b=i+1}}r.push(s.slice(b));return r}
+/* 解析 MySQL CREATE TABLE（SHOW CREATE TABLE / mysqldump 输出，可多张） */
+function parseDDL(text){
+  const out=[],re=/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?((?:`[^`]+`|[\w$]+)(?:\s*\.\s*(?:`[^`]+`|[\w$]+))?)\s*\(/ig;let m;const st=[];
+  while((m=re.exec(text)))st.push({i:m.index,name:m[1],body:re.lastIndex});
+  st.forEach((x,k)=>{
+    let d=1,j=x.body,q=null;
+    for(;j<text.length&&d>0;j++){const ch=text[j];if(q){if(ch==='\\'){j++;continue}if(ch===q)q=null;continue}if(ch==="'"||ch==='"'||ch==='`')q=ch;else if(ch==='(')d++;else if(ch===')')d--}
+    const inner=text.slice(x.body,j-1),nxt=k+1<st.length?st[k+1].i:text.length;let end=text.indexOf(';',j);if(end<0||end>nxt)end=nxt;
+    const tail=text.slice(j,end),nm=x.name.replace(/[`\s]/g,'').split('.');const cols=[],pk=[];
+    splitTop(inner).forEach(line=>{const L=line.trim();if(!L)return;
+      const p=L.match(/^PRIMARY\s+KEY\s*\(([^)]*)\)/i);if(p){pk.push(...p[1].split(',').map(v=>v.replace(/[`\s]/g,'').replace(/\(\d+\)$/,'')));return}
+      if(/^(UNIQUE|KEY|INDEX|CONSTRAINT|FULLTEXT|SPATIAL|FOREIGN|CHECK)\b/i.test(L))return;
+      const c=L.match(/^`?([^`\s]+)`?\s+(\w+(?:\s*\([^)]*\))?(?:\s+unsigned)?(?:\s+zerofill)?)([\s\S]*)$/i);if(!c)return;
+      const rest=c[3],cm=rest.match(/COMMENT\s+'((?:[^'\\]|\\.|'')*)'/i),df=rest.match(/DEFAULT\s+('(?:[^'\\]|\\.)*'|\S+)/i);
+      cols.push({n:c[1],t:c[2].replace(/\s+/g,' '),nn:/NOT\s+NULL/i.test(rest),d:df?df[1].replace(/,$/,''):'',c:cm?cm[1].replace(/''/g,"'").replace(/\\'/g,"'"):''});
+      if(/PRIMARY\s+KEY/i.test(rest))pk.push(c[1])});
+    const tc=tail.match(/COMMENT\s*=?\s*'((?:[^'\\]|\\.|'')*)'/i);
+    out.push({db:nm.length>1?nm[0]:'',table:nm[nm.length-1],cols,pk,comment:tc?tc[1]:'',ddl:text.slice(x.i,end).trim().replace(/;?$/,';')})});
+  return out;
+}
+/* 业务库表索引：表名 → 页面上的 数据源:表名 */
+let _SRCIDX=null,_SRCDS=null;
+function srcIdx(){if(_SRCIDX)return _SRCIDX;const c=RAW['表清单'].cols.indexOf('表名（库.表）'),m={};
+  SRC.tables.forEach(r=>{const n=String(r[c]),k=n.includes(':')?n.split(':')[1]:n.split('.').pop();(m[k.toLowerCase()]??=[]).push(n)});return _SRCIDX=m}
+function srcDs(){return _SRCDS??=[...new Set(SRC.tables.map(r=>String(r[RAW['表清单'].cols.indexOf('表名（库.表）')]).split(':')[0]))].sort()}
+function matchSrc(p,ds){
+  const t=p.table.toLowerCase();
+  const I=srcIdx();let c=I[t]||I[t.replace(/_(\d+|(19|20)\d{2,6})$/,'')]||[];
+  if(ds)c=c.filter(n=>n.startsWith(ds+':'));
+  else if(c.length>1&&p.db){const f=c.filter(n=>{const d=n.split(':')[0].toLowerCase(),b=p.db.toLowerCase();return d===b||d.endsWith('_'+b)});if(f.length)c=f}
+  return c;
+}
+function ddlDiff(name,p){
+  const t=TBM[name],have=new Set((t?t.fields:[]).map(f=>String(f.n).toLowerCase())),got=new Set(p.cols.map(c=>c.n.toLowerCase()));
+  return{add:p.cols.filter(c=>!have.has(c.n.toLowerCase())).map(c=>c.n),miss:[...have].filter(n=>!got.has(n)),cm:p.cols.filter(c=>c.c).length};
+}
+function ddlIngest(text,ds){
+  const ps=parseDDL(text),res={ok:[],amb:[],none:[]},at=new Date().toLocaleString('zh-CN',{hour12:false});
+  ps.forEach(p=>{const c=matchSrc(p,ds);
+    if(c.length===1){DDLS.set(c[0],{ddl:p.ddl,at});res.ok.push(c[0])}
+    else if(c.length>1)res.amb.push(p.table+'（'+c.map(x=>x.split(':')[0]).join(' / ')+'）');
+    else{DDLS.set((ds?ds:'?')+':'+p.table+(ds?'':''),{ddl:p.ddl,at,unmatched:1});res.none.push(p.table)}});
+  return{n:ps.length,...res};
+}
+function ddlExport(){
+  const A=DDLS.all(),keys=Object.keys(A).sort(),d=new Date(),ymd=d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');
+  const head=[`-- 业务库表 DDL（数仓字典页「旧系统对照 · 业务库 DDL」导出）`,`-- 导出时间：${d.toLocaleString('zh-CN',{hour12:false})}`,
+    `-- 共 ${keys.length} 张：已对上业务库表 ${keys.filter(k=>!A[k].unmatched).length} 张，未对上 ${keys.filter(k=>A[k].unmatched).length} 张`,
+    `-- 格式：每张表前一行「-- @table 数据源:表名」（未对上的数据源为 ?），其后为原始 CREATE TABLE 语句`,''];
+  const body=keys.map(k=>`-- @table ${k}\n-- @at ${A[k].at}\n${A[k].ddl}\n`).join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([head.join('\n')+'\n'+body],{type:'text/plain;charset=utf-8'}));a.download=`src_ddl_${ymd}.sql`;
+  document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);
+}
+function ddlImport(text){   // 导入之前导出的文件（带 @table 标记）；没有标记的按粘贴处理
+  if(!/^--\s*@table\s+/m.test(text))return ddlIngest(text,'');
+  const parts=text.split(/^--\s*@table\s+(\S+)\s*$/m),res={n:0,ok:[],amb:[],none:[]};
+  for(let i=1;i<parts.length;i+=2){const k=parts[i],body=parts[i+1]||'',at=(body.match(/^--\s*@at\s+(.+)$/m)||[])[1]||'';const ddl=body.replace(/^--\s*@at.*$/m,'').trim();
+    if(!ddl)continue;res.n++;const un=k.startsWith('?:')||!TBM[k];DDLS.set(k,{ddl,at,...(un?{unmatched:1}:{})});(un?res.none:res.ok).push(k)}
+  return res;
+}
+function vDdl(h){
+  const N=SRC.tables.length;
+  h.innerHTML=`<div class="card ddl-top">
+    <div class="row"><b style="font-size:14px">本机已录入 <span id="ddl-n">${DDLS.count()}</span> 张 · 已入库 ${Object.keys(SRC.ddlDone||{}).length} 张 / 共 ${N} 张业务库表</b><span class="sub" style="margin:0">只保存在本机浏览器；录完点「导出文件」，把文件发给数仓即可</span><span class="grow" style="flex:1"></span>
+      <label class="btn" style="display:inline-flex;align-items:center">导入文件<input type="file" id="ddl-file" accept=".sql,.txt" hidden></label>
+      <button class="btn pri" id="ddl-exp">导出文件（.sql）</button><button class="btn" id="ddl-clr">清空</button></div>
+    <div class="row"><select class="sel" id="ddl-ds"><option value="">数据源：按表名自动匹配</option>${srcDs().map(d=>`<option>${esc(d)}</option>`).join('')}</select>
+      <span class="sub" style="margin:0">粘贴 <code>SHOW CREATE TABLE</code> 或 mysqldump 里的 <code>CREATE TABLE</code> 语句，可一次贴多张；同名表在多个数据源时先选数据源</span></div>
+    <textarea class="ta" id="ddl-ta" placeholder="CREATE TABLE \`uu_ss_order\` (&#10;  \`id\` int(11) unsigned NOT NULL AUTO_INCREMENT COMMENT '表id',&#10;  ...&#10;) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='平台订单记录主表';"></textarea>
+    <div class="row"><button class="btn pri" id="ddl-go">解析并保存</button><div class="ddl-msg" id="ddl-msg"></div></div></div>
+    <div id="ddl-g" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>`;
+  const msg=r=>{$('#ddl-msg').innerHTML=`<span class="ok">识别 ${r.n} 张，已保存 ${r.ok.length} 张</span>`+(r.amb.length?`；<span class="warn">${r.amb.length} 张在多个数据源同名，请选数据源后再贴：${esc(r.amb.slice(0,6).join('、'))}${r.amb.length>6?' …':''}</span>`:'')
+    +(r.none.length?`；<span class="warn">${r.none.length} 张没对上页面上的业务库表（也已保存，导出时一并带上）：${esc(r.none.slice(0,6).join('、'))}${r.none.length>6?' …':''}</span>`:'')+(r.n?'':'<span class="warn">；没有识别到 CREATE TABLE 语句</span>');refresh()};
+  $('#ddl-go').onclick=()=>{const t=$('#ddl-ta').value;if(!t.trim())return;msg(ddlIngest(t,$('#ddl-ds').value));$('#ddl-ta').value=''};
+  $('#ddl-exp').onclick=()=>{if(!Object.keys(DDLS.all()).length){alertMsg('还没有录入任何 DDL');return}ddlExport()};
+  $('#ddl-clr').onclick=e=>{const b=e.target;if(b.dataset.c){DDLS.clear();b.textContent='清空';delete b.dataset.c;refresh();$('#ddl-msg').innerHTML='<span class="ok">已清空</span>'}else{b.dataset.c=1;b.textContent='再点一次确认清空';setTimeout(()=>{if(b.dataset.c){delete b.dataset.c;b.textContent='清空'}},3000)}};
+  $('#ddl-file').onchange=e=>{const f=e.target.files[0];if(!f)return;f.text().then(t=>{msg(ddlImport(t));e.target.value=''})};
+  const ci=RAW['表清单'].cols.indexOf('表名（库.表）'),cn=RAW['表清单'].cols.indexOf('表中文名');
+  function refresh(){
+    $('#ddl-n').textContent=DDLS.count();
+    const A=DDLS.all(),DONE=SRC.ddlDone||{},rows=SRC.tables.map(r=>{const k=r[ci],e=A[k],t=TBM[k];if(!e)return DONE[k]?[k,r[cn],k.split(':')[0],'已入库',t?t.fields.length:'',t?t.fields.length:'','','','',DONE[k]]:[k,r[cn],k.split(':')[0],'未录入','',t?t.fields.length:'','','','',''];
+      const p=parseDDL(e.ddl)[0]||{cols:[],pk:[]},d=ddlDiff(k,p);return[k,r[cn],k.split(':')[0],'已录入',p.cols.length,t?t.fields.length:'',d.add.length,d.miss.length,p.pk.join('、'),e.at]});
+    Object.keys(A).filter(k=>A[k].unmatched).forEach(k=>{const p=parseDDL(A[k].ddl)[0]||{cols:[],pk:[]};rows.push([k,p.comment||'',k.split(':')[0],'未对上',p.cols.length,'',p.cols.length,'',p.pk.join('、'),A[k].at])});
+    grid($('#ddl-g'),{state:LS.ddl,cols:['业务库表','中文名','数据源','状态','DDL 字段数','现有字段数','DDL 多出（未同步）','现有多出（DDL 无）','主键','录入时间'],rows,filters:[3,2],wide:true,pageSize:200,csvName:'业务库DDL录入',
+      searchPh:'搜索表名 / 中文名…',cell:(i,v,q)=>i===3?`<span class="pill ${({'已录入':'g','已入库':'b','未录入':'','未对上':'o'})[v]}">${esc(v)}</span>`:i===0?`<span class="c-id">${hl(esc(v),q)}</span>`:hl(esc(String(v)),q),
+      onRow:r=>ddlDrawer(r[0])});
+  }
+  refresh();
+}
+function ddlDrawer(k){
+  const e=DDLS.get(k),p=e?parseDDL(e.ddl)[0]:null,d=p?ddlDiff(k,p):null;
+  drawer(k,e?`已录入 · ${e.at}`:'未录入',(p?kvHtml([['表注释',esc(p.comment)],['字段',`${p.cols.length} 个，带注释 ${d.cm} 个`],['主键',esc(p.pk.join('、'))],
+      ['DDL 多出（未同步）',d.add.length?`<span class="c-id">${esc(d.add.join('、'))}</span>`:'无'],['现有多出（DDL 无）',d.miss.length?`<span class="c-id">${esc(d.miss.join('、'))}</span><div class="sub">同步配置里有、DDL 里没有：字段可能已删除或改名</div>`:'无']]):'')
+    +`<div class="sub" style="margin:14px 0 6px">${e?'修改后点保存（整段替换）':'粘贴本表 CREATE TABLE 语句'}</div><textarea class="ta" id="dd-ta" style="min-height:280px">${esc(e?e.ddl:'')}</textarea>
+    <div style="display:flex;gap:8px;margin-top:8px"><button class="btn pri" id="dd-save">保存</button>${e?'<button class="btn" id="dd-del">删除本表</button>':''}<span class="ddl-msg" id="dd-msg"></span></div>`);
+  $('#dd-save').onclick=()=>{const t=$('#dd-ta').value,q=parseDDL(t);if(q.length!==1){$('#dd-msg').innerHTML=`<span class="warn">需要且只能有一条 CREATE TABLE 语句（识别到 ${q.length} 条）</span>`;return}
+    DDLS.set(k,{ddl:q[0].ddl,at:new Date().toLocaleString('zh-CN',{hour12:false}),...(e&&e.unmatched?{unmatched:1}:{})});closeD();route()};
+  const del=$('#dd-del');if(del)del.onclick=()=>{DDLS.del(k);closeD();route()};
 }
 
 /* ---------- 核对报告 ---------- */

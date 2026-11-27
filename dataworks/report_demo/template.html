@@ -1,0 +1,519 @@
+<title>国庆景区票务报告（演示）</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+/* 版式：单栏报告，封面带 → 核心发现 → 8 章，每章「结论句 + 图 + 数据表」；数字用等宽几何字体 */
+:root {
+  --bg: #f4f6f9; --surface: #ffffff; --ink: #142033; --muted: #5a687b; --line: #e2e7ee; --grid: #edf0f4;
+  --cur: #257de0; --base: #b3bdca; --c2: #f47230; --c3: #00b894; --c4: #f2a600;
+  --up: #0f7a3a; --down: #c2382e; --warn-bg: #fff4d6; --warn-ink: #6b4a00; --band: #13294b; --band-ink: #f1f5fb;
+  --sans: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --num: "Space Grotesk", "Noto Sans SC", ui-monospace, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e141d; --surface: #151d29; --ink: #e7ecf3; --muted: #95a3b5; --line: #253245; --grid: #1d2737;
+  --cur: #338ced; --base: #5a6b82; --c2: #e76624; --c3: #00a888; --c4: #d28e05;
+  --up: #3fbf74; --down: #f06a5f; --warn-bg: #3a2f12; --warn-ink: #f3d68c; --band: #0b1f3d; --band-ink: #e7ecf3; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0e141d; --surface: #151d29; --ink: #e7ecf3; --muted: #95a3b5; --line: #253245; --grid: #1d2737;
+  --cur: #338ced; --base: #5a6b82; --c2: #e76624; --c3: #00a888; --c4: #d28e05;
+  --up: #3fbf74; --down: #f06a5f; --warn-bg: #3a2f12; --warn-ink: #f3d68c; --band: #0b1f3d; --band-ink: #e7ecf3; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 15px; line-height: 1.7 }
+.wrap { max-width: 1040px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
+.demo { background: var(--warn-bg); color: var(--warn-ink); font-size: 13px; padding-block: 8px }
+.demo b { font-weight: 700 }
+header.cover { background: var(--band); color: var(--band-ink); padding-block: 44px 36px }
+.cover .eyebrow { font-size: 13px; letter-spacing: .12em; opacity: .75 }
+.cover h1 { font-size: clamp(26px, 4.2vw, 40px); line-height: 1.25; margin: 10px 0 12px; text-wrap: balance; font-weight: 700 }
+.cover .sub { opacity: .82; max-width: 62ch; margin: 0 }
+.cover .facts { display: flex; flex-wrap: wrap; gap: 8px 28px; margin-top: 22px; font-size: 13px; opacity: .85 }
+.cover .facts b { font-family: var(--num); font-weight: 600; font-size: 15px; margin-right: 4px }
+main { padding-block: 28px 64px; display: grid; gap: 28px }
+section { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 26px clamp(16px, 3vw, 32px) 22px; min-width: 0 }
+.sec-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap }
+.sec-no { font-family: var(--num); color: var(--cur); font-weight: 600; font-size: 14px; letter-spacing: .06em }
+h2 { font-size: 21px; margin: 0; font-weight: 700; text-wrap: balance }
+.lead { color: var(--ink); margin: 10px 0 18px; max-width: 70ch }
+.lead em { font-style: normal; font-family: var(--num); font-weight: 600 }
+h3 { font-size: 14px; font-weight: 500; color: var(--muted); margin: 22px 0 8px }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 8px 32px }
+.grid2 > div { min-width: 0 }
+.findings { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px }
+.findings li { display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: baseline }
+.findings li span:first-child { font-family: var(--num); color: var(--cur); font-weight: 600 }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-top: 6px }
+.tile { background: var(--surface); padding: 14px 16px }
+.tile .l { font-size: 13px; color: var(--muted) }
+.tile .v { font-family: var(--num); font-size: 26px; font-weight: 600; line-height: 1.3; font-variant-numeric: tabular-nums }
+.tile .v small { font-size: 14px; font-weight: 500; margin-left: 2px; color: var(--muted); font-family: var(--sans) }
+.tile .d { font-size: 13px; font-variant-numeric: tabular-nums }
+.up { color: var(--up) } .down { color: var(--down) } .flat { color: var(--muted) }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; font-size: 13px }
+.seg button { font: inherit; border: 0; background: transparent; color: var(--muted); padding: 5px 12px; cursor: pointer }
+.seg button[aria-pressed="true"] { background: var(--cur); color: #fff }
+.seg button:focus-visible, details summary:focus-visible { outline: 2px solid var(--cur); outline-offset: 2px }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; color: var(--muted); margin: 2px 0 6px }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px }
+.legend i.ln { height: 2px; width: 16px; border-radius: 1px; vertical-align: 4px }
+.chart { width: 100%; position: relative }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible }
+.chart text { font-family: var(--sans); font-size: 12px; fill: var(--muted) }
+.chart text.val { fill: var(--ink); font-family: var(--num); font-variant-numeric: tabular-nums }
+.chart text.in { fill: #fff; font-family: var(--num) }
+.chart .hit { fill: transparent; cursor: default }
+.chart .hit:hover + .mk, .chart g.m:hover rect { filter: brightness(1.08) }
+details.tbl { margin-top: 8px; font-size: 13px }
+details.tbl summary { cursor: pointer; color: var(--muted); width: fit-content }
+.tw { overflow-x: auto }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: 13px }
+th, td { text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap }
+th:first-child, td:first-child { text-align: left }
+th { color: var(--muted); font-weight: 500 }
+tr.sup td { color: var(--muted) }
+.note { font-size: 13px; color: var(--muted); margin: 10px 0 0 }
+.tip { position: fixed; pointer-events: none; z-index: 20; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 8px;
+       padding: 8px 10px; font-size: 13px; box-shadow: 0 6px 20px rgba(10, 20, 35, .14); min-width: 140px }
+.tip .t { color: var(--muted); margin-bottom: 4px }
+.tip .r { display: flex; align-items: center; gap: 8px; justify-content: space-between }
+.tip .r b { font-family: var(--num); font-variant-numeric: tabular-nums }
+.tip .k { display: inline-block; width: 14px; height: 2px; border-radius: 1px; margin-right: 6px; vertical-align: 4px }
+.method { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px 32px; font-size: 14px }
+.method dt { color: var(--muted); font-size: 13px }
+.method dd { margin: 0 0 6px }
+@media (max-width: 520px) { .tiles { grid-template-columns: 1fr 1fr } .tile { padding: 12px } .tile .v { font-size: 21px } .sec-head .seg { margin-left: 0 !important } }
+footer { color: var(--muted); font-size: 13px; padding-block: 0 40px }
+@media (prefers-reduced-motion: no-preference) { .chart svg .mk { transition: filter .15s } }
+</style>
+
+<div class="demo"><div class="wrap"><b>演示稿</b> · 全部数字为随机生成的模拟数据，用于展示报告结构、口径与取数链路，不代表任何真实经营情况，请勿引用。</div></div>
+<header class="cover"><div class="wrap">
+  <div class="eyebrow">景区票务行业报告 · 节假日专题</div>
+  <h1>2026 年国庆假期景区票务消费报告</h1>
+  <p class="sub">基于平台合作景区样本的预订、到访与客流数据。对比期为 2025 年国庆中秋假期（8 天），本期假期 7 天，总量与日均同时给出，增速结论以两期都有交易的可比景区为准。</p>
+  <div class="facts" id="facts"></div>
+</div></header>
+
+<main class="wrap">
+  <section id="key">
+    <div class="sec-head"><span class="sec-no">摘要</span><h2>核心发现</h2></div>
+    <ol class="findings" id="findings" style="margin-top:14px"></ol>
+  </section>
+
+  <section id="s1">
+    <div class="sec-head"><span class="sec-no">01</span><h2>市场总览</h2>
+      <div class="seg" role="group" aria-label="样本口径" style="margin-left:auto"><button id="smp-all" aria-pressed="true">全部景区</button><button id="smp-cmp" aria-pressed="false">可比景区</button></div></div>
+    <p class="lead" id="s1-lead"></p>
+    <div class="tiles" id="tiles"></div>
+    <h3>逐日预订票数（按假期第 N 天对齐）</h3>
+    <div class="legend"><span><i class="ln" style="background:var(--cur)"></i>2026 国庆（7 天）</span><span><i class="ln" style="background:var(--base)"></i>2025 国庆中秋（8 天）</span></div>
+    <div class="chart" id="c-trend"></div>
+    <details class="tbl"><summary>查看数据</summary><div class="tw" id="t-trend"></div></details>
+  </section>
+
+  <section id="s2">
+    <div class="sec-head"><span class="sec-no">02</span><h2>供给结构</h2></div>
+    <p class="lead" id="s2-lead"></p>
+    <div class="grid2">
+      <div><h3>各主题景区日均预订票数同比（可比景区）</h3><div class="chart" id="c-topic-g"></div>
+        <details class="tbl"><summary>查看数据</summary><div class="tw" id="t-topic-g"></div></details></div>
+      <div><h3>各等级景区票数占比</h3>
+        <div class="legend"><span><i style="background:var(--cur)"></i>2026</span><span><i style="background:var(--base)"></i>2025</span></div>
+        <div class="chart" id="c-level"></div>
+        <details class="tbl"><summary>查看数据</summary><div class="tw" id="t-level"></div></details></div>
+    </div>
+    <div class="tiles" id="tiles-conc" style="margin-top:18px"></div>
+  </section>
+
+  <section id="s3">
+    <div class="sec-head"><span class="sec-no">03</span><h2>客群画像</h2></div>
+    <p class="lead" id="s3-lead"></p>
+    <h3>到访游客客源距离</h3>
+    <div class="legend" id="lg-dist"></div>
+    <div class="chart" id="c-dist"></div>
+    <details class="tbl"><summary>查看数据</summary><div class="tw" id="t-dist"></div></details>
+    <div class="grid2">
+      <div><h3>年龄段</h3>
+        <div class="legend"><span><i style="background:var(--cur)"></i>2026</span><span><i style="background:var(--base)"></i>2025</span></div>
+        <div class="chart" id="c-age"></div><details class="tbl"><summary>查看数据</summary><div class="tw" id="t-age"></div></details></div>
+      <div><h3>同行人数</h3>
+        <div class="legend"><span><i style="background:var(--cur)"></i>2026</span><span><i style="background:var(--base)"></i>2025</span></div>
+        <div class="chart" id="c-fellow"></div><details class="tbl"><summary>查看数据</summary><div class="tw" id="t-fellow"></div></details></div>
+    </div>
+  </section>
+
+  <section id="s4">
+    <div class="sec-head"><span class="sec-no">04</span><h2>预订行为</h2></div>
+    <p class="lead" id="s4-lead"></p>
+    <div class="grid2">
+      <div><h3>提前预订天数</h3>
+        <div class="legend"><span><i style="background:var(--cur)"></i>2026</span><span><i style="background:var(--base)"></i>2025</span></div>
+        <div class="chart" id="c-adv"></div><details class="tbl"><summary>查看数据</summary><div class="tw" id="t-adv"></div></details></div>
+      <div><h3>下单时段（订单占比）</h3>
+        <div class="legend"><span><i class="ln" style="background:var(--cur)"></i>2026</span><span><i class="ln" style="background:var(--base)"></i>2025</span></div>
+        <div class="chart" id="c-hour"></div><details class="tbl"><summary>查看数据</summary><div class="tw" id="t-hour"></div></details></div>
+    </div>
+  </section>
+
+  <section id="s5">
+    <div class="sec-head"><span class="sec-no">05</span><h2>渠道结构</h2></div>
+    <p class="lead" id="s5-lead"></p>
+    <h3>渠道大类票数占比</h3>
+    <div class="legend" id="lg-ch"></div>
+    <div class="chart" id="c-ch"></div>
+    <details class="tbl"><summary>查看数据</summary><div class="tw" id="t-ch"></div></details>
+    <h3>下单渠道</h3>
+    <div class="legend"><span><i style="background:var(--cur)"></i>2026</span><span><i style="background:var(--base)"></i>2025</span></div>
+    <div class="chart" id="c-och"></div>
+    <details class="tbl"><summary>查看数据</summary><div class="tw" id="t-och"></div></details>
+  </section>
+
+  <section id="s6">
+    <div class="sec-head"><span class="sec-no">06</span><h2>客流与承载</h2></div>
+    <p class="lead" id="s6-lead"></p>
+    <div class="tiles" id="tiles-flow"></div>
+    <p class="note" id="s6-note"></p>
+  </section>
+
+  <section id="s7">
+    <div class="sec-head"><span class="sec-no">07</span><h2>价格</h2></div>
+    <p class="lead" id="s7-lead"></p>
+    <div class="legend"><span><i style="background:var(--cur)"></i>2026</span><span><i style="background:var(--base)"></i>2025</span></div>
+    <div class="chart" id="c-price"></div>
+    <details class="tbl"><summary>查看数据</summary><div class="tw" id="t-price"></div></details>
+  </section>
+
+  <section id="s8">
+    <div class="sec-head"><span class="sec-no">08</span><h2>区域</h2></div>
+    <p class="lead" id="s8-lead"></p>
+    <div class="tw" id="t-prov"></div>
+    <p class="note">样本景区不足 5 家的省份不展示数值（最小样本抑制，防止反推单个景区经营数据）。</p>
+  </section>
+
+  <section id="method">
+    <div class="sec-head"><span class="sec-no">附录</span><h2>样本与口径</h2></div>
+    <dl class="method" id="method-dl" style="margin-top:14px"></dl>
+  </section>
+</main>
+<footer><div class="wrap">数据链路：标准化数仓 ADS 日表 → dataworks/sql/report/industry_report.sql → 报告指标竖表 ads_opr_industry_report_metric → 本页。演示数据由 dataworks/report_demo/build_demo.py 生成。</div></footer>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+const D = __DATA__;
+const ROWS = D.rows, META = D.meta;
+const $ = s => document.querySelector(s);
+const q = (code, dimType, sample = 'ALL') => ROWS.filter(r => r.metric_code === code && r.dim_type === dimType && r.sample_type === sample);
+const one = (code, sample = 'ALL') => ROWS.find(r => r.metric_code === code && r.sample_type === sample && r.dim_type === 'ALL');
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const NS = 'http://www.w3.org/2000/svg';
+const fmt = (v, d = 0) => v == null ? '—' : Number(v).toLocaleString('zh-CN', { minimumFractionDigits: d, maximumFractionDigits: d });
+const wan = v => v >= 1e8 ? fmt(v / 1e8, 2) + ' 亿' : v >= 1e4 ? fmt(v / 1e4, 1) + ' 万' : fmt(v);
+const pct = (v, d = 1) => v == null ? '—' : fmt(v, d) + '%';
+const sign = (v, d = 1, unit = '%') => v == null ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '±') + fmt(Math.abs(v), d) + unit;
+const cls = v => v > 0.05 ? 'up' : v < -0.05 ? 'down' : 'flat';
+
+function el(tag, attrs = {}, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function txt(parent, x, y, s, attrs = {}) { const t = el('text', { x, y, ...attrs }, parent); t.textContent = s; return t; }
+
+// ---------------------------------------------------------------- 提示框
+const tip = $('#tip');
+function showTip(ev, title, rows) {
+  tip.replaceChildren();
+  const t = document.createElement('div'); t.className = 't'; t.textContent = title; tip.appendChild(t);
+  rows.forEach(([name, val, color]) => {
+    const r = document.createElement('div'); r.className = 'r';
+    const n = document.createElement('span'); const k = document.createElement('i'); k.className = 'k'; k.style.background = color;
+    n.append(k, document.createTextNode(name)); const b = document.createElement('b'); b.textContent = val; r.append(n, b); tip.appendChild(r);
+  });
+  tip.hidden = false;
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  let x = ev.clientX + 14, y = ev.clientY + 14;
+  if (x + w > innerWidth - 8) x = ev.clientX - w - 14;
+  if (y + h > innerHeight - 8) y = ev.clientY - h - 14;
+  tip.style.left = x + 'px'; tip.style.top = y + 'px';
+}
+const hideTip = () => { tip.hidden = true; };
+function bindTip(node, title, rows) {
+  node.setAttribute('tabindex', '0');
+  node.addEventListener('pointermove', e => showTip(e, title, rows));
+  node.addEventListener('pointerleave', hideTip);
+  node.addEventListener('focus', () => { const b = node.getBoundingClientRect(); showTip({ clientX: b.right, clientY: b.top }, title, rows); });
+  node.addEventListener('blur', hideTip);
+}
+
+// ---------------------------------------------------------------- 数据表
+function table(id, head, body, supIdx) {
+  const t = document.createElement('table');
+  const h = t.createTHead().insertRow(); head.forEach(x => { const th = document.createElement('th'); th.textContent = x; h.appendChild(th); });
+  const tb = t.createTBody();
+  body.forEach((r, i) => { const tr = tb.insertRow(); if (supIdx && supIdx(i)) tr.className = 'sup'; r.forEach(x => { const td = tr.insertCell(); td.textContent = x; }); });
+  $(id).replaceChildren(t);
+}
+
+// ---------------------------------------------------------------- 图：配对横条（本期 / 对比期）
+function pairBars(id, items, { unit = '%', d = 1 } = {}) {
+  const box = $(id), W = Math.max(300, box.clientWidth), lab = 96, pad = 56, bh = 10, gap = 2, row = 34;
+  const H = items.length * row + 8;
+  const max = Math.max(...items.flatMap(i => [i.cur, i.base]));
+  const sx = v => (W - lab - pad) * v / max;
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img' });
+  items.forEach((it, k) => {
+    const y = k * row + 6, g = el('g', { class: 'm' }, svg);
+    txt(g, 0, y + bh + 4, it.label, { 'dominant-baseline': 'middle' });
+    bar(g, lab, y, sx(it.cur), bh, css('--cur'));
+    bar(g, lab, y + bh + gap, sx(it.base), bh, css('--base'));
+    txt(g, lab + sx(it.cur) + 6, y + bh / 2 + 1, fmt(it.cur, d) + unit, { class: 'val', 'dominant-baseline': 'middle' });
+    const hit = el('rect', { x: 0, y: y - 4, width: W, height: row - 2, class: 'hit' }, g);
+    bindTip(hit, it.label, [['2026', fmt(it.cur, d) + unit, css('--cur')], ['2025', fmt(it.base, d) + unit, css('--base')]]);
+  });
+  box.replaceChildren(svg);
+}
+function bar(g, x, y, w, h, fill) {   // 横条：基线方角、数据端 4px 圆角
+  w = Math.max(w, 1); const r = Math.min(4, w, h / 2);
+  el('path', { d: `M${x},${y}h${w - r}a${r},${r} 0 0 1 ${r},${r}v${h - 2 * r}a${r},${r} 0 0 1 -${r},${r}h-${w - r}z`, fill, class: 'mk' }, g);
+}
+function col(g, x, y0, w, h, fill) {  // 竖柱：底部方角、顶部 4px 圆角
+  h = Math.max(h, 1); const r = Math.min(4, w / 2, h);
+  el('path', { d: `M${x},${y0}v-${h - r}a${r},${r} 0 0 1 ${r},-${r}h${w - 2 * r}a${r},${r} 0 0 1 ${r},${r}v${h - r}z`, fill, class: 'mk' }, g);
+}
+
+// ---------------------------------------------------------------- 图：配对竖柱
+function pairCols(id, items, { unit = '%', d = 1 } = {}) {
+  const box = $(id), W = Math.max(300, box.clientWidth), H = 220, top = 22, bot = 26, left = 4;
+  const max = Math.max(...items.flatMap(i => [i.cur, i.base])) * 1.08;
+  const band = (W - left) / items.length, cw = Math.min(20, band / 2 - 6);
+  const sy = v => (H - top - bot) * v / max;
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img' });
+  el('line', { x1: 0, x2: W, y1: H - bot, y2: H - bot, stroke: css('--line'), 'stroke-width': 1 }, svg);
+  items.forEach((it, k) => {
+    const cx = left + band * k + band / 2, g = el('g', { class: 'm' }, svg);
+    col(g, cx - cw - 1, H - bot, cw, sy(it.cur), css('--cur'));
+    col(g, cx + 1, H - bot, cw, sy(it.base), css('--base'));
+    txt(g, cx - cw / 2 - 1, H - bot - sy(it.cur) - 6, fmt(it.cur, d), { class: 'val', 'text-anchor': 'middle' });
+    txt(g, cx, H - 8, it.label, { 'text-anchor': 'middle' });
+    const hit = el('rect', { x: left + band * k, y: 0, width: band, height: H, class: 'hit' }, g);
+    bindTip(hit, it.label, [['2026', fmt(it.cur, d) + unit, css('--cur')], ['2025', fmt(it.base, d) + unit, css('--base')]]);
+  });
+  box.replaceChildren(svg);
+}
+
+// ---------------------------------------------------------------- 图：百分比堆叠条（2026 / 2025 两行）
+const CAT = ['--cur', '--c2', '--c3', '--c4'];
+function stack100(id, lgId, items) {
+  $(lgId).replaceChildren(...items.map((it, i) => { const s = document.createElement('span'); const k = document.createElement('i'); k.style.background = `var(${CAT[i]})`; s.append(k, document.createTextNode(it.label)); return s; }));
+  const box = $(id), W = Math.max(300, box.clientWidth), lab = 44, bh = 26, row = 40, H = row * 2;
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img' });
+  [['2026', 'cur'], ['2025', 'base']].forEach(([name, key], r) => {
+    const y = r * row + 4; txt(svg, 0, y + bh / 2, name, { 'dominant-baseline': 'middle' });
+    const tot = items.reduce((s, i) => s + i[key], 0); let x = lab; const span = W - lab;
+    items.forEach((it, i) => {
+      const w = span * it[key] / tot, g = el('g', { class: 'm' }, svg);
+      el('rect', { x: x + (i ? 1 : 0), y, width: Math.max(0, w - (i ? 2 : 0) - (i === items.length - 1 ? 0 : 0)), height: bh, rx: i === 0 || i === items.length - 1 ? 4 : 0, fill: css(CAT[i]), class: 'mk' }, g);
+      const label = fmt(it[key], 1) + '%';
+      if (w > label.length * 7.5 + 14) txt(g, x + w / 2, y + bh / 2 + 1, label, { class: 'in', 'text-anchor': 'middle', 'dominant-baseline': 'middle' });
+      const hit = el('rect', { x, y: y - 4, width: w, height: bh + 8, class: 'hit' }, g);
+      bindTip(hit, `${name} · ${it.label}`, [[it.label, label, css(CAT[i])]]);
+      x += w;
+    });
+  });
+  box.replaceChildren(svg);
+}
+
+// ---------------------------------------------------------------- 图：折线（十字线 + 提示）
+function lines(id, xs, series, { unit = '', d = 0, yfmt = v => fmt(v) } = {}) {
+  const box = $(id), W = Math.max(300, box.clientWidth), H = 240, top = 14, bot = 28, left = 52, right = 54;
+  const all = series.flatMap(s => s.values.filter(v => v != null));
+  const maxRaw = Math.max(...all), step = nice(maxRaw / 4), max = step * Math.ceil(maxRaw / step);
+  const sx = i => left + (W - left - right) * i / (xs.length - 1), sy = v => H - bot - (H - top - bot) * v / max;
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img' });
+  for (let v = 0; v <= max + 1e-9; v += step) {
+    el('line', { x1: left, x2: W - right, y1: sy(v), y2: sy(v), stroke: css('--grid'), 'stroke-width': 1 }, svg);
+    txt(svg, left - 8, sy(v), yfmt(v), { 'text-anchor': 'end', 'dominant-baseline': 'middle' });
+  }
+  const every = Math.ceil(xs.length / Math.floor((W - left - right) / 46));
+  xs.forEach((x, i) => { if (i % every === 0 || i === xs.length - 1) txt(svg, sx(i), H - 8, x, { 'text-anchor': 'middle' }); });
+  series.forEach(s => {
+    const pts = s.values.map((v, i) => v == null ? null : [sx(i), sy(v)]).filter(Boolean);
+    el('path', { d: 'M' + pts.map(p => p.join(',')).join('L'), fill: 'none', stroke: css(s.color), 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, svg);
+    const [lx, ly] = pts[pts.length - 1];
+    el('circle', { cx: lx, cy: ly, r: 4, fill: css(s.color), stroke: css('--surface'), 'stroke-width': 2 }, svg);
+    txt(svg, lx + 8, ly, yfmt(s.values[pts.length - 1]), { class: 'val', 'dominant-baseline': 'middle' });
+  });
+  const cross = el('line', { y1: top, y2: H - bot, stroke: css('--muted'), 'stroke-width': 1, opacity: 0 }, svg);
+  const hit = el('rect', { x: left, y: 0, width: W - left - right, height: H, class: 'hit' }, svg);
+  hit.setAttribute('tabindex', '0');
+  const at = i => { cross.setAttribute('x1', sx(i)); cross.setAttribute('x2', sx(i)); cross.setAttribute('opacity', 0.5); };
+  hit.addEventListener('pointermove', e => {
+    const b = svg.getBoundingClientRect(), x = (e.clientX - b.left) * W / b.width;
+    const i = Math.max(0, Math.min(xs.length - 1, Math.round((x - left) / (W - left - right) * (xs.length - 1))));
+    at(i); showTip(e, xs[i], series.map(s => [s.name, s.values[i] == null ? '—' : fmt(s.values[i], d) + unit, css(s.color)]));
+  });
+  hit.addEventListener('pointerleave', () => { cross.setAttribute('opacity', 0); hideTip(); });
+  box.replaceChildren(svg);
+}
+function nice(x) { const p = Math.pow(10, Math.floor(Math.log10(x))), f = x / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p; }
+
+// ---------------------------------------------------------------- 内容
+function tiles(id, list) {
+  $(id).replaceChildren(...list.map(t => {
+    const d = document.createElement('div'); d.className = 'tile';
+    const l = document.createElement('div'); l.className = 'l'; l.textContent = t.label;
+    const v = document.createElement('div'); v.className = 'v'; v.textContent = t.value;
+    if (t.unit) { const s = document.createElement('small'); s.textContent = t.unit; v.appendChild(s); }
+    const dd = document.createElement('div'); dd.className = 'd ' + (t.cls || 'flat'); dd.textContent = t.delta;
+    d.append(l, v, dd); return d;
+  }));
+}
+
+let SAMPLE = 'ALL';
+function renderS1() {
+  const m = c => one(c, SAMPLE);
+  const big = v => v >= 1e8 ? [fmt(v / 1e8, 2), '亿'] : [fmt(v / 1e4, 1), '万'];
+  const t = (c, label, kind) => {
+    const r = m(c); let value, unit = '', delta, k;
+    if (kind === 'big') { [value, unit] = big(r.cur_value); unit += c === 'sale_amt' ? '元' : c === 'buyer_qty' ? '人' : c === 'order_qty' ? '单' : '张'; delta = `同比 ${sign(r.yoy_rate)}`; k = cls(r.yoy_rate); }
+    else if (kind === 'rate') { value = fmt(r.cur_value, 1); unit = '%'; delta = `同比 ${sign(r.yoy_rate, 1, ' 个百分点')}`; k = c === 'cancel_rate' ? cls(-r.yoy_rate) : cls(r.yoy_rate); }
+    else { value = fmt(r.cur_value, 1); unit = '元'; delta = `同比 ${sign(r.yoy_rate)}`; k = cls(r.yoy_rate); }
+    return { label, value, unit, delta, cls: k };
+  };
+  tiles('#tiles', [t('day_avg_ticket_qty', '日均预订票数', 'big'), t('ticket_qty', '预订票数（假期合计）', 'big'), t('sale_amt', '预订金额', 'big'), t('buyer_qty', '购票人数（去重）', 'big'),
+                   t('avg_price', '票均价', 'price'), t('cancel_rate', '退票率', 'rate'), t('verify_rate', '核销率', 'rate'), t('order_qty', '预订订单数', 'big')]);
+  const da = m('day_avg_ticket_qty'), tk = m('ticket_qty');
+  $('#s1-lead').replaceChildren();
+  const s = SAMPLE === 'ALL' ? `全部 ${fmt(da.sample_scenic_qty)} 家样本景区` : `${fmt(da.sample_scenic_qty)} 家可比景区`;
+  $('#s1-lead').innerHTML = `${s}假期日均预订 <em>${wan(da.cur_value)}</em> 张，同比 <em>${sign(da.yoy_rate)}</em>；假期少一天，合计票数同比 <em>${sign(tk.yoy_rate)}</em>。`;
+}
+function bindSample() {
+  const a = $('#smp-all'), b = $('#smp-cmp');
+  const set = s => { SAMPLE = s; a.setAttribute('aria-pressed', s === 'ALL'); b.setAttribute('aria-pressed', s === 'COMPARABLE'); renderS1(); };
+  a.onclick = () => set('ALL'); b.onclick = () => set('COMPARABLE');
+}
+
+function shareItems(code, dim, order) {
+  let r = q(code, dim).map(x => ({ label: x.dim_value, cur: x.cur_value, base: x.base_value, yoy: x.yoy_rate, n: x.sample_scenic_qty }));
+  if (order) r.sort((a, b) => order.indexOf(a.label) - order.indexOf(b.label));
+  return r;
+}
+const shareTable = (id, items) => table(id, ['', '2026 占比', '2025 占比', '变化（百分点）', '样本景区'], items.map(i => [i.label, pct(i.cur), pct(i.base), sign(i.yoy, 1, ''), fmt(i.n)]));
+
+function renderAll() {
+  const v = c => one(c, 'ALL'), vc = c => one(c, 'COMPARABLE');
+  // 封面要点
+  $('#facts').replaceChildren(...[[fmt(META.sample_all), '家样本景区'], [fmt(META.comparable), '家可比景区'], ['7', '天假期（对比期 8 天）'], [pct(META.comparable_ticket_share, 1), '票数来自可比景区']].map(([b, t]) => {
+    const s = document.createElement('span'); const x = document.createElement('b'); x.textContent = b; s.append(x, document.createTextNode(t)); return s; }));
+  renderS1(); bindSample();
+  // 趋势
+  const tr = ROWS.filter(r => r.metric_code === 'day_ticket_qty');
+  const xs = [...new Set(tr.map(r => r.dim_value))];
+  const cur = xs.map(x => (tr.find(r => r.dim_value === x && r.cur_value != null) || {}).cur_value ?? null);
+  const base = xs.map(x => (tr.find(r => r.dim_value === x && r.base_value != null) || {}).base_value ?? null);
+  lines('#c-trend', xs, [{ name: '2026', values: cur, color: '--cur' }, { name: '2025', values: base, color: '--base' }], { yfmt: v => v >= 1e4 ? fmt(v / 1e4, 0) + '万' : fmt(v) });
+  table('#t-trend', ['', '2026 预订票数', '2025 预订票数'], xs.map((x, i) => [x, fmt(cur[i]), fmt(base[i])]));
+  // S2
+  const tg = q('day_avg_ticket_qty', 'scenic_topic', 'COMPARABLE').map(x => ({ label: x.dim_value, yoy: x.yoy_rate, cur: x.cur_value, base: x.base_value, n: x.sample_scenic_qty })).sort((a, b) => b.yoy - a.yoy);
+  divergeBars('#c-topic-g', tg);
+  table('#t-topic-g', ['主题', '2026 日均', '2025 日均', '同比', '可比景区'], tg.map(i => [i.label, fmt(i.cur), fmt(i.base), sign(i.yoy), fmt(i.n)]));
+  const lv = shareItems('ticket_share', 'scenic_level', ['5A', '4A', '3A 及以下', '未评级']);
+  pairBars('#c-level', lv); shareTable('#t-level', lv);
+  const cr = v('cr10_share'), hhi = v('hhi'), act = v('active_scenic_qty');
+  tiles('#tiles-conc', [{ label: '有交易景区', value: fmt(act.cur_value), unit: '家', delta: `去年 ${fmt(act.base_value)} 家`, cls: 'flat' },
+                        { label: '头部 10 景区份额 CR10', value: fmt(cr.cur_value, 1), unit: '%', delta: `同比 ${sign(cr.yoy_rate, 1, ' 个百分点')}`, cls: 'flat' },
+                        { label: '市场集中度 HHI', value: fmt(hhi.cur_value, 0), delta: `去年 ${fmt(hhi.base_value, 0)}（< 1500 为分散市场）`, cls: 'flat' }]);
+  const top = tg[0], last = tg[tg.length - 1];
+  $('#s2-lead').innerHTML = `可比景区中，<em>${top.label}</em>、<em>${tg[1].label}</em> 日均预订增长最快（${sign(top.yoy)}、${sign(tg[1].yoy)}），<em>${last.label}</em> ${last.yoy < 0 ? '下滑' : '增长最慢'}（${sign(last.yoy)}）。头部 10 家景区份额 ${pct(cr.cur_value)}，市场仍高度分散。`;
+  // S3
+  const dist = shareItems('traveler_share', 'distance', ['本市', '省内跨市', '跨省']);
+  stack100('#c-dist', '#lg-dist', dist); shareTable('#t-dist', dist);
+  const age = shareItems('traveler_share', 'age_group', ['0-7', '8-17', '18-27', '28-40', '41-60', '61+']);
+  pairCols('#c-age', age); shareTable('#t-age', age);
+  const fel = shareItems('traveler_share', 'fellow_group', ['1', '2-4', '5-9', '10+']).map(x => ({ ...x, label: x.label + ' 人' }));
+  pairCols('#c-fellow', fel); shareTable('#t-fellow', fel);
+  const kua = dist.find(x => x.label === '跨省'), young = age.find(x => x.label === '18-27');
+  $('#s3-lead').innerHTML = `跨省游客占到访游客 <em>${pct(kua.cur)}</em>，比去年 ${sign(kua.yoy, 1, ' 个百分点')}，长线出游回暖；18–27 岁占比 <em>${pct(young.cur)}</em>（${sign(young.yoy, 1, ' 个百分点')}），2–4 人小团体仍是主流。`;
+  // S4
+  const adv = shareItems('advance_share', 'advance_day_group', ['当天', '1', '2-3', '4-7', '8-15', '16-30', '30+']).map(x => ({ ...x, label: x.label === '当天' ? '当天' : x.label + ' 天' }));
+  pairCols('#c-adv', adv); shareTable('#t-adv', adv);
+  const hr = q('hour_share', 'stat_hour');
+  lines('#c-hour', hr.map(x => x.dim_value + '时'), [{ name: '2026', values: hr.map(x => x.cur_value), color: '--cur' }, { name: '2025', values: hr.map(x => x.base_value), color: '--base' }], { unit: '%', d: 1, yfmt: v => fmt(v, 0) + '%' });
+  table('#t-hour', ['时段', '2026 占比', '2025 占比'], hr.map(x => [x.dim_value + '时', pct(x.cur_value), pct(x.base_value)]));
+  const sameDay = adv[0], within1 = adv[0].cur + adv[1].cur;
+  $('#s4-lead').innerHTML = `当天预订占 <em>${pct(sameDay.cur)}</em>（${sign(sameDay.yoy, 1, ' 个百分点')}），提前 1 天以内合计 <em>${pct(within1)}</em>，"说走就走"更明显；下单高峰在 9–10 时，晚间 20 时前后有第二个小高峰。`;
+  // S5
+  const ch = shareItems('channel_share', 'channel_group', ['OTA', '直销（自有渠道）', '分销（旅行社 / 平台）']);
+  stack100('#c-ch', '#lg-ch', ch); shareTable('#t-ch', ch);
+  const och = shareItems('channel_share', 'order_channel');
+  pairBars('#c-och', och); shareTable('#t-och', och);
+  const direct = ch.find(x => x.label.startsWith('直销')), ota = ch.find(x => x.label === 'OTA');
+  $('#s5-lead').innerHTML = `景区自有渠道（小程序、官网、窗口、自助机）占 <em>${pct(direct.cur)}</em>，同比 ${sign(direct.yoy, 1, ' 个百分点')}；OTA 占 <em>${pct(ota.cur)}</em>（${sign(ota.yoy, 1, ' 个百分点')}）。微信小程序已是第一大下单渠道。`;
+  // S6
+  const pk = v('peak_load_rate'), cd = v('crowded_day_share'), vr = v('verify_rate');
+  tiles('#tiles-flow', [{ label: '景区峰值承载率均值', value: fmt(pk.cur_value, 1), unit: '%', delta: `同比 ${sign(pk.yoy_rate, 1, ' 个百分点')}`, cls: 'flat' },
+                        { label: '承载率 ≥ 80% 的景区日占比', value: fmt(cd.cur_value, 1), unit: '%', delta: `同比 ${sign(cd.yoy_rate, 1, ' 个百分点')}`, cls: cls(-cd.yoy_rate) },
+                        { label: '核销率', value: fmt(vr.cur_value, 1), unit: '%', delta: `同比 ${sign(vr.yoy_rate, 1, ' 个百分点')}`, cls: cls(vr.yoy_rate) }]);
+  $('#s6-lead').innerHTML = `高峰日景区在园人数平均达到最大接待能力的 <em>${pct(pk.cur_value)}</em>；<em>${pct(cd.cur_value)}</em> 的景区日承载率超过 80%，需要分时预约与限流。`;
+  $('#s6-note').textContent = `承载率只统计填写了最大接待能力的 ${fmt(META.cap_qty)} 家景区；在园人数取小时级在园峰值。`;
+  // S7
+  const pb = shareItems('price_band_share', 'price_band', ['免费 / 0 元', '0-50 元', '50-100 元', '100-200 元', '200 元以上']);
+  pairCols('#c-price', pb); shareTable('#t-price', pb);
+  const ap = v('avg_price');
+  $('#s7-lead').innerHTML = `票均价 <em>${fmt(ap.cur_value, 1)}</em> 元（${sign(ap.yoy_rate)}）；50 元以下（含免费预约）门票占 <em>${pct(pb[0].cur + pb[1].cur)}</em>，博物馆、城市公园等低价 / 免费场馆拉低了均价。`;
+  // S8
+  const pv = q('province_day_avg_ticket_qty', 'province', 'COMPARABLE');
+  table('#t-prov', ['省份', '2026 日均预订票数', '2025 日均预订票数', '同比', '可比景区'],
+        pv.map(x => x.suppress_flag ? [x.dim_value, '样本不足', '—', '—', '< 5'] : [x.dim_value, fmt(x.cur_value), fmt(x.base_value), sign(x.yoy_rate), fmt(x.sample_scenic_qty)]), i => pv[i].suppress_flag);
+  const ok = pv.filter(x => !x.suppress_flag), fast = [...ok].sort((a, b) => b.yoy_rate - a.yoy_rate).slice(0, 3);
+  $('#s8-lead').innerHTML = `可比景区日均预订量前三为 <em>${ok[0].dim_value}</em>、<em>${ok[1].dim_value}</em>、<em>${ok[2].dim_value}</em>；增速前三为 ${fast.map(x => `<em>${x.dim_value}</em>（${sign(x.yoy_rate)}）`).join('、')}。`;
+  // 摘要
+  const da = v('day_avg_ticket_qty'), dac = vc('day_avg_ticket_qty');
+  const F = [
+    `假期日均预订 ${wan(da.cur_value)} 张，同比 ${sign(da.yoy_rate)}；剔除新接入景区后，可比景区日均同比 ${sign(dac.yoy_rate)}，这是更接近行业真实增长的口径。`,
+    `${top.label}、${tg[1].label}增长领先，${last.label}${last.yoy < 0 ? '下滑' : '增长放缓'}；市场分散，头部 10 家景区份额 ${pct(cr.cur_value)}。`,
+    `跨省游客占比 ${pct(kua.cur)}，比去年 ${sign(kua.yoy, 1, ' 个百分点')}；年轻客群（18–27 岁）占比提升。`,
+    `当天预订占比 ${pct(sameDay.cur)}，决策周期继续缩短；景区自有渠道占比 ${pct(direct.cur)}，提升 ${fmt(direct.yoy, 1)} 个百分点。`,
+    `${pct(cd.cur_value)} 的景区日承载率超过 80%，热门景区需要分时预约与限流。`,
+  ];
+  $('#findings').replaceChildren(...F.map((f, i) => { const li = document.createElement('li'); const a = document.createElement('span'); a.textContent = i + 1; const b = document.createElement('span'); b.textContent = f; li.append(a, b); return li; }));
+  // 附录
+  const M = [['样本景区', `本期有交易 ${fmt(META.sample_all)} 家，对比期 ${fmt(META.sample_base)} 家；新接入 ${fmt(META.new)} 家、流失 ${fmt(META.lost)} 家`],
+             ['可比景区', `两期都有交易的 ${fmt(META.comparable)} 家，贡献本期 ${pct(META.comparable_ticket_share)} 票数；增速结论以此为准`],
+             ['剔除', `测试景区 ${META.test} 家；异常冲量 ${META.outlier} 家（单日票数 > 近 90 日日均 × 20 且 > 5000 张）`],
+             ['时间', '本期 2026-10-01 ~ 10-07（7 天）；对比期 2025-10-01 ~ 10-08（国庆中秋，8 天）；逐日按假期第 N 天对齐'],
+             ['预订', '按下单日，已支付（含之后取消）；金额 = 实际售价 × 票数，单位元'],
+             ['到访 / 客群', '按核销日；客源地优先级 团单 > 手机号段 > 证件地区；年龄、性别由证件号解析'],
+             ['购票人数', '取票人证件号哈希去重，区间去重用日位图合并'],
+             ['渠道大类', '一级分销商对接 OTA 或淘宝 / 飞猪下单 → OTA；无分销商或普通用户 → 直销；其余 → 分销'],
+             ['小样本抑制', `格子样本景区 < 5 家不展示，本期共抑制 ${META.suppressed} 个格子`],
+             ['数据安全', '只用聚合表；个人信息在 ODS 已脱敏；景区不具名']];
+  $('#method-dl').replaceChildren(...M.map(([t, d]) => { const w = document.createElement('div'); const a = document.createElement('dt'); a.textContent = t; const b = document.createElement('dd'); b.textContent = d; w.append(a, b); return w; }));
+}
+
+// ---------------------------------------------------------------- 图：同比发散横条（零线居中）
+function divergeBars(id, items) {
+  const box = $(id), W = Math.max(300, box.clientWidth), lab = 76, row = 30, bh = 14, H = items.length * row + 8;
+  const ext = Math.max(...items.map(i => Math.abs(i.yoy))) * 1.15, mid = lab + (W - lab) / 2, half = (W - lab) / 2 - 46;
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img' });
+  el('line', { x1: mid, x2: mid, y1: 0, y2: H, stroke: css('--line'), 'stroke-width': 1 }, svg);
+  items.forEach((it, k) => {
+    const y = k * row + 8, w = half * Math.abs(it.yoy) / ext, g = el('g', { class: 'm' }, svg);
+    txt(g, 0, y + bh / 2, it.label, { 'dominant-baseline': 'middle' });
+    const color = it.yoy >= 0 ? css('--cur') : css('--c2');
+    if (it.yoy >= 0) bar(g, mid, y, w, bh, color);
+    else { const gg = el('g', { transform: `translate(${2 * mid},0) scale(-1,1)` }, g); bar(gg, mid, y, w, bh, color); }
+    txt(g, it.yoy >= 0 ? mid + w + 6 : mid - w - 6, y + bh / 2 + 1, sign(it.yoy), { class: 'val', 'dominant-baseline': 'middle', 'text-anchor': it.yoy >= 0 ? 'start' : 'end' });
+    const hit = el('rect', { x: 0, y: y - 6, width: W, height: row, class: 'hit' }, g);
+    bindTip(hit, it.label + '（可比景区）', [['2026 日均', fmt(it.cur), color], ['2025 日均', fmt(it.base), css('--base')], ['同比', sign(it.yoy), color]]);
+  });
+  box.replaceChildren(svg);
+}
+
+renderAll();
+let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(renderAll, 150); });
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderAll);
+new MutationObserver(renderAll).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+</script>

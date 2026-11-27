@@ -783,9 +783,9 @@ FROM (
                 f"SELECT scenic_id, insight_type, item_name, item_value_qty, {NOW}\nFROM (\n" + '\n    UNION ALL\n'.join(parts) + "\n) t\n",
                 ['客户洞察为外部（运营商 / 第三方）按月预计算的 10 类结果，统一成「洞察类型 × 指标项 × 值」竖表；旧系统 10 张 ADS 各一套导出',
                  '待确认：period_granularity 取值（month）与外部接口核对'])
-    if name == 'ads_trf_ota_social_di':
+    if name == 'ads_trf_ota_platform_di':
         return f"""
-INSERT OVERWRITE TABLE ads.ads_trf_ota_social_di PARTITION (travel_date = '${{bizdate}}')
+INSERT OVERWRITE TABLE ads.ads_trf_ota_platform_di PARTITION (travel_date = '${{bizdate}}')
 SELECT scenic_id, platform_code, SUM(ota_order_qty) AS ota_order_qty, {NOW}
 FROM (
     -- 携程交易（外部采集，日粒度）

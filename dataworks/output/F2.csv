@@ -28,7 +28,6 @@ cache_apply,2
 cache_left,2
 cache_table_2,2
 filter_id,2
-src_crawler_ctrip_scenic_comment_di,2
 dim_car_location_o_f,1
 ods_project_bill_his_o_f,1
 ods_formtable_main_111_d_f,1
@@ -68,18 +67,9 @@ order_aids,1
 order_tourist,1
 s_city_d_f,1
 s_city_phone_o_f,1
-dim_prd_scenic_base_yr_f,1
 dim_scenic_enum_resource_type_of,1
 dim_scenic_enum_topic_of,1
 dim_cus_enum_dcodeurl_of,1
-src_crawler_douyin_media_comments_di,1
-src_crawler_kuaishou_media_comments_di,1
-src_crawler_weibo_note_comments_di,1
-src_crawler_xiaohongshu_notes_comments_di,1
-src_crawler_douyin_media_info_di,1
-src_crawler_kuaishou_media_info_di,1
-src_crawler_weibo_notes_info_di,1
-src_crawler_xiaohongshu_notes_info_di,1
 ods_order_202502_uu_ss_order_di,1
 cache_table_pft_order_info,1
 cache_table_pft_ordernum,1

@@ -184,8 +184,6 @@ ads_travel_team_summary_d_f,_d_i / _d_f,ads
 ads_travel_togerter_summary_d_f,_d_i / _d_f,ads
 ads_travel_tourists_source_summary_d_i,_d_i / _d_f,ads
 ads_trf_scenic_passenger_flow_di,_di / _df,ads
-ads_trf_social_opinion_comment_core_di,_di / _df,ads
-ads_trf_social_opinion_macro_gran_metric_di,_di / _df,ads
 ads_trf_tourist_in_out_qty,无后缀,ads
 ads_two_s_company_day_stat_d_i,_d_i / _d_f,ads
 ads_verify_holiday_analysis_10_ks_ddpsgmv,无后缀,ads
@@ -307,8 +305,6 @@ dim_user_thirdsystem_d_f,_d_i / _d_f,dim
 dwd_all_dis_orders_d_f,_d_i / _d_f,dwd
 dwd_company_cooperation_other_d_f,_d_i / _d_f,dwd
 dwd_company_login_d_f,_d_i / _d_f,dwd
-dwd_content_comment_detail_di,_di / _df,dwd
-dwd_content_publish_info_di,_di / _df,dwd
 dwd_cus_qualification_auth_df,_di / _df,dwd
 dwd_cus_user_base_bind_df,_di / _df,dwd
 dwd_minutely_inout_detail_d_i,_d_i / _d_f,dwd

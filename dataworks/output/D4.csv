@@ -18,7 +18,6 @@
 16,194,业务工厂/内部信息/财务部/资源中心考核2/ads_res_center_assessment_province2022_detail_d_f
 14,806,业务工厂/内部信息/资源中心/资源中心汇总工作流/dws_resource_center_user_d_f
 14,455,业务工厂/内部信息/财务部/资源中心考核2/dws_resource_center_user_d_f2
-14,431,数据平台/ADS/ads_数字大脑指标流程/ads_digital_brain_target_merge_radar_di
 14,411,数据平台/平台湖仓工作流/经营数据/dws_ord_supplier_overview_di
 14,369,数据平台/平台湖仓工作流/经营数据/dws_ord_tourist_overview_di
 14,328,业务工厂/商户数据中心/ADS/ads_s_company_channel_instance_stat_d_f
@@ -48,7 +47,6 @@
 10,199,数据中台/数据维度(DIM)/dim_商品域/dim_land_d_f
 10,125,数据平台/平台湖仓工作流/经营数据/dim_prd_ticket_scenic_composite_df
 8,311,数据中台/ODS/ods_order_split_d_i_workflow/ods_order_split_d_i
-7,1162,数据平台/ADS/ads_数字大脑指标流程/ads_digital_brain_target_merge_public_sentiment_di
 7,456,数据平台/DWS/dws_ord_order_detail_wide_di
 7,314,数据平台/DWD/dwd_ord_traveler_booking_details_di
 6,574,业务工厂/内部信息/财务部/节假日数据2/dws_order_info_holiday_analysis_d_f

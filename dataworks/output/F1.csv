@@ -41,8 +41,6 @@ dim_cus_user_customer_info_df,DIM
 dim_marketing_test_analyze_d_f,DIM
 dim_mkt_module_combo_config_df,DIM
 dwd_company_cooperation_other_d_f,DWD
-dwd_content_comment_detail_di,DWD
-dwd_content_publish_info_di,DWD
 dwd_cus_qualification_auth_df,DWD
 dwd_cus_user_base_bind_df,DWD
 dwd_mkt_module_combo_open_df,DWD
