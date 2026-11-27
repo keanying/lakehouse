@@ -163,7 +163,18 @@ def load(zip_path):
                 n['di'] = {'error': str(e)}
         nodes.append(n)
     ex = excluded()
-    return [n for n in nodes if not any(n['path'] == x or n['path'].startswith(x + '/') for x in ex)]
+    drop = [n for n in nodes if any(n['path'] == x or n['path'].startswith(x + '/') for x in ex)]
+    keep = [n for n in nodes if n not in drop]
+    # 只由被排除节点产出的表：其余节点对它的读取一并去掉（视为该表已下线）
+    gone = {t for n in drop for t, _ in n['writes']} - {t for n in keep for t, _ in n['writes']}
+    gone |= {t.split('.')[-1] for t in gone}
+    dead = {x for n in drop for x in [n['name'], n['id'], *n.get('outputs', []), *n.get('output_ids', [])] if x}
+    dead |= {str(x).split('.')[-1] for x in dead}
+    for n in keep:
+        n['reads'] = [t for t in n['reads'] if t not in gone and t.split('.')[-1] not in gone]
+        dep_keys = lambda d: [str(v) for v in (d.values() if isinstance(d, dict) else [d]) if v]
+        n['depends'] = [d for d in n.get('depends', []) if not any(k in dead or k.split('.')[-1] in dead for k in dep_keys(d))]
+    return keep
 
 
 def excluded():

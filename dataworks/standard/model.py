@@ -530,7 +530,7 @@ t('ads_prd_resource_center_di', '资源中心经营', '1行=1天×资源×供应
   [r'^ads_res(ource)?_(center|purchase)', 'ads_resource_center_cutchain_order_d_f2'])
 t('ads_trf_digital_brain_di', '数字大脑指标', '1行=1天×景区×指标域×指标', 'ads_ord_scenic_trade_overview_di、ads_trf_scenic_passenger_flow_di',
   '数字大脑接口用的纵表（指标名 / 指标值）；由各标准 ADS 组装，不再自行计算；演示景区数据不写入生产',
-  [('scenic_id', 'BIGINT', '粒度键', '景区ID'), ('data_domain', 'STRING', '粒度键', '指标域：交易 / 客流 / OTA / 舆情 / 雷达'), ('target_name', 'STRING', '粒度键', '指标名称'),
+  [('scenic_id', 'BIGINT', '粒度键', '景区ID'), ('data_domain', 'STRING', '粒度键', '指标域：交易 / 客流 / OTA / 雷达'), ('target_name', 'STRING', '粒度键', '指标名称'),
    ('data_value', 'DECIMAL(20,4)', '指标', '指标值')], ['ads_digital_brain_target_merge_di'])
 t('ads_mkt_sms_audience_di', '营销短信人群', '1行=1天×景区×取票人（哈希）', 'dwd_ord_order_di、dwd_ord_traveler_di', '营销短信目标人群（新客 / 复购），手机号只存哈希，发送时再关联',
   [('scenic_id', 'BIGINT', '粒度键', '景区ID'), ('taker_phone_hash', 'STRING', '粒度键', '取票人手机号哈希'), ('new_user_flag', 'INT', '维度属性', '是否新客：0-否 1-是')] + mets('order_order_qty'),
@@ -539,10 +539,9 @@ t('ads_cus_scenic_customer_insight_mo', '景区客群洞察（外部）', '1行=
   'AI 分析结果直通：10 张洞察结果表合并为纵表（insight_type 区分）', [('scenic_id', 'BIGINT', '粒度键', '景区ID'), ('insight_type', 'STRING', '粒度键', '洞察类型：画像 / 热门POI / 来源 / 偏好 / 消费 / 职住 …'),
                                                                      ('item_name', 'STRING', '粒度键', '指标项'), ('item_value', 'DECIMAL(20,4)', '指标', '指标值')],
   [r'^ads_scenic_customer_insight_'], part='travel_month')
-t('ads_trf_ota_social_di', 'OTA 与舆情（外部）', '1行=1天×景区×来源平台', 'ods_trf_ota_ctrip_trade_df、ods_trf_ota_ctrip_score_df、ods_trf_social_opinion_comment_core_df', '携程交易 / 评分与全网舆情（外部采集）',
-  [('scenic_id', 'BIGINT', '粒度键', '景区ID'), ('platform_code', 'STRING', '粒度键', '平台：ctrip / douyin / …'), ('ota_order_qty', 'BIGINT', '指标', 'OTA 订单数'), ('ota_score', 'DECIMAL(6,2)', '指标', 'OTA 评分'),
-   ('content_qty', 'BIGINT', '指标', '舆情内容数'), ('negative_content_qty', 'BIGINT', '指标', '负面内容数')],
-  ['ads_sup_ota_ctrip_score_di', 'ads_sup_ota_ctrip_trade_di', r'^ads_trf_social_opinion_'])
+t('ads_trf_ota_platform_di', 'OTA 平台经营（外部）', '1行=1天×景区×来源平台', 'ods_trf_ota_ctrip_trade_df、ods_trf_ota_ctrip_score_df', '携程交易与服务评分（外部采集）',
+  [('scenic_id', 'BIGINT', '粒度键', '景区ID'), ('platform_code', 'STRING', '粒度键', '平台：ctrip …'), ('ota_order_qty', 'BIGINT', '指标', 'OTA 订单数'), ('ota_score', 'DECIMAL(6,2)', '指标', 'OTA 服务评分')],
+  ['ads_sup_ota_ctrip_score_di', 'ads_sup_ota_ctrip_trade_di'])
 
 # 旧表的其余处理（不并入新表）：名称 / 正则 -> (处理, 说明)
 OTHER = [

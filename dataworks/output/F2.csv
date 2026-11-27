@@ -67,7 +67,6 @@ order_aids,1
 order_tourist,1
 s_city_d_f,1
 s_city_phone_o_f,1
-dim_prd_scenic_base_yr_f,1
 dim_scenic_enum_resource_type_of,1
 dim_scenic_enum_topic_of,1
 dim_cus_enum_dcodeurl_of,1

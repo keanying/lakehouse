@@ -4,10 +4,6 @@
 业务工厂/手动任务/临时同步任务/m_selectdb_ads_daily_scenic_verify_draw_d_i,DI,00 07 00 * * ?
 业务工厂/手动任务/临时同步任务/ods_pft_dc_daycount_info_his_d_i,DI,00 20 00 * * ?
 业务工厂/手动任务/临时同步任务/ods_pft_dc_daycount_info_history_d_i,DI,00 05 00 * * ?
-业务工厂/手动任务/全网舆论导出/ads_trf_social_opinion_comment_content_oi,DI,00 00 00 * * ?
-业务工厂/手动任务/全网舆论导出/m_ads_trf_social_opinion_comment_core_oi,DI,00 21 00 * * ?
-业务工厂/手动任务/全网舆论导出/m_ads_trf_social_opinion_comment_dimension_score_oi,DI,00 04 00 * * ?
-业务工厂/手动任务/全网舆论导出/m_ads_trf_social_opinion_comment_platform_oi,DI,00 24 00 * * ?
 业务工厂/手动任务/历史任务重跑/ads_trf_scenic_passenger_flow_oi,SERVERLESS_SPARK_SQL,00 12 00 * * ?
 业务工厂/手动任务/历史任务重跑/m_ads_trf_scenic_passenger_flow_oi,DI,00 13 00 * * ?
 业务工厂/手动任务/增量同步任务/m_ads_daily_fellow_group_remain_d_i_tmp,DI,00 21 00 * * ?

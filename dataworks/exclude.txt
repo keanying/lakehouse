@@ -3,3 +3,15 @@
 
 # 全网舆论 DWD：两个节点均已标记废弃（dwd_content_comment_detail_di / dwd_content_publish_info_di），无下游读取；客户要求整目录不要
 数据平台/DWD/dwd_全网舆论
+
+# 全网舆情整条链路（客户要求：页面上相关指标、表一并去掉）
+# 舆情采集工作流（容器）
+数据平台/SRC[ETL]/src_全网舆论
+# 舆情结果从业务库同步进数仓
+数据平台/ADS/数据集成_导入/数字大脑_数据同步/sync_ads_trf_social_opinion_comment_core_di_from_mysql
+数据平台/ADS/数据集成_导入/数字大脑_数据同步/sync_ads_trf_social_opinion_macro_gran_metric_di_from_mysql
+# 数字大脑「舆情」指标域，以及用舆情评分做维度的雷达图（雷达图里的票务 / 客流指标已由标准 ads_trf_digital_brain_di 覆盖）
+数据平台/ADS/ads_数字大脑指标流程/ads_digital_brain_target_merge_public_sentiment_di
+数据平台/ADS/ads_数字大脑指标流程/ads_digital_brain_target_merge_radar_di
+# 舆情结果回流导出（手动任务）
+业务工厂/手动任务/全网舆论导出

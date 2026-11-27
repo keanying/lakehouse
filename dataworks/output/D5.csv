@@ -54,7 +54,6 @@
 数据中台/ODS/ods_track_tnum_d_i_workflow/s_order_track_d_i_ddl,
 数据中台/数据维度(DIM)/dim_pay_channel_o_f,dim_pay_channel_o_f
 数据平台/ADS/ads_trf_cwd_scenic_traffic_oi,ads_trf_scenic_passenger_flow_di
-数据平台/ADS/ads_数字大脑指标流程/ads_digital_brain_target_merge_public_sentiment_di,ads_digital_brain_target_merge_di
 数据平台/DIM/dim_attr_product_info_df,dim_common_supplier_scenic_ticket_f
 数据平台/DIM/dim_common_date_info_df,dim_common_date_info_df
 数据平台/DIM/dim_trf_ota_channel_f,

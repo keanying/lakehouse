@@ -4,11 +4,9 @@
 -- 分区：travel_date（YYYYMMDD）
 -- 调度：每日，依赖上游 DWS 当日分区；完成后回流 / 服务层读取
 -- 上游：ads_ord_scenic_trade_overview_di、ads_trf_scenic_passenger_flow_di
--- 替代旧任务 5 个（上线对数一致后下线）：
+-- 替代旧任务 3 个（上线对数一致后下线）：
 --   · 数据平台/ADS/ads_数字大脑指标流程/ads_digital_brain_target_merge_draw_di（SERVERLESS_SPARK_SQL，cron 00 00 03 * * ?）
 --   · 数据平台/ADS/ads_数字大脑指标流程/ads_digital_brain_target_merge_ota_di（SERVERLESS_SPARK_SQL，cron 00 18 00 * * ?）
---   · 数据平台/ADS/ads_数字大脑指标流程/ads_digital_brain_target_merge_public_sentiment_di（SERVERLESS_SPARK_SQL，cron 00 20 00 * * ?）
---   · 数据平台/ADS/ads_数字大脑指标流程/ads_digital_brain_target_merge_radar_di（SERVERLESS_SPARK_SQL，cron 00 00 03 * * ?）
 --   · 数据平台/ADS/ads_数字大脑指标流程/ads_digital_brain_target_merge_tick_di（SERVERLESS_SPARK_SQL，cron 00 00 03 * * ?）
 -- 业务规则 / 修正：
 --   · 大屏竖表由标准 ADS 转置得到，口径与报表一致（旧大屏单独一套 SQL，且有写死的模拟数据，见问题清单 D6）
