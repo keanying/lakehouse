@@ -14,6 +14,7 @@ import rules, model, names, exports  # noqa: E402
 import etl as etl_mod  # noqa: E402
 import src_ddl  # noqa: E402
 import domains  # noqa: E402
+import field_map  # noqa: E402
 
 sh = catalog.sh
 LAYER_CN = {'ODS': '原始数据层', 'DIM': '维度层', 'DWD': '明细层', 'DWS': '汇总层', 'ADS': '应用层'}
@@ -51,6 +52,9 @@ def category(n, keys, layer):
 
 SRCDDL, SRCDEP = {}, {}
 DEAD = {}   # 随上游下线的标准表
+ALL_DEAD = {}   # 累计（多轮构建）
+DROP_ODS = {}   # 无在用链路、在用标准表也不需要的 ODS：移除（名 -> 原因）
+DROPPED = {}    # 实际移除的 ODS -> (源表, 旧落地表, 原因)
 
 
 def dep_text(d):
@@ -115,6 +119,9 @@ def build():
         ent = rules.entity_of(ltb)
         inc = any(w for _, s in group for w in s['where'] if w)
         name = f'ods_{dom}_{ent}_{"di" if inc else "df"}'
+        if name in DROP_ODS:
+            DROPPED[name] = (f'{lds}.{ltb}', sorted({l for _, s in group for l in s['landing']}), DROP_ODS[name])
+            continue
         if name in ods_names:                      # 同一实体来自两个库：合并为一张
             ods_names[name]['group'] += group
             for k, _ in group:
@@ -209,6 +216,7 @@ def build():
             s_['fields'] = [f for f in s_['fields'] if f[0] not in dead_m]
         s_['up'] = '、'.join(x for x in re.split(r'[、]', s_['up'])
                              if x.strip() and (not re.match(r'(ods|dim|dwd|dws|ads)_\w+$', x.strip()) or alive(x.strip())))
+    ALL_DEAD.update(DEAD)
     if DEAD:
         print('标准表随上游下线：', DEAD)
         print('指标随来源下线：', sorted(dead_m))
@@ -322,6 +330,13 @@ def build():
         ws = '、'.join(sorted({n['ws'] for n in x['writers']}))
         tgt, act = mapping.get(t, ('', ''))
         note = ''
+        drop_of = next((k for k, v in DROPPED.items() if t in v[1]), None)
+        if drop_of and not tgt:
+            act, note = '下线', f'业务库源表 {DROPPED[drop_of][0]} 移除：{DROPPED[drop_of][2]}'
+        dland = {l for v in DROPPED.values() for l in v[1]}
+        rds = {sh(r) for n in x['writers'] for r in n['reads']}
+        if not tgt and not act and rds and rds <= dland:
+            act, note = '下线', '只由已移除的 ODS 加工：' + '、'.join(sorted(rds))
         if not tgt:
             for p, (a, why) in model.OTHER:
                 if re.search(p, t):
@@ -773,7 +788,7 @@ def legacy_src(C, logical, ods_of_source, fcols, tcols):
 
 def ads_specs():
     """模型里 ADS 表 → 字段名集合（粒度键 + 指标）"""
-    return {sp['name']: {f[0] for f in sp['fields']} for sp in model.T if sp['name'].startswith('ads_') and isinstance(sp['fields'], list)}
+    return {sp['name']: {f[0] for f in sp['fields']} for sp in model.T if sp['name'].startswith(('ads_', 'dws_')) and isinstance(sp['fields'], list)}
 
 
 def fill_gaps(gaps):
@@ -787,6 +802,12 @@ def fill_gaps(gaps):
         have = {f[0] for f in sp['fields']}
         nd = [x[4:] for x in items if x.startswith('dim:') and x[4:] in model.D and x[4:] not in have]
         nm = [x for x in items if not x.startswith('dim:') and x in model.M and x not in have]
+        if t.startswith('dws_'):                 # DWS：只补来源能产出的维度 / 有加工口径的指标，其余记为缺口
+            ok_d = [d for d in nd if dws_can(t, d, by)]
+            ok_m = [m for m in nm if any(s_ in etl_mod.R.get(m, {}) for s_ in etl_mod.DWS_SRC.get(t, []))]
+            BLOCKED.update((t, f'dim:{d}') for d in nd if d not in ok_d)
+            BLOCKED.update((t, m) for m in nm if m not in ok_m)
+            nd, nm = ok_d, ok_m
         k = max([i for i, f in enumerate(sp['fields']) if f[2] == '粒度键'] or [-1]) + 1
         sp['fields'][k:k] = model.dims(*nd)
         sp['fields'] += model.mets(*nm)
@@ -802,15 +823,34 @@ def fill_gaps(gaps):
 
 
 DERIVED_DIMS = {'product_type'}
+BLOCKED = set()     # (DWS, 维度 / 指标)：导出需要、但 DWS 来源产不出
+
+
+def dws_can(t, d, by):
+    """DWS 的来源（etl.SRC）能否产出维度 d：来源映射里有，或来源表字段里有"""
+    for s_ in etl_mod.DWS_SRC.get(t, []):
+        tbl, _, dmap, _ = etl_mod.SRC[s_]
+        if d in dmap:
+            return True
+        sp = by.get(tbl.split('.')[-1])
+        if sp and (d in {f[0] for f in sp['fields']} if isinstance(sp['fields'], list) else d in (sp['fields'][1] if isinstance(sp['fields'], tuple) else ())):
+            return True
+    return False
 
 
 def main():
     nodes, C, tables, fields, mrows, logical, ods_of_source = build()
     # 导出（hive_to_db）应用层模型：先核对覆盖，缺的指标 / 维度补进标准 ADS，再重新生成
-    _, _, _, gaps = exports.analyse(nodes, C, mrows, ads_specs(), model.M)
+    _, _, _, gaps = exports.analyse(nodes, C, mrows, ads_specs(), model.M, field_map.make_resolver(tables, fields), model.D, BLOCKED)
     added = fill_gaps(gaps)
     nodes, C, tables, fields, mrows, logical, ods_of_source = build()
-    cover, unify, mnotes, gaps2 = exports.analyse(nodes, C, mrows, ads_specs(), model.M)
+    cover, unify, mnotes, gaps2 = exports.analyse(nodes, C, mrows, ads_specs(), model.M, field_map.make_resolver(tables, fields), model.D, BLOCKED)
+    cons, used_ods = domains.consumption(nodes, C, mrows, ods_of_source, tables, cover)
+    DROP_ODS.update(domains.unused_ods(tables, used_ods, cons['rows']))
+    if DROP_ODS:
+        print('移除无用 ODS：', len(DROP_ODS))
+        nodes, C, tables, fields, mrows, logical, ods_of_source = build()
+        cover, unify, mnotes, gaps2 = exports.analyse(nodes, C, mrows, ads_specs(), model.M, field_map.make_resolver(tables, fields), model.D, BLOCKED)
     print('导出模型补全：', {k: len(v) for k, v in added.items()}, '仍缺：', {k: len(v) for k, v in gaps2.items()})
     findings, stats = audit.analyse(nodes)
     sh_ = sheets(tables, fields, mrows, findings)
@@ -818,10 +858,12 @@ def main():
     cons, used_ods = domains.consumption(nodes, C, mrows, ods_of_source, tables, cover)
     pc, bm = domains.process_rows(tables, used_ods, cons['rows'])
     sh_['消费清单'], sh_['业务过程'], sh_['业务过程总线矩阵'], sh_['ODS去向'] = cons, pc, bm, domains.ods_rows(tables, used_ods)
+    for n_, (src_, land_, why_) in sorted(DROPPED.items()):
+        sh_['ODS去向']['rows'].append([n_, src_, f"{n_.split('_')[1]} {domains.DATA_DOM.get(n_.split('_')[1], '')}", '已移除', why_, 0, '已移除（停同步，旧落地表 ' + '、'.join(land_) + ' 下线）'])
     print('消费清单', len(cons['rows']), collections.Counter(r[0] for r in cons['rows']), '结论', collections.Counter(r[16].split('；')[0] for r in cons['rows']), '待补口径字段', sum(r[14] or 0 for r in cons['rows']))
     print('ODS 去向', collections.Counter(r[3] for r in sh_['ODS去向']['rows']), '未被在用', sum(1 for r in sh_['ODS去向']['rows'] if not r[5]))
-    miss = sorted({s_ for p_ in domains.PROC for s_ in p_[6] if '*' not in s_} - {t['name'] for t in tables}
-                  | {s_ for v in domains.DIM_SRC.values() for s_ in v} - {t['name'] for t in tables})
+    miss = sorted(({s_ for p_ in domains.PROC for s_ in p_[6] if '*' not in s_} | {s_ for v in domains.DIM_SRC.values() for s_ in v})
+                  - {t['name'] for t in tables} - set(DROPPED))
     if miss:
         print('业务过程 / 维度来源里不存在的 ODS：', miss)
     D_ = sh_['DWS口径']
@@ -868,7 +910,17 @@ def main():
     model_.pop('_int', None)
     old = legacy_etl(tables, C['tables'], nodes)
     etl, bad = etl_mod.generate(tables, sh_['字段清单']['rows'], C, ods_of_source, nodes, {k: v['sql'] for k, v in old.items()})
+    # 排版 + 逐行注释：超长行拆成一列一行，字段行补中文名（与 3.0 字典同一套排版工具；只改空白与注释，SQL 不变）
+    import sqlfmt
+    D_ = etl_gen.Dict(disp)
+    for t_, e_ in etl.items():
+        if e_.get('kind') != 'di' and e_.get('sql'):
+            e_['sql'] = etl_gen.annotate(sqlfmt.fmt(e_['sql']), t_, D_)
     write_sql(etl, tables)
+    live = {t['name'] for t in tables}
+    bad_ref = sorted({(k, m) for k, v in etl.items() for m in re.findall(r'\b(?:ods|dim|dwd|dws)\.(\w+)', v.get('sql') or '') if m not in live})
+    if bad_ref:
+        print('加工逻辑引用了不存在的表：', bad_ref[:20])
     kinds = collections.Counter(v['kind'] for v in etl.values())
     print('加工逻辑：', dict(kinds), '校验未通过', len(bad))
     for b in bad[:20]:
@@ -914,8 +966,9 @@ def main():
               'tip': '<div style="font-weight:600;color:var(--text)">业务过程总线矩阵</div><div>Kimball 总线矩阵：同一维度在所有事实表里含义一致，跨业务过程分析（如 下单 × 核销 × 出入园）按共有维度关联。</div>'},
              {'k': 'odsrole', 'label': 'ODS 去向', 'cols': sh_['ODS去向']['cols'], 'rows': [[str(x) for x in r] for r in sh_['ODS去向']['rows']], 'filters': [2, 3, 6],
               'links': ['ODS 表'], 'ph': '搜索 ODS / 去向…',
-              'pills': {'角色': {'业务过程': 'g', '维度': 'b', '属性关联': 'b', '未在用': '', '报表库预计算': 'o', '外部数据': '', '项目专用': '', '运营日志': ''}, '是否在用': {'在用': 'g', '未被': ''}},
-              'note': f"{sum(1 for r in sh_['ODS去向']['rows'])} 张 ODS 每张的角色：业务过程来源 / 维度来源 / 属性关联 / 报表库预计算（只供对数）/ 外部 / 项目专用 / 未在用（保留同步暂不建模）",
+              'pills': {'角色': {'业务过程': 'g', '维度': 'b', '属性关联': 'b', '已移除': 'r', '未在用': '', '报表库预计算': 'o', '外部数据': '', '项目专用': '', '运营日志': ''}, '是否在用': {'在用': 'g', '未被': '', '已移除': 'r'}},
+              'note': f"保留 {sum(1 for r in sh_['ODS去向']['rows'] if r[3] != '已移除')} 张 ODS 的角色：业务过程来源 / 维度来源 / 属性关联 / 报表库预计算（只供对数）/ 外部 / 项目专用；"
+                      f"另 {len(DROPPED)} 张无在用链路、在用标准表也不需要的 ODS 已移除（停同步，下游随之下线）",
               'tip': '<div style="font-weight:600;color:var(--text)">ODS 去向</div><div>每张业务库同步表进了哪个业务过程或维度；未被在用链路使用的标出原因，需求来了再按业务过程补 DWD。</div>'}]}
     meta = {'mode': 'legacy', 'xlsx': xlsx.name, 'built': datetime.date.today().isoformat(), 'dict2': xlsx.name,
             'desc': '客户现有 DataWorks 按 PFT3.0 标准重构后的统一数仓：分层、业务域、口径与旧表映射',
@@ -928,7 +981,8 @@ def main():
         hol.setdefault(r[1], []).append([r[3], r[2], d10(r[4]), d10(r[5])])
     js = lambda o: json.dumps(o, ensure_ascii=False, separators=(',', ':'), default=str).replace('</', '<\\/')
     orig = {'changed': {}, '表清单': {'cols': disp['表清单']['cols'], 'rows': []}, '字段清单': {'cols': disp['字段清单']['cols'], 'rows': []}, 'ADS业务指标': disp['ADS业务指标']}
-    tpl = (ROOT.parent / 'dw-dict' / 'src' / 'template.html').read_text(encoding='utf-8').replace('<title>PFT3.0 数仓字典</title>', '<title>旧版数仓标准化</title>')
+    import page_patch
+    tpl = page_patch.apply((ROOT.parent / 'dw-dict' / 'src' / 'template.html').read_text(encoding='utf-8')).replace('<title>PFT3.0 数仓字典</title>', '<title>旧版数仓标准化</title>')
     html = (tpl.replace('__LEGACY__', js(L)).replace('__SRC__', js(src)).replace('__HOL__', js(hol)).replace('__DATA__', js(disp)).replace('__ORIG__', js(orig))
             .replace('__CHECKS__', js(res)).replace('__META__', js(meta)).replace('__ADS__', js(model_)).replace('__ETL__', js(etl)))
     (out / 'index.html').write_text(html, encoding='utf-8')

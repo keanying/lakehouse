@@ -8,7 +8,7 @@ WITH
 fund_flow_rn AS (                                                        -- 「资金流水」当日增量，同一主键按 binlog 时间倒序编号
   SELECT account_no, amount, balance_after, balance_before, create_time, fee_item, flow_no, flow_type, id,
          payment_batch_no, related_no, remark, tenant_id, update_time, binlog_op_type,
-         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn  -- 同一主键多次变更，按 binlog 时间倒序编号
+         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn  -- 去重序号（1 = 最新）
   FROM ods.ods_fin_fund_flow_di
   WHERE travel_date = '${bizdate}'                                       -- 只取当日分区
 ),
@@ -30,7 +30,7 @@ SELECT  /*+ BROADCAST(account_dim) */
   fund_flow_latest.flow_no                        AS flow_no,            -- 流水号
   fund_flow_latest.account_no                     AS account_no,         -- 归属账户编号
   fund_flow_latest.flow_type                      AS flow_type,          -- 流水类型
-  ROUND(fund_flow_latest.amount / 100, 2)         AS change_amt,         -- 变动金额（元
+  ROUND(fund_flow_latest.amount / 100, 2)         AS change_amt,         -- 变动金额
   ROUND(fund_flow_latest.balance_before / 100, 2) AS balance_before_amt,  -- 变动前余额（元）
   ROUND(fund_flow_latest.balance_after / 100, 2)  AS balance_after_amt,  -- 变动后余额（元）
   fund_flow_latest.related_no                     AS related_no,         -- 关联业务号（订单号/退款号/提现号等）

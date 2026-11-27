@@ -20,50 +20,65 @@ WITH sup AS (
     WHERE supplier_flag = 1 OR member_type_code = '0'
 ),
 ext AS (
-    SELECT CAST(fid AS BIGINT) AS supplier_id, com_name, short_company_name, corp_kind, format_type, types, province, city, contract_model
+    SELECT CAST(fid AS BIGINT) AS supplier_id,                                    -- 供应商ID（租户ID）
+           com_name,
+           short_company_name,
+           corp_kind,
+           format_type,
+           types,
+           province,
+           city,
+           contract_model                                                         -- 合作模式
     FROM ods.ods_sup_member_ext_df WHERE travel_date = '${bizdate}'
 ),
-member_raw AS (SELECT CAST(id AS BIGINT) AS supplier_id, CAST(salesid AS BIGINT) AS signer_id, CAST(kefuid AS BIGINT) AS servicer_id FROM ods.ods_sup_member_df WHERE travel_date = '${bizdate}'),
-cert AS (   -- 同一客户多次提交认证，取最近一次
+member_raw AS (
+    SELECT CAST(id AS BIGINT) AS supplier_id,                                     -- 供应商ID（租户ID）
+    CAST(salesid AS BIGINT) AS signer_id,                                         -- 签单销售ID
+    CAST(kefuid AS BIGINT) AS servicer_id FROM ods.ods_sup_member_df WHERE travel_date = '${bizdate}'
+),
+cert AS (                                                                         -- 同一客户多次提交认证，取最近一次
     SELECT customer_id, certi_status
-    FROM (SELECT CAST(customer_id AS BIGINT) AS customer_id, certi_status, ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY apply_time DESC) AS rn
+    FROM (SELECT CAST(customer_id AS BIGINT) AS customer_id, certi_status, ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY apply_time DESC) AS rn  -- 同一主键多次变更，按 binlog 时间倒序编号
           FROM ods.ods_sup_customer_certification_df WHERE travel_date = '${bizdate}') t
     WHERE rn = 1
 ),
-enable AS (SELECT CAST(fid AS BIGINT) AS supplier_id, MIN(enable_time) AS enable_time FROM ods.ods_sup_supplier_extinfo_df WHERE travel_date = '${bizdate}' GROUP BY CAST(fid AS BIGINT)),
+enable AS (SELECT CAST(fid AS BIGINT) AS supplier_id, MIN(enable_time) AS enable_time  -- 启用日期
+    FROM ods.ods_sup_supplier_extinfo_df WHERE travel_date = '${bizdate}' GROUP BY CAST(fid AS BIGINT)),
 scenic AS (SELECT supplier_id, COUNT(1) AS scenic_qty FROM dim.dim_prd_scenic_df GROUP BY supplier_id),
 ticket AS (
-    SELECT supplier_id, SUM(IF(ticket_status = '1', 1, 0)) AS onsale_ticket_qty, MIN(update_time) AS first_ticket_time
+    SELECT supplier_id,                                                           -- 供应商ID（租户ID）
+           SUM(IF(ticket_status = '1', 1, 0)) AS onsale_ticket_qty,               -- 在售票种数
+           MIN(update_time) AS first_ticket_time                                  -- 首次上架票时间
     FROM dim.dim_prd_ticket_df GROUP BY supplier_id
 ),
-distributor AS (   -- 拉链表当前有效：end_date = '99991231'
-    SELECT supplier_id, COUNT(DISTINCT distributor_id) AS distributor_qty
+distributor AS (                                                                  -- 拉链表当前有效：end_date = '99991231'
+    SELECT supplier_id, COUNT(DISTINCT distributor_id) AS distributor_qty         -- 有效分销商数
     FROM dim.dim_sup_member_relation_zip WHERE end_date = '99991231' GROUP BY supplier_id
 )
-INSERT OVERWRITE TABLE dim.dim_sup_supplier_df
+INSERT OVERWRITE TABLE dim.dim_sup_supplier_df                                    -- 整表覆盖写入
 SELECT
-    s.supplier_id,
-    s.member_name                                                    AS supplier_name,
-    e.com_name                                                       AS company_name,
-    e.short_company_name                                             AS company_short_name,
-    s.customer_id,
-    e.corp_kind                                                      AS company_type_code,
-    e.format_type                                                    AS business_type,
-    e.types                                                          AS supplier_level,
-    e.province                                                       AS province_code,
-    e.city                                                           AS city_code,
-    c.certi_status                                                   AS certify_status,
-    e.contract_model,
-    en.enable_time                                                   AS enable_date,
-    s.register_time,
-    mr.signer_id,
-    mr.servicer_id,
-    COALESCE(sc.scenic_qty, 0)                                       AS scenic_qty,
-    COALESCE(tk.onsale_ticket_qty, 0)                                AS onsale_ticket_qty,
-    COALESCE(d.distributor_qty, 0)                                   AS distributor_qty,
-    tk.first_ticket_time,
-    s.test_flag,
-    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time
+    s.supplier_id,                                                                -- 供应商ID（租户ID）
+    s.member_name                                                    AS supplier_name,  -- 供应商名称（账号名）
+    e.com_name                                                       AS company_name,  -- 公司名称
+    e.short_company_name                                             AS company_short_name,  -- 公司简称
+    s.customer_id,                                                                -- CRM 客户ID
+    e.corp_kind                                                      AS company_type_code,  -- 客户类型
+    e.format_type                                                    AS business_type,  -- 业态类型
+    e.types                                                          AS supplier_level,  -- 供应商级别
+    e.province                                                       AS province_code,  -- 所在省编码
+    e.city                                                           AS city_code,  -- 所在市编码
+    c.certi_status                                                   AS certify_status,  -- 资质认证
+    e.contract_model,                                                             -- 合作模式
+    en.enable_time                                                   AS enable_date,  -- 启用日期
+    s.register_time,                                                              -- 注册时间
+    mr.signer_id,                                                                 -- 签单销售ID
+    mr.servicer_id,                                                               -- 客服ID
+    COALESCE(sc.scenic_qty, 0)                                       AS scenic_qty,  -- 发布的景区数
+    COALESCE(tk.onsale_ticket_qty, 0)                                AS onsale_ticket_qty,  -- 在售票种数
+    COALESCE(d.distributor_qty, 0)                                   AS distributor_qty,  -- 有效分销商数
+    tk.first_ticket_time,                                                         -- 首次上架票时间
+    s.test_flag,                                                                  -- 是否测试账号
+    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time           -- ETL 加载时间
 FROM sup s
 LEFT JOIN ext e          ON e.supplier_id  = s.supplier_id
 LEFT JOIN member_raw mr  ON mr.supplier_id = s.supplier_id

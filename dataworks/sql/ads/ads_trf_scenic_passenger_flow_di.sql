@@ -14,40 +14,27 @@
 -- 性能：
 --   · ADS 只存日粒度：周 / 月 / 年 / 节假日 / 自定义区间与同比环比在查询时关联 dim_opr_period_f（见「指标口径 · ADS 业务指标」）
 --   · 比率类不落比率值，只存分子分母；去重类存位图；快照类取日终值
---   · 多个上游各自预聚合后 UNION ALL，按 ADS 粒度合并（替代旧系统多表 FULL JOIN）
 -- ================================================================================================
-INSERT OVERWRITE TABLE ads.ads_trf_scenic_passenger_flow_di PARTITION (travel_date = '${bizdate}')
+INSERT OVERWRITE TABLE ads.ads_trf_scenic_passenger_flow_di PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
 SELECT
-    scenic_id,
-    gate_group_id,
-    SUM(enter_qty)                                               AS enter_qty,
-    SUM(exit_qty)                                                AS exit_qty,
-    MAX(in_park_qty)                                             AS in_park_qty,
-    SUM(verify_ticket_qty)                                       AS verify_ticket_qty,
-    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time
+    scenic_id,                                                                    -- 景区ID
+    gate_group_id,                                                                -- 闸机组ID
+    SUM(enter_qty)                                               AS enter_qty,    -- 入园人次（日）
+    SUM(exit_qty)                                                AS exit_qty,     -- 出园人次（日）
+    MAX(in_park_qty)                                             AS in_park_qty,  -- 在园人数（日快照）
+    SUM(verify_ticket_qty)                                       AS verify_ticket_qty,  -- 验证票数（日）
+    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time           -- ETL 加载时间
 FROM (
     -- dws_trf_scenic_inout_hrs
     SELECT
-        scenic_id,
-        gate_group_id,
-        SUM(enter_qty)                                               AS enter_qty,
-        SUM(exit_qty)                                                AS exit_qty,
-        MAX_BY(in_park_qty, stat_hour)                               AS in_park_qty,
-        CAST(0 AS BIGINT)                                            AS verify_ticket_qty
+        scenic_id,                                                                -- 景区ID
+        gate_group_id,                                                            -- 闸机组ID
+        SUM(enter_qty)                                               AS enter_qty,  -- 入园人次（日）
+        SUM(exit_qty)                                                AS exit_qty,  -- 出园人次（日）
+        MAX_BY(in_park_qty, stat_hour)                               AS in_park_qty,  -- 在园人数（日快照）
+        SUM(verify_ticket_qty)                                       AS verify_ticket_qty  -- 验证票数（日）
     FROM dws.dws_trf_scenic_inout_hrs
-    WHERE travel_date = '${bizdate}'
-    GROUP BY scenic_id, gate_group_id
-    UNION ALL
-    -- dws_ord_scenic_ticket_trade_di
-    SELECT
-        scenic_id,
-        CAST(-1 AS BIGINT)                                           AS gate_group_id,   -- 该上游无此维度
-        CAST(0 AS BIGINT)                                            AS enter_qty,
-        CAST(0 AS BIGINT)                                            AS exit_qty,
-        CAST(NULL AS BIGINT)                                         AS in_park_qty,
-        SUM(verify_ticket_qty)                                       AS verify_ticket_qty
-    FROM dws.dws_ord_scenic_ticket_trade_di
-    WHERE travel_date = '${bizdate}'
-    GROUP BY scenic_id
-) u
-GROUP BY scenic_id, gate_group_id
+    WHERE travel_date = '${bizdate}'                                              -- 只取当日分区
+    GROUP BY scenic_id, gate_group_id                                             -- 按粒度键汇总
+) u                                                                               -- 各来源合并后的明细
+GROUP BY scenic_id, gate_group_id                                                 -- 按粒度键汇总

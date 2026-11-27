@@ -9,7 +9,7 @@ order_rn AS (                                                                   
   SELECT binlog_time, combo_flag, create_time, id, order_group_no, order_no, order_status,
          parent_order_no, quantity, sale_dims, seller_tenant_id, sku_id, sku_name, sku_version, tenant_id,
          unit_price, update_time, binlog_op_type,
-         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn      -- 同一主键多次变更，按 binlog 时间倒序编号
+         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn      -- 去重序号（1 = 最新）
   FROM ods.ods_ord_order_di
   WHERE travel_date = '${bizdate}'                                                -- 只取当日分区
 ),
@@ -24,7 +24,7 @@ order_latest AS (                                                               
 order_group_rn AS (                                                               -- 「聚合单」当日增量，同一主键按 binlog 时间倒序编号
   SELECT app_id, app_ref, buyer_customer_id, buyer_type, channel_id, currency, id, operator_id,
          operator_type, order_group_no, binlog_op_type,
-         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn      -- 同一主键多次变更，按 binlog 时间倒序编号
+         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn      -- 去重序号（1 = 最新）
   FROM ods.ods_ord_order_group_di
   WHERE travel_date = '${bizdate}'                                                -- 只取当日分区
 ),

@@ -10,7 +10,7 @@ payment_record_rn AS (                                                          
          order_group_no, pay_direction, pay_method, pay_status, pay_time, payee_account_no,
          payer_account_no, payment_no, receive_channel, settle_amount, tenant_id, ticket_no,
          transaction_no, update_time, binlog_op_type,
-         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn      -- 同一主键多次变更，按 binlog 时间倒序编号
+         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn      -- 去重序号（1 = 最新）
   FROM ods.ods_fin_payment_record_di
   WHERE travel_date = '${bizdate}'                                                -- 只取当日分区
 ),
@@ -48,17 +48,17 @@ SELECT  /*+ BROADCAST(account_dim, account_dim_2) */
   payment_record_latest.id                                     AS payment_id,     -- 支付记录ID（源表主键 id）
   payment_record_latest.payment_no                             AS payment_no,     -- 支付流水号
   payment_record_latest.batch_no                               AS batch_no,       -- 批量支付单号(同批共享)
-  payment_record_latest.item_no                                AS item_no,        -- 批内项号(批内唯一
-  payment_record_latest.depend_on_item                         AS depend_on_item_no,  -- 依赖项号(必须在依赖项成功后执行
+  payment_record_latest.item_no                                AS item_no,        -- 批内项号
+  payment_record_latest.depend_on_item                         AS depend_on_item_no,  -- 依赖项号
   payment_record_latest.order_group_no                         AS order_group_no,  -- 归属聚合单号
   payment_record_latest.pay_direction                          AS pay_direction_type,  -- 资金方向
   payment_record_latest.pay_method                             AS pay_method_type,  -- 支付方式
   payment_record_latest.receive_channel                        AS receive_channel_type,  -- 收款渠道(INBOUND-收款时填)
   ROUND(payment_record_latest.amount / 100, 2)                 AS pay_amt,        -- 支付金额（元）
-  ROUND(payment_record_latest.settle_amount / 100, 2)          AS settle_amt,     -- 结算金额（元
+  ROUND(payment_record_latest.settle_amount / 100, 2)          AS settle_amt,     -- 结算金额
   payment_record_latest.transaction_no                         AS transaction_no,  -- 渠道流水号
-  payment_record_latest.payer_account_no                       AS payer_account_no,  -- 付款方账户(OUTBOUND-采购付款=采购方
-  payment_record_latest.payee_account_no                       AS payee_account_no,  -- 收款方账户(INBOUND-收款=卖方
+  payment_record_latest.payer_account_no                       AS payer_account_no,  -- 付款方账户
+  payment_record_latest.payee_account_no                       AS payee_account_no,  -- 收款方账户
   payment_record_latest.ticket_no                              AS ticket_no,      -- 关联票号(用于关联冻结记录)
   payment_record_latest.external_frozen                        AS external_frozen_type,  -- 是否外部渠道冻结
   payment_record_latest.pay_time                               AS pay_time,       -- 支付时间

@@ -9,7 +9,7 @@ refund_order_rn AS (                                                            
   SELECT approve_time, approver_id, binlog_time, create_time, id, initiator_id, initiator_type,
          order_group_no, refund_amount, refund_items, refund_no, refund_reason, refund_status,
          refund_type, tenant_id, update_time, binlog_op_type,
-         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn      -- 同一主键多次变更，按 binlog 时间倒序编号
+         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn      -- 去重序号（1 = 最新）
   FROM ods.ods_ord_refund_order_di
   WHERE travel_date = '${bizdate}'                                                -- 只取当日分区
 ),
@@ -45,8 +45,11 @@ SELECT
   order_group_dtl.seller_tenant_id                             AS seller_tenant_id,  -- 卖家租户ID
   order_group_dtl.channel_id                                   AS channel_id,     -- 入口渠道ID
   refund_order_latest.create_time                              AS apply_time,     -- 退款申请时间
-  CASE WHEN refund_order_latest.refund_status = 'COMPLETED' THEN refund_order_latest.binlog_time END AS finish_time,  -- 退款完成时间
-  ROUND((UNIX_TIMESTAMP(CASE WHEN refund_order_latest.refund_status = 'COMPLETED' THEN refund_order_latest.binlog_time END) - UNIX_TIMESTAMP(refund_order_latest.create_time)) / 3600, 2) AS process_hour_qty,  -- 退款处理时长
+  CASE                                                                            -- 退款完成时间
+      WHEN refund_order_latest.refund_status = 'COMPLETED' THEN refund_order_latest.binlog_time
+  END AS finish_time,                                                             -- 退款完成时间
+  ROUND((UNIX_TIMESTAMP(CASE WHEN refund_order_latest.refund_status = 'COMPLETED' THEN refund_order_latest.binlog_time END)  -- 退款处理时长
+      - UNIX_TIMESTAMP(refund_order_latest.create_time)) / 3600, 2) AS process_hour_qty,  -- 退款处理时长
   SIZE(FLATTEN(FROM_JSON(refund_order_latest.refund_items, 'array<struct<orderNo:string,ticketNos:array<string>,amount:bigint>>').ticketNos)) AS refund_ticket_qty,  -- 退款票数
   CURRENT_TIMESTAMP()                                          AS etl_time        -- ETL 加载时间
 FROM refund_order_latest

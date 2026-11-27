@@ -92,6 +92,30 @@ _ic = {'trade_source': "'IC_ORDER'", 'trade_id': 'id', 'trade_no': 'ordernum', '
 SPECS[-1]['branches'].append('ods_ord_park_card_order_df')
 SPECS[-1]['cols'] = [(n, ty, cat, cm, e + (_ic.get(n, NUL[ty]),)) for n, ty, cat, cm, e in SPECS[-1]['cols']]
 SPECS[-1]['event'] = {'ods_ord_park_card_order_df': day('order_time')}
+# 关联订单（旧 cache_table_pft_order_info：近 2 年订单）带出景区 / 票 / 订单支付方式；卡消费剔除与卡操作重复计的预存卡支付
+_ORD = ("        LEFT JOIN (SELECT order_no, MAX(scenic_id) AS o_scenic_id, MAX(ticket_id) AS o_ticket_id, MAX(pay_mode) AS o_pay_mode\n"
+        "                   FROM dwd.dwd_ord_order_di\n"
+        "                   WHERE travel_date >= DATE_FORMAT(DATE_SUB(TO_DATE('${bizdate}', 'yyyyMMdd'), 732), 'yyyyMMdd')   -- 近 2 年订单（同旧缓存表）\n"
+        "                   GROUP BY order_no) o ON o.order_no = a.ordernum")
+SPECS[-1]['cols'] += [
+    ('scenic_id', B, '外键', '景区ID（按订单号关联订单明细；非平台订单为空）', ('o_scenic_id', 'o_scenic_id', 'o_scenic_id', NUL[B])),
+    ('ticket_id', B, '外键', '票ID（同上）', ('o_ticket_id', 'o_ticket_id', 'o_ticket_id', NUL[B])),
+    ('order_pay_mode', I, '外键', '订单支付方式（关联订单），关联 dim_fin_pay_channel_f', ('CAST(o_pay_mode AS INT)', 'CAST(o_pay_mode AS INT)', 'CAST(o_pay_mode AS INT)', NUL[I])),
+    ('prepaid_dup_flag', I, '状态类型', '卡消费是否与预存卡充值（卡操作 pay_type=4）重复：1-重复（汇总时剔除）', ('0', 'COALESCE(dup_flag, 0)', '0', '0')),
+]
+SPECS[-1]['frm'] = {
+    'ods_ord_allinone_card_trades_di': "(\n        SELECT a.*, o.*\n        FROM ods.ods_ord_allinone_card_trades_di a\n" + _ORD + "\n        WHERE a.travel_date = '${bizdate}'\n    ) t",
+    'ods_fin_card_order_journal_di': ("(\n        SELECT a.*, o.*, d.dup_flag\n"
+                                      "        FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY update_time DESC) AS rn\n"
+                                      "              FROM ods.ods_fin_card_order_journal_di WHERE travel_date = '${bizdate}') a\n" + _ORD + "\n"
+                                      "        LEFT JOIN (SELECT DISTINCT ordernum, 1 AS dup_flag FROM ods.ods_ord_allinone_card_trades_di\n"
+                                      "                   WHERE travel_date = '${bizdate}' AND pay_type = 4 AND money > 0 AND operation_type <> 18) d\n"
+                                      "          ON d.ordernum = a.ordernum      -- 预存卡支付已在卡操作里计过\n"
+                                      "        WHERE a.rn = 1\n    ) t"),
+    'ods_fin_card_order_refund_journal_di': "(\n        SELECT a.*, o.*\n        FROM ods.ods_fin_card_order_refund_journal_di a\n" + _ORD + "\n        WHERE a.travel_date = '${bizdate}'\n    ) t",
+}
+SPECS[-1]['up'] += '、dwd_ord_order_di'
+SPECS[-1]['notes'] += ['景区 / 票 / 订单支付方式按订单号关联近 2 年订单明细（同旧缓存表口径）；卡消费口径同旧系统：pay_status <> 3、排除 CMB 开头流水、排除预存卡已计的重复支付']
 proc('dwd_opr_hotel_order_df', '酒店订单', '1行=1张酒店订单（绿云账号，当日最新状态）', 'ods_opr_hotel_lvyun_hotel_master_df',
      '绿云 PMS 订单：预订 / 入住 / 离店状态、房型、房数、房价、消费与付款；间夜 = 房数 × 入住晚数',
      ['ods_opr_hotel_lvyun_hotel_master_df'], [
@@ -375,6 +399,39 @@ proc('dim_mkt_activity_df', '营销活动维度', '1行=1个营销活动（抢�
      ], part='',
      notes=['三类活动表状态码相反（抢购 0 删 1 正常；拼团 1 正常 2 删；砍价 0 正常 1 删），统一为 valid_flag', '海报 / 物料中心为营销素材配置，未被在用报表使用，保留 ODS 不进维度'])
 
+# ---------------------------------------------------------------- 订单 × 营销标签（跨业务过程：交易 × 营销，按订单号对齐）
+def _tag(x_sql):
+    return ("(\n        SELECT o.*, x.marketing_type\n        FROM dwd.dwd_ord_order_di o\n        JOIN (" + x_sql + ") x\n          ON x.order_no = o.order_no\n"
+            "        WHERE o.travel_date = '${bizdate}' AND o.test_flag = 0 AND o.pay_status <> '2'      -- 同预订口径：当日下单、已支付、非测试\n    ) t")
+
+
+_TAGS = [
+    ('dwd_mkt_seckill_di', "SELECT DISTINCT order_no, 'SECKILL' AS marketing_type FROM dwd.dwd_mkt_seckill_di WHERE travel_date = '${bizdate}' AND success_flag = 1"),
+    ('dwd_mkt_cut_price_di', "SELECT DISTINCT order_no, 'CUT_PRICE' AS marketing_type FROM dwd.dwd_mkt_cut_price_di WHERE travel_date = '${bizdate}' AND COALESCE(order_no, '') <> ''"),
+    ('dwd_mkt_group_booking_di', "SELECT DISTINCT order_no, 'GROUP_BOOKING' AS marketing_type FROM dwd.dwd_mkt_group_booking_di WHERE travel_date = '${bizdate}'"),
+    ('dwd_mkt_coupon_use_di', "SELECT DISTINCT order_no, 'COUPON' AS marketing_type FROM dwd.dwd_mkt_coupon_use_di WHERE travel_date = '${bizdate}' AND use_status <> 3"),
+    ('dwd_trf_promoter_order_df', "SELECT DISTINCT order_no, IF(promote_source = 'ALL_DIS', 'ALL_DIS', 'DISTRIBUTOR') AS marketing_type FROM dwd.dwd_trf_promoter_order_df "
+                                  "WHERE travel_date = '${bizdate}' AND delete_flag = 0"),
+    ('dwd_prd_resource_order_di', "SELECT DISTINCT order_no, 'RESOURCE_CENTER' AS marketing_type FROM dwd.dwd_prd_resource_order_di WHERE travel_date = '${bizdate}'"),
+    ('dwd_ord_allinone_card_trade_di', "SELECT DISTINCT trade_no AS order_no, 'PARK_CARD' AS marketing_type FROM dwd.dwd_ord_allinone_card_trade_di "
+                                       "WHERE travel_date = '${bizdate}' AND trade_source = 'PAY'"),
+    ('dwd_ord_annual_card_trade_di', "SELECT DISTINCT order_no, 'ANNUAL_CARD' AS marketing_type FROM dwd.dwd_ord_annual_card_trade_di WHERE travel_date = '${bizdate}' AND COALESCE(order_no, '') <> ''"),
+    ('ods_ord_external_code_order_df', "SELECT DISTINCT ordernum AS order_no, 'EXTERNAL_CODE' AS marketing_type FROM ods.ods_ord_external_code_order_df WHERE travel_date = '${bizdate}' AND state = 1"),
+]
+proc('dwd_mkt_order_tag_di', '订单营销标签', '1行=1张订单×1个营销方式（当日下单）', '、'.join([b for b, _ in _TAGS] + ['dwd_ord_order_di']),
+     '订单参与了哪些营销 / 特殊售卖方式：抢购、砍价、拼团、优惠券、全民营销、分销专员、资源中心、园区一卡通、年卡、外部发码；'
+     '由各营销业务过程 DWD 按订单号对齐订单明细得到（一张订单可有多个标签），替代旧 channel_aids 里 is_xsqg / is_kj / marketing_type 等标签',
+     [b for b, _ in _TAGS], [
+         ('order_no', S, '主键', '订单号', 'order_no'),
+         ('marketing_type', S, '主键', '营销方式：SECKILL / CUT_PRICE / GROUP_BOOKING / COUPON / ALL_DIS / DISTRIBUTOR / RESOURCE_CENTER / PARK_CARD / ANNUAL_CARD / EXTERNAL_CODE', 'marketing_type'),
+         ('supplier_id', B, '外键', '供应商ID（租户ID）', 'supplier_id'), ('scenic_id', B, '外键', '景区ID', 'scenic_id'), ('ticket_id', B, '外键', '票ID', 'ticket_id'),
+         ('distributor_id', B, '外键', '一级分销商ID', 'distributor_id'), ('order_mode', I, '外键', '下单渠道', 'order_mode'), ('order_role', S, '状态类型', '主子单', 'order_role'),
+         ('ticket_qty', B, '度量', '下单票数', 'origin_ticket_qty'), ('sale_amt', DEC, '度量', '下单金额（元）= 票数 × 销售单价', 'CAST(origin_ticket_qty * sale_price_amt AS DECIMAL(18,2))'),
+         ('order_time', S, '时间', '下单时间', 'order_time'),
+     ], frm={b: _tag(x) for b, x in _TAGS},
+     notes=['各营销业务过程按订单号对齐当日下单的订单（预订口径同 dws_ord_scenic_ticket_trade_di）；一张订单可同时有多个营销方式，按营销方式汇总时不可跨类型相加',
+            '待确认：旧「新媒体」标签按 6 个固定账号判定（硬编码），未纳入；如仍需要请提供账号配置表'])
+
 # ---------------------------------------------------------------- 新增汇总：一卡通（替代 dws_tps_aioc_summary_* 的透视列）
 METRICS = [
     ('L301', 'aio_trade_qty', '一卡通交易笔数', 'ord', '原子指标', '统计日一卡通有效交易笔数（卡操作全计；消费取已支付；退款取成功）',
@@ -386,7 +443,8 @@ METRICS = [
 ]
 DIMS = {'trade_source': ('STRING', '流水来源：CARD_OP / PAY / REFUND / IC_ORDER'), 'trade_type': ('STRING', '一卡通交易类型：1-充值 2-工本费 3-押金 … / CONSUME / REFUND / IC_CARD_BUY'),
         'aio_pay_type': ('INT', '一卡通支付方式：1-现金 2-支付宝 …')}
-AIO_WHERE = "(trade_source IN ('CARD_OP', 'IC_ORDER') OR (trade_source = 'PAY' AND pay_status = 2) OR (trade_source = 'REFUND' AND refund_status = 2))"
+AIO_WHERE = ("(trade_source IN ('CARD_OP', 'IC_ORDER') OR (trade_source = 'PAY' AND pay_status <> 3 AND trade_no NOT LIKE 'CMB%' AND prepaid_dup_flag = 0)"
+             " OR (trade_source = 'REFUND' AND refund_status = 2))")
 
 
 def register(t, F, model):

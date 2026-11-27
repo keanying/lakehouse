@@ -9,18 +9,37 @@
 --   · 地区表约数千行，全量覆盖
 
 WITH r AS (
-    SELECT id, region_code, parent_id, country_code, region_level, region_path, region_status, sort_order, create_time, update_time
+    SELECT id,
+           region_code,                                                           -- 行政区划码
+           parent_id,                                                             -- 上级地区ID
+           country_code,                                                          -- 所属国家码
+           region_level,
+           region_path,
+           region_status,                                                         -- 状态
+           sort_order,
+           create_time,                                                           -- 创建时间
+           update_time                                                            -- 更新时间
     FROM ods.ods_opr_region_df WHERE travel_date = '${bizdate}'
 ),
 tr AS (                                                                           -- 地区中文名（口径说明：翻译表的表名 / 字段名按 t_region.region_name 约定）
-    SELECT entity_id, MAX(field_value) AS name_cn
+    SELECT entity_id, MAX(field_value) AS name_cn                                 -- 中文名称
     FROM ods.ods_opr_i18n_translation_df
-    WHERE travel_date = '${bizdate}' AND table_name = 't_region' AND field_name = 'region_name' AND locale = 'zh-CN'  -- 只取当日分区，并按条件过滤
+    WHERE travel_date = '${bizdate}'                                              -- 只取当日分区，并按条件过滤
+      AND table_name = 't_region'
+      AND field_name = 'region_name'
+      AND locale = 'zh-CN'
     GROUP BY entity_id                                                            -- 按粒度键汇总
 ),
 x AS (
-    SELECT r.*, p1.region_code AS c1, p1.region_level AS l1, p2.region_code AS c2, p2.region_level AS l2,
-           p3.region_code AS c3, p3.region_level AS l3, p4.region_code AS c4, p4.region_level AS l4
+    SELECT r.*,
+           p1.region_code AS c1,                                                  -- 第 1 级区划编码
+           p1.region_level AS l1,                                                 -- 第 1 级区划层级
+           p2.region_code AS c2,                                                  -- 第 2 级区划编码
+           p2.region_level AS l2,                                                 -- 第 2 级区划层级
+           p3.region_code AS c3,                                                  -- 第 3 级区划编码
+           p3.region_level AS l3,                                                 -- 第 3 级区划层级
+           p4.region_code AS c4,                                                  -- 第 4 级区划编码
+           p4.region_level AS l4                                                  -- 第 4 级区划层级
     FROM r
     LEFT JOIN r p1 ON p1.id = r.parent_id
     LEFT JOIN r p2 ON p2.id = p1.parent_id
@@ -32,16 +51,30 @@ country_src AS (
 )
 INSERT OVERWRITE TABLE dim.dim_opr_region_f                                       -- 整表覆盖写入
 SELECT /*+ BROADCAST(country_src) */
-    x.id AS region_id, x.region_code, x.parent_id, x.country_code, x.region_level AS region_level_no, x.region_path AS region_path_desc,  -- 完整路径含自身
+    x.id AS region_id,                                                            -- 地区字典ID（源表主键 id）
+    x.region_code,                                                                -- 行政区划码
+    x.parent_id,                                                                  -- 上级地区ID
+    x.country_code,                                                               -- 所属国家码
+    x.region_level AS region_level_no,                                            -- 层级
+    x.region_path AS region_path_desc,                                            -- 完整路径含自身
     x.region_status, x.sort_order AS sort_no, x.create_time, x.update_time,
     COALESCE(tr.name_cn, ELEMENT_AT(SPLIT(x.region_path, '/'), -1))                       AS region_name,  -- 地区名称（中文）
     SPLIT(x.region_path, '/')[0]                                                           AS country_name,  -- 国家名称
     c.iso3_code,                                                                  -- 国家三位码
-    COALESCE(IF(x.region_level = 1, x.region_code, NULL), IF(x.l1 = 1, x.c1, NULL), IF(x.l2 = 1, x.c2, NULL), IF(x.l3 = 1, x.c3, NULL), IF(x.l4 = 1, x.c4, NULL)) AS province_code,  -- 所属省份编码
+    COALESCE(IF(x.region_level = 1, x.region_code, NULL),                         -- 所属省份编码
+             IF(x.l1 = 1, x.c1, NULL),
+             IF(x.l2 = 1, x.c2, NULL),
+             IF(x.l3 = 1, x.c3, NULL),
+             IF(x.l4 = 1, x.c4, NULL)) AS province_code,                          -- 所属省份编码
     SPLIT(x.region_path, '/')[1]                                                           AS province_name,  -- 所属省份名称
-    COALESCE(IF(x.region_level = 2, x.region_code, NULL), IF(x.l1 = 2, x.c1, NULL), IF(x.l2 = 2, x.c2, NULL), IF(x.l3 = 2, x.c3, NULL)) AS city_code,  -- 所属城市编码
+    COALESCE(IF(x.region_level = 2, x.region_code, NULL),                         -- 所属城市编码
+             IF(x.l1 = 2, x.c1, NULL),
+             IF(x.l2 = 2, x.c2, NULL),
+             IF(x.l3 = 2, x.c3, NULL)) AS city_code,                              -- 所属城市编码
     SPLIT(x.region_path, '/')[2]                                                           AS city_name,  -- 所属城市名称
-    COALESCE(IF(x.region_level = 3, x.region_code, NULL), IF(x.l1 = 3, x.c1, NULL), IF(x.l2 = 3, x.c2, NULL)) AS district_code,  -- 区县编码
+    COALESCE(IF(x.region_level = 3, x.region_code, NULL),                         -- 区县编码
+             IF(x.l1 = 3, x.c1, NULL),
+             IF(x.l2 = 3, x.c2, NULL)) AS district_code,                          -- 区县编码
     SPLIT(x.region_path, '/')[3]                                                           AS district_name,  -- 区县名称
     IF(x.region_level = 3, x.region_code, NULL)                                            AS id_card_prefix_code,  -- 身份证前 6 位行政区划码
     CURRENT_TIMESTAMP() AS etl_time                                               -- ETL 加载时间

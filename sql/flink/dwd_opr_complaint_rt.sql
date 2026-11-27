@@ -20,10 +20,17 @@ SELECT
   a.create_time                                                AS create_time,    -- 创建时间
   a.update_time                                                AS update_time,    -- 更新时间
   j1.seller_tenant_id                                          AS seller_tenant_id,  -- 被投诉的卖家租户ID
-  HOUR(a.create_time) AS create_time_hour_no,  -- 投诉提交小时｜口径：投诉提交时间取小时
+  HOUR(a.create_time) AS create_time_hour_no,                                     -- 投诉提交小时｜口径：投诉提交时间取小时
   CASE WHEN a.complaint_status IN ('RESOLVED', 'CLOSED') THEN a.binlog_time END AS resolve_time,  -- 处理完成时间
-  TIMESTAMPDIFF(HOUR, a.create_time, CASE WHEN a.complaint_status IN ('RESOLVED', 'CLOSED') THEN a.binlog_time END) AS resolve_hour_qty,  -- 处理时长（小时）
-  CASE WHEN COALESCE(CASE WHEN a.complaint_status IN ('RESOLVED', 'CLOSED') THEN a.binlog_time END, CURRENT_TIMESTAMP) > a.sla_deadline THEN 1 ELSE 0 END AS sla_timeout_type,  -- 是否超 SLA｜口径：同离线
+  TIMESTAMPDIFF(                                                                  -- 处理时长（小时）
+      HOUR,
+      a.create_time,                                                              -- 创建时间
+      CASE WHEN a.complaint_status IN ('RESOLVED', 'CLOSED') THEN a.binlog_time END
+  ) AS resolve_hour_qty,                                                          -- 处理时长（小时）
+  CASE                                                                            -- 是否超 SLA｜口径：同离线
+      WHEN COALESCE(CASE WHEN a.complaint_status IN ('RESOLVED', 'CLOSED') THEN a.binlog_time END, CURRENT_TIMESTAMP) > a.sla_deadline THEN 1
+      ELSE 0
+  END AS sla_timeout_type,                                                        -- 是否超 SLA
   1                                                            AS complaint_qty,  -- 投诉数
   CURRENT_TIMESTAMP                                            AS event_time      -- 事件时间（binlog 时间）
 FROM ods.ods_opr_complaint_rt a                                                   -- 主表「投诉工单 binlog 流」

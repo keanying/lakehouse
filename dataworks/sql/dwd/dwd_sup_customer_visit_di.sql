@@ -9,10 +9,10 @@
 -- 业务规则 / 修正：
 --   · 过渡期从旧表 dwd_mkt_oa_customer_reception_detail_df 平移：旧逻辑由多张中间表 / 外部采集加工，字段与 ODS 不能直接对应；字段口径按字典，上线顺序：先平移保证下游可切换，再按字段清单把「待确认」逐个改为从 ODS 计算后下线旧链路
 -- ================================================================================================
-INSERT OVERWRITE TABLE dwd.dwd_sup_customer_visit_di PARTITION (travel_date = '${bizdate}')
+INSERT OVERWRITE TABLE dwd.dwd_sup_customer_visit_di PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
 SELECT
-    CAST(NULL AS BIGINT)                                         AS company_id,   -- 待确认：来源未同步
-    CAST(NULL AS STRING)                                         AS visit_time,   -- 待确认：来源未同步
-    CAST(NULL AS BIGINT)                                         AS staff_id,   -- 待确认：来源未同步
-    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time
+    CAST(NULL AS BIGINT)                                         AS company_id,   -- 公司ID｜待确认：来源未同步
+    CAST(NULL AS STRING)                                         AS visit_time,   -- 到访时间｜待确认：来源未同步
+    CAST(NULL AS BIGINT)                                         AS staff_id,     -- 员工ID｜待确认：来源未同步
+    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time           -- ETL 加载时间
 FROM dwd_mkt_oa_customer_reception_detail_df

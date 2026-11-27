@@ -13,31 +13,31 @@
 -- 业务规则 / 修正：
 --   · 手机号段（前 7 位）→ 归属地；DWD 按 ODS 脱敏前缀等值关联
 -- ================================================================================================
-INSERT OVERWRITE TABLE dim.dim_opr_phone_area_f
+INSERT OVERWRITE TABLE dim.dim_opr_phone_area_f                                   -- 整表覆盖写入
 SELECT
-    number                                                       AS phone_prefix,
-    province_code,
-    city_code,
-    CAST(NULL AS STRING)                                         AS stat_date,   -- 待确认：来源未同步（旧字段 dim_phone_city_d_f.stat_date）
-    CAST(NULL AS BIGINT)                                         AS phone_city_id_mask,   -- 待确认：来源未同步（旧字段 dim_phone_city_d_f.phone_city_id）
-    CAST(NULL AS BIGINT)                                         AS phone_number_mask,   -- 待确认：来源未同步（旧字段 dim_phone_city_d_f.phone_number）
-    area_code,
-    zip_code,
-    province_name,
-    city_name,
-    CAST(NULL AS STRING)                                         AS district_name,   -- 冗余维度属性：查询时关联维表，建议从明细移除
-    country_name,
-    lng,
-    lat,
-    CAST(NULL AS STRING)                                         AS phone_area_code_mask,   -- 待确认：来源未同步（旧字段 dim_phone_global_d_f.phone_area_code）
-    CAST(NULL AS STRING)                                         AS name_zh,   -- 待确认：来源未同步（旧字段 dim_phone_global_d_f.name_zh）
-    CAST(NULL AS STRING)                                         AS name_en,   -- 待确认：来源未同步（旧字段 dim_phone_global_d_f.name_en）
-    CAST(NULL AS STRING)                                         AS full_name_zh,   -- 待确认：来源未同步（旧字段 dim_phone_global_d_f.full_name_zh）
-    CAST(NULL AS STRING)                                         AS full_name_en,   -- 待确认：来源未同步（旧字段 dim_phone_global_d_f.full_name_en）
-    CAST(NULL AS BIGINT)                                         AS is_country,   -- 待确认：来源未同步（旧字段 dim_phone_global_d_f.is_country）
-    CAST(NULL AS STRING)                                         AS alpha_2_code,   -- 待确认：来源未同步（旧字段 dim_phone_global_d_f.alpha_2_code）
-    CAST(NULL AS STRING)                                         AS alpha_3_code,   -- 待确认：来源未同步（旧字段 dim_phone_global_d_f.alpha_3_code）
-    CAST(NULL AS STRING)                                         AS numeric_3_code,   -- 待确认：来源未同步（旧字段 dim_phone_global_d_f.numeric_3_code）
-    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time
+    number                                                       AS phone_prefix,  -- 手机号prefix（待确认）
+    province_code,                                                                -- 归属省份编码
+    city_code,                                                                    -- 归属市编码
+    CAST(NULL AS STRING)                                         AS stat_date,    -- 统计日期｜待确认：来源未同步（旧字段 dim_phone_city_d_f.stat_date）
+    CAST(NULL AS BIGINT)                                         AS phone_city_id_mask,  -- 电话归属市编码｜待确认：来源未同步（旧字段 dim_phone_city_d_f.phone_city_id）
+    CAST(NULL AS BIGINT)                                         AS phone_number_mask,  -- 手机号前7位｜待确认：来源未同步（旧字段 dim_phone_city_d_f.phone_number）
+    area_code,                                                                    -- 区域编码
+    zip_code,                                                                     -- 邮编
+    province_name,                                                                -- 省名称
+    city_name,                                                                    -- 市名称
+    CAST(NULL AS STRING)                                         AS district_name,  -- 区县名称｜冗余维度属性：查询时关联维表，建议从明细移除
+    country_name,                                                                 -- 国家名称
+    lng,                                                                          -- 经度
+    lat,                                                                          -- 纬度
+    CAST(NULL AS STRING)                                         AS phone_area_code_mask,  -- 手机区号｜待确认：来源未同步（旧字段 dim_phone_global_d_f.phone_area_code）
+    CAST(NULL AS STRING)                                         AS name_zh,      -- 中文名称｜待确认：来源未同步（旧字段 dim_phone_global_d_f.name_zh）
+    CAST(NULL AS STRING)                                         AS name_en,      -- 英文名称｜待确认：来源未同步（旧字段 dim_phone_global_d_f.name_en）
+    CAST(NULL AS STRING)                                         AS full_name_zh,  -- 中文全称｜待确认：来源未同步（旧字段 dim_phone_global_d_f.full_name_zh）
+    CAST(NULL AS STRING)                                         AS full_name_en,  -- 英文全称｜待确认：来源未同步（旧字段 dim_phone_global_d_f.full_name_en）
+    CAST(NULL AS BIGINT)                                         AS is_country,   -- 是否为独立国家｜待确认：来源未同步（旧字段 dim_phone_global_d_f.is_country）
+    CAST(NULL AS STRING)                                         AS alpha_2_code,  -- ISO 3166-1标准中的二位字母代码｜待确认：来源未同步（旧字段 dim_phone_global_d_f.alpha_2_code）
+    CAST(NULL AS STRING)                                         AS alpha_3_code,  -- ISO 3166-1标准中的三位字母代码｜待确认：来源未同步（旧字段 dim_phone_global_d_f.alpha_3_code）
+    CAST(NULL AS STRING)                                         AS numeric_3_code,  -- ISO 3166-1标准中的三位数字代码｜待确认：来源未同步（旧字段 dim_phone_global_d_f.numeric_3_code）
+    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time           -- ETL 加载时间
 FROM ods.ods_opr_city_phone_df
-WHERE travel_date = '${bizdate}'
+WHERE travel_date = '${bizdate}'                                                  -- 只取当日分区

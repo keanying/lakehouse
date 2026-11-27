@@ -15,34 +15,40 @@
 -- ================================================================================================
 -- 分销关系拉链：关系本身带建立 / 解除时间（rectime / cuttime），直接按业务时间生成区间，不需要每日比对快照
 WITH r AS (
-    SELECT CAST(parent_id AS BIGINT) AS parent_id, CAST(son_id AS BIGINT) AS son_id, son_id_type, CAST(ship_type AS BIGINT) AS ship_type, status, rectime, cuttime,
-           ROW_NUMBER() OVER (PARTITION BY parent_id, son_id ORDER BY rectime DESC) AS rn
+    SELECT CAST(parent_id AS BIGINT) AS parent_id,                                -- 父级ID
+           CAST(son_id AS BIGINT) AS son_id,                                      -- 子ID
+           son_id_type,
+           CAST(ship_type AS BIGINT) AS ship_type,                                -- 关系类型
+           status,
+           rectime,
+           cuttime,
+           ROW_NUMBER() OVER (PARTITION BY parent_id, son_id ORDER BY rectime DESC) AS rn  -- 去重序号（1 = 最新）
     FROM ods.ods_sup_member_relation_df
-    WHERE travel_date = '${bizdate}'
+    WHERE travel_date = '${bizdate}'                                              -- 只取当日分区
 ),
-grp AS (   -- 分销商分组：同一供应商下一个分销商可能在多个组，取最新加入的
+grp AS (                                                                          -- 分销商分组：同一供应商下一个分销商可能在多个组，取最新加入的
     SELECT sid, fid, group_id
     FROM (SELECT CAST(sid AS BIGINT) AS sid, CAST(fid AS BIGINT) AS fid, CAST(group_id AS BIGINT) AS group_id,
-                 ROW_NUMBER() OVER (PARTITION BY sid, fid ORDER BY rectime DESC) AS rn
+                 ROW_NUMBER() OVER (PARTITION BY sid, fid ORDER BY rectime DESC) AS rn  -- 去重序号（1 = 最新）
           FROM ods.ods_trf_evolute_group_fid_df WHERE travel_date = '${bizdate}') t
     WHERE rn = 1
 )
-INSERT OVERWRITE TABLE dim.dim_sup_member_relation_zip
+INSERT OVERWRITE TABLE dim.dim_sup_member_relation_zip                            -- 整表覆盖写入
 SELECT /*+ BROADCAST(g) */
-    r.parent_id                                                      AS supplier_id,
-    r.son_id                                                         AS distributor_id,
-    DATE_FORMAT(r.rectime, 'yyyyMMdd')                               AS start_date,
-    IF(r.status = '0', '99991231', DATE_FORMAT(COALESCE(r.cuttime, r.rectime), 'yyyyMMdd')) AS end_date,   -- 有效关系 end_date = 99991231
-    '${bizdate}'                                                   AS stat_date,
-    r.parent_id,
-    r.son_id,
-    r.son_id_type                                                    AS son_type,
-    r.ship_type                                                      AS relationship_type,
-    g.group_id                                                       AS distributor_group,
-    r.rectime                                                        AS add_time,
-    r.cuttime                                                        AS cut_time,
-    r.status                                                         AS order_status,
-    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time
+    r.parent_id                                                      AS supplier_id,  -- 供应商ID（租户ID）
+    r.son_id                                                         AS distributor_id,  -- 分销商ID
+    DATE_FORMAT(r.rectime, 'yyyyMMdd')                               AS start_date,  -- 开始日期
+    IF(r.status = '0', '99991231', DATE_FORMAT(COALESCE(r.cuttime, r.rectime), 'yyyyMMdd')) AS end_date,  -- 结束日期｜有效关系 end_date = 99991231
+    '${bizdate}'                                                   AS stat_date,  -- 统计日期
+    r.parent_id,                                                                  -- 父级ID
+    r.son_id,                                                                     -- 子ID
+    r.son_id_type                                                    AS son_type,  -- 子类型
+    r.ship_type                                                      AS relationship_type,  -- 关系类型
+    g.group_id                                                       AS distributor_group,  -- 一级分销商分组
+    r.rectime                                                        AS add_time,  -- 供应商+产品最早上架资源中心票的时间
+    r.cuttime                                                        AS cut_time,  -- 砍价时间
+    r.status                                                         AS order_status,  -- 状态
+    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time           -- ETL 加载时间
 FROM r
 LEFT JOIN grp g ON g.sid = r.parent_id AND g.fid = r.son_id
 WHERE r.rn = 1

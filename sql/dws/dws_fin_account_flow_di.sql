@@ -13,9 +13,9 @@ src_fund_flow AS (                                                   -- 来源�
     SUM(CASE WHEN change_amt>0 THEN change_amt END) AS fund_in_amt,  -- 资金流入
     SUM(CASE WHEN change_amt<0 THEN -change_amt END) AS fund_out_amt,  -- 资金流出
     SUM(CASE WHEN flow_type='FEE' THEN -change_amt END) AS fee_amt,  -- 手续费金额
-    NULL AS withdraw_apply_amt,
-    NULL AS withdraw_success_amt,
-    NULL AS withdraw_fail_qty
+    NULL AS withdraw_apply_amt,                                      -- 提现申请金额：本来源无，补空对齐 UNION ALL
+    NULL AS withdraw_success_amt,                                    -- 提现成功金额：本来源无，补空对齐 UNION ALL
+    NULL AS withdraw_fail_qty                                        -- 提现失败笔数：本来源无，补空对齐 UNION ALL
   FROM dwd.dwd_fin_fund_flow_di s                                    -- 来源表「资金流水明细」
   WHERE s.travel_date = '${bizdate}'                                 -- 只取当日分区
   GROUP BY account_no, flow_type                                     -- 按粒度键汇总
@@ -23,11 +23,11 @@ src_fund_flow AS (                                                   -- 来源�
 src_withdraw AS (                                                    -- 来源「提现明细」按粒度键预聚合
   SELECT
     account_no AS account_no,                                        -- 账户编号
-    CAST(NULL AS STRING) AS flow_type,
-    NULL AS fund_flow_qty,
-    NULL AS fund_in_amt,
-    NULL AS fund_out_amt,
-    NULL AS fee_amt,
+    CAST(NULL AS STRING) AS flow_type,                               -- 流水类型：本来源无，补空对齐 UNION ALL
+    NULL AS fund_flow_qty,                                           -- 资金流水笔数：本来源无，补空对齐 UNION ALL
+    NULL AS fund_in_amt,                                             -- 资金流入：本来源无，补空对齐 UNION ALL
+    NULL AS fund_out_amt,                                            -- 资金流出：本来源无，补空对齐 UNION ALL
+    NULL AS fee_amt,                                                 -- 手续费金额：本来源无，补空对齐 UNION ALL
     SUM(withdraw_amt) AS withdraw_apply_amt,                         -- 提现申请金额
     SUM(CASE WHEN withdraw_status = 'COMPLETED' THEN withdraw_amt END) AS withdraw_success_amt,  -- 提现成功金额
     COUNT(CASE WHEN withdraw_status IN ('FAILED', 'REJECTED') THEN withdraw_no END) AS withdraw_fail_qty  -- 提现失败笔数｜口径：提现失败或被驳回

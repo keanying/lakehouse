@@ -22,92 +22,74 @@
 --   · ADS 只存日粒度：周 / 月 / 年 / 节假日 / 自定义区间与同比环比在查询时关联 dim_opr_period_f（见「指标口径 · ADS 业务指标」）
 --   · 比率类不落比率值，只存分子分母；去重类存位图；快照类取日终值
 -- ================================================================================================
-INSERT OVERWRITE TABLE ads.ads_ord_scenic_trade_overview_di PARTITION (travel_date = '${bizdate}')
+INSERT OVERWRITE TABLE ads.ads_ord_scenic_trade_overview_di PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
 SELECT
-    scenic_id,
-    ticket_id,
-    distributor_id,
-    order_mode,
-    order_role,
-    pay_mode,
-    SUM(order_order_qty)                                         AS order_order_qty,
-    SUM(order_ticket_qty)                                        AS order_ticket_qty,
-    SUM(order_sale_amt)                                          AS order_sale_amt,
-    SUM(order_cost_amt)                                          AS order_cost_amt,
-    SUM(pay_order_qty)                                           AS pay_order_qty,
-    SUM(pay_ticket_qty)                                          AS pay_ticket_qty,
-    SUM(pay_sale_amt)                                            AS pay_sale_amt,
-    SUM(cancel_order_qty)                                        AS cancel_order_qty,
-    SUM(cancel_ticket_qty)                                       AS cancel_ticket_qty,
-    SUM(cancel_sale_amt)                                         AS cancel_sale_amt,
-    SUM(cancel_cost_amt)                                         AS cancel_cost_amt,
-    SUM(verify_order_qty)                                        AS verify_order_qty,
-    SUM(verify_ticket_qty)                                       AS verify_ticket_qty,
-    SUM(verify_sale_amt)                                         AS verify_sale_amt,
-    SUM(verify_cost_amt)                                         AS verify_cost_amt,
-    SUM(finish_order_qty)                                        AS finish_order_qty,
-    SUM(finish_ticket_qty)                                       AS finish_ticket_qty,
-    SUM(finish_sale_amt)                                         AS finish_sale_amt,
-    SUM(finish_cost_amt)                                         AS finish_cost_amt,
-    SUM(revoke_order_qty)                                        AS revoke_order_qty,
-    SUM(revoke_ticket_qty)                                       AS revoke_ticket_qty,
-    SUM(revoke_sale_amt)                                         AS revoke_sale_amt,
-    SUM(revoke_cost_amt)                                         AS revoke_cost_amt,
-    SUM(after_sale_refund_amt)                                   AS after_sale_refund_amt,
-    BITMAP_UNION(buyer_bitmap)                                   AS buyer_bitmap,
-    SUM(after_sale_income_amt)                                   AS after_sale_income_amt,
-    SUM(after_sale_ticket_qty)                                   AS after_sale_ticket_qty,
-    SUM(card_sale_amt)                                           AS card_sale_amt,
-    SUM(card_sale_qty)                                           AS card_sale_qty,
-    SUM(enter_qty)                                               AS enter_qty,
-    SUM(print_order_qty)                                         AS print_order_qty,
-    SUM(print_sale_amt)                                          AS print_sale_amt,
-    SUM(print_ticket_qty)                                        AS print_ticket_qty,
-    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time
+    scenic_id,                                                                    -- 景区ID
+    ticket_id,                                                                    -- 票ID
+    SUM(order_order_qty)                                         AS order_order_qty,  -- 预订订单数（日）
+    SUM(order_ticket_qty)                                        AS order_ticket_qty,  -- 预订票数（日）
+    SUM(order_sale_amt)                                          AS order_sale_amt,  -- 预订金额（日）
+    SUM(order_cost_amt)                                          AS order_cost_amt,  -- 预订成本金额（日）
+    SUM(pay_order_qty)                                           AS pay_order_qty,  -- 支付订单数（日）
+    SUM(pay_ticket_qty)                                          AS pay_ticket_qty,  -- 支付票数（日）
+    SUM(pay_sale_amt)                                            AS pay_sale_amt,  -- 支付金额（日）
+    SUM(cancel_order_qty)                                        AS cancel_order_qty,  -- 取消订单数（日）
+    SUM(cancel_ticket_qty)                                       AS cancel_ticket_qty,  -- 取消票数（日）
+    SUM(cancel_sale_amt)                                         AS cancel_sale_amt,  -- 取消金额（日）
+    SUM(cancel_cost_amt)                                         AS cancel_cost_amt,  -- 取消成本金额（日）
+    SUM(verify_order_qty)                                        AS verify_order_qty,  -- 验证订单数（日）
+    SUM(verify_ticket_qty)                                       AS verify_ticket_qty,  -- 验证票数（日）
+    SUM(verify_sale_amt)                                         AS verify_sale_amt,  -- 验证金额（日）
+    SUM(verify_cost_amt)                                         AS verify_cost_amt,  -- 验证成本金额（日）
+    SUM(finish_order_qty)                                        AS finish_order_qty,  -- 完结订单数（日）
+    SUM(finish_ticket_qty)                                       AS finish_ticket_qty,  -- 完结票数（日）
+    SUM(finish_sale_amt)                                         AS finish_sale_amt,  -- 完结金额（日）
+    SUM(finish_cost_amt)                                         AS finish_cost_amt,  -- 完结成本金额（日）
+    SUM(revoke_order_qty)                                        AS revoke_order_qty,  -- 撤销订单数（日）
+    SUM(revoke_ticket_qty)                                       AS revoke_ticket_qty,  -- 撤销票数（日）
+    SUM(revoke_sale_amt)                                         AS revoke_sale_amt,  -- 撤销金额（日）
+    SUM(revoke_cost_amt)                                         AS revoke_cost_amt,  -- 撤销成本金额（日）
+    SUM(after_sale_refund_amt)                                   AS after_sale_refund_amt,  -- 售后退回金额（日）
+    BITMAP_UNION(buyer_bitmap)                                   AS buyer_bitmap,  -- 购买人数去重位图（日）
+    SUM(pay_cost_amt)                                            AS pay_cost_amt,  -- 支付成本金额（日）
+    SUM(cancel_fee_amt)                                          AS cancel_fee_amt,  -- 取消手续费（日）
+    SUM(revoke_fee_amt)                                          AS revoke_fee_amt,  -- 撤销手续费（日）
+    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time           -- ETL 加载时间
 FROM (
     -- dws_ord_scenic_ticket_trade_di
     SELECT
-        scenic_id,
-        ticket_id,
-        distributor_id,
-        order_mode,
-        order_role,
-        pay_mode,
-        SUM(order_order_qty)                                         AS order_order_qty,
-        SUM(order_ticket_qty)                                        AS order_ticket_qty,
-        SUM(order_sale_amt)                                          AS order_sale_amt,
-        SUM(order_cost_amt)                                          AS order_cost_amt,
-        SUM(pay_order_qty)                                           AS pay_order_qty,
-        SUM(pay_ticket_qty)                                          AS pay_ticket_qty,
-        SUM(pay_sale_amt)                                            AS pay_sale_amt,
-        SUM(cancel_order_qty)                                        AS cancel_order_qty,
-        SUM(cancel_ticket_qty)                                       AS cancel_ticket_qty,
-        SUM(cancel_sale_amt)                                         AS cancel_sale_amt,
-        SUM(cancel_cost_amt)                                         AS cancel_cost_amt,
-        SUM(verify_order_qty)                                        AS verify_order_qty,
-        SUM(verify_ticket_qty)                                       AS verify_ticket_qty,
-        SUM(verify_sale_amt)                                         AS verify_sale_amt,
-        SUM(verify_cost_amt)                                         AS verify_cost_amt,
-        SUM(finish_order_qty)                                        AS finish_order_qty,
-        SUM(finish_ticket_qty)                                       AS finish_ticket_qty,
-        SUM(finish_sale_amt)                                         AS finish_sale_amt,
-        SUM(finish_cost_amt)                                         AS finish_cost_amt,
-        SUM(revoke_order_qty)                                        AS revoke_order_qty,
-        SUM(revoke_ticket_qty)                                       AS revoke_ticket_qty,
-        SUM(revoke_sale_amt)                                         AS revoke_sale_amt,
-        SUM(revoke_cost_amt)                                         AS revoke_cost_amt,
-        SUM(after_sale_refund_amt)                                   AS after_sale_refund_amt,
-        BITMAP_UNION(buyer_qty)                                      AS buyer_bitmap,
-        SUM(after_sale_income_amt)                                   AS after_sale_income_amt,
-        SUM(after_sale_ticket_qty)                                   AS after_sale_ticket_qty,
-        SUM(card_sale_amt)                                           AS card_sale_amt,
-        SUM(card_sale_qty)                                           AS card_sale_qty,
-        SUM(enter_qty)                                               AS enter_qty,
-        SUM(print_order_qty)                                         AS print_order_qty,
-        SUM(print_sale_amt)                                          AS print_sale_amt,
-        SUM(print_ticket_qty)                                        AS print_ticket_qty
+        scenic_id,                                                                -- 景区ID
+        ticket_id,                                                                -- 票ID
+        SUM(order_order_qty)                                         AS order_order_qty,  -- 预订订单数（日）
+        SUM(order_ticket_qty)                                        AS order_ticket_qty,  -- 预订票数（日）
+        SUM(order_sale_amt)                                          AS order_sale_amt,  -- 预订金额（日）
+        SUM(order_cost_amt)                                          AS order_cost_amt,  -- 预订成本金额（日）
+        SUM(pay_order_qty)                                           AS pay_order_qty,  -- 支付订单数（日）
+        SUM(pay_ticket_qty)                                          AS pay_ticket_qty,  -- 支付票数（日）
+        SUM(pay_sale_amt)                                            AS pay_sale_amt,  -- 支付金额（日）
+        SUM(cancel_order_qty)                                        AS cancel_order_qty,  -- 取消订单数（日）
+        SUM(cancel_ticket_qty)                                       AS cancel_ticket_qty,  -- 取消票数（日）
+        SUM(cancel_sale_amt)                                         AS cancel_sale_amt,  -- 取消金额（日）
+        SUM(cancel_cost_amt)                                         AS cancel_cost_amt,  -- 取消成本金额（日）
+        SUM(verify_order_qty)                                        AS verify_order_qty,  -- 验证订单数（日）
+        SUM(verify_ticket_qty)                                       AS verify_ticket_qty,  -- 验证票数（日）
+        SUM(verify_sale_amt)                                         AS verify_sale_amt,  -- 验证金额（日）
+        SUM(verify_cost_amt)                                         AS verify_cost_amt,  -- 验证成本金额（日）
+        SUM(finish_order_qty)                                        AS finish_order_qty,  -- 完结订单数（日）
+        SUM(finish_ticket_qty)                                       AS finish_ticket_qty,  -- 完结票数（日）
+        SUM(finish_sale_amt)                                         AS finish_sale_amt,  -- 完结金额（日）
+        SUM(finish_cost_amt)                                         AS finish_cost_amt,  -- 完结成本金额（日）
+        SUM(revoke_order_qty)                                        AS revoke_order_qty,  -- 撤销订单数（日）
+        SUM(revoke_ticket_qty)                                       AS revoke_ticket_qty,  -- 撤销票数（日）
+        SUM(revoke_sale_amt)                                         AS revoke_sale_amt,  -- 撤销金额（日）
+        SUM(revoke_cost_amt)                                         AS revoke_cost_amt,  -- 撤销成本金额（日）
+        SUM(after_sale_refund_amt)                                   AS after_sale_refund_amt,  -- 售后退回金额（日）
+        BITMAP_UNION(buyer_qty)                                      AS buyer_bitmap,  -- 购买人数去重位图（日）
+        SUM(pay_cost_amt)                                            AS pay_cost_amt,  -- 支付成本金额（日）
+        SUM(cancel_fee_amt)                                          AS cancel_fee_amt,  -- 取消手续费（日）
+        SUM(revoke_fee_amt)                                          AS revoke_fee_amt  -- 撤销手续费（日）
     FROM dws.dws_ord_scenic_ticket_trade_di
-    WHERE travel_date = '${bizdate}'
-    GROUP BY scenic_id, ticket_id, distributor_id, order_mode, order_role, pay_mode
-) u
-GROUP BY scenic_id, ticket_id, distributor_id, order_mode, order_role, pay_mode
+    WHERE travel_date = '${bizdate}'                                              -- 只取当日分区
+    GROUP BY scenic_id, ticket_id                                                 -- 按粒度键汇总
+) u                                                                               -- 各来源合并后的明细
+GROUP BY scenic_id, ticket_id                                                     -- 按粒度键汇总

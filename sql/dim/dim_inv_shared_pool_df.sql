@@ -21,7 +21,7 @@ SELECT
   shared_inventory_pool_src.id                    AS shared_pool_id,        -- 共享库存池ID（源表主键 id）
   shared_inventory_pool_src.relation_id           AS relation_id,           -- 分销关系ID
   shared_inventory_pool_src.source_pool_no        AS source_pool_no,        -- 源库存池编号（供应商池）
-  shared_inventory_pool_src.shared_pool_no        AS shared_pool_no,        -- 共享池编号（分销商独立池
+  shared_inventory_pool_src.shared_pool_no        AS shared_pool_no,        -- 共享池编号
   shared_inventory_pool_src.quota_type            AS quota_type,            -- 配额类型
   shared_inventory_pool_src.quota_quantity        AS quota_qty,             -- 配额数量
   shared_inventory_pool_src.quota_used            AS quota_used_qty,        -- 已用配额

@@ -10,32 +10,58 @@
 --   · 票、状态流转只取近 400 天，按票号关联
 
 WITH r AS (
-    SELECT id, refund_no, order_group_no, refund_type, refund_reason, refund_status, refund_items, initiator_type, tenant_id, create_time,
+    SELECT id,
+           refund_no,                                                             -- 退款单号
+           order_group_no,                                                        -- 聚合单号
+           refund_type,                                                           -- 退款类型
+           refund_reason,
+           refund_status,                                                         -- 退款状态
+           refund_items,
+           initiator_type,                                                        -- 发起方
+           tenant_id,                                                             -- 租户ID（分库维度）
+           create_time,
            ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn, binlog_op_type  -- 同一主键多次变更，按 binlog 时间倒序编号
     FROM ods.ods_ord_refund_order_di WHERE travel_date = '${bizdate}'
 ),
 it AS (                                                                           -- 一行 = 一张退款票
-    SELECT r.refund_no, r.order_group_no, r.refund_type, r.refund_reason, r.refund_status, r.initiator_type, r.tenant_id, r.create_time,
-           i.orderNo AS order_no, tk AS ticket_no,                                -- 票号
+    SELECT r.refund_no,                                                           -- 退款单号
+           r.order_group_no,                                                      -- 聚合单号
+           r.refund_type,                                                         -- 退款类型
+           r.refund_reason,
+           r.refund_status,                                                       -- 退款状态
+           r.initiator_type,                                                      -- 发起方
+           r.tenant_id,                                                           -- 租户ID（分库维度）
+           r.create_time,
+           i.orderNo AS order_no,                                                 -- 子单号
+           tk AS ticket_no,                                                       -- 票号
            CAST(i.amount AS DECIMAL(18,2)) / NULLIF(SIZE(i.ticketNos), 0) / 100 AS refund_amt  -- 本票分摊退款金额（元）
     FROM r
-    LATERAL VIEW EXPLODE(FROM_JSON(r.refund_items, 'array<struct<orderNo:string,ticketNos:array<string>,amount:bigint>>')) e AS i
+    LATERAL VIEW EXPLODE(FROM_JSON(r.refund_items, 'array<struct<orderNo:string,ticketNos:array<string>,amount:bigint>>')) e AS i  -- 数组下标
     LATERAL VIEW EXPLODE(i.ticketNos) t AS tk
     WHERE r.rn = 1 AND r.binlog_op_type <> 'DELETE'                               -- 剔除源库已删除的记录
 ),
 ticket AS (
-    SELECT ticket_no, MAX(seller_tenant_id) AS seller_tenant_id, MAX(sku_id) AS sku_id, MAX(play_date) AS play_date
+    SELECT ticket_no,                                                             -- 票号
+           MAX(seller_tenant_id) AS seller_tenant_id,                             -- 卖家租户ID
+           MAX(sku_id) AS sku_id,                                                 -- SKU ID
+           MAX(play_date) AS play_date                                            -- 游玩日期
     FROM dwd.dwd_ord_ticket_di WHERE travel_date >= DATE_FORMAT(DATE_SUB(TO_DATE('${bizdate}', 'yyyyMMdd'), 400), 'yyyyMMdd') GROUP BY ticket_no
 ),
 st AS (                                                                           -- 退款申请前最后一次票状态
-    SELECT it.refund_no, it.ticket_no, MAX_BY(l.after_status, l.change_time) AS before_status
+    SELECT it.refund_no, it.ticket_no, MAX_BY(l.after_status, l.change_time) AS before_status  -- 变更前状态
     FROM it
-    JOIN (SELECT ticket_no, after_status, change_time FROM dwd.dwd_ord_ticket_status_log_di WHERE travel_date >= DATE_FORMAT(DATE_SUB(TO_DATE('${bizdate}', 'yyyyMMdd'), 400), 'yyyyMMdd')) l  -- 关联「票状态流转明细」按键聚合
+    JOIN (                                                                        -- 关联「票状态流转明细」按键聚合
+        SELECT ticket_no,                                                         -- 票号
+        after_status,
+        change_time FROM dwd.dwd_ord_ticket_status_log_di
+            WHERE travel_date >= DATE_FORMAT(DATE_SUB(TO_DATE('${bizdate}', 'yyyyMMdd'), 400), 'yyyyMMdd')
+    ) l
       ON l.ticket_no = it.ticket_no AND l.change_time < it.create_time            -- 按 ticket_no 关联
     GROUP BY it.refund_no, it.ticket_no                                           -- 按粒度键汇总
 ),
 fin AS (
-    SELECT refund_no, MAX(finish_time) AS finish_time FROM dwd.dwd_ord_refund_di WHERE travel_date = '${bizdate}' GROUP BY refund_no
+    SELECT refund_no,                                                             -- 退款单号
+           MAX(finish_time) AS finish_time FROM dwd.dwd_ord_refund_di WHERE travel_date = '${bizdate}' GROUP BY refund_no
 )
 INSERT OVERWRITE TABLE dwd.dwd_ord_refund_ticket_di PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
 SELECT

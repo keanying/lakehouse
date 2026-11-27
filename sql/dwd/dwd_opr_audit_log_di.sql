@@ -17,7 +17,7 @@ SELECT
   audit_log_chg.log_no            AS log_no,          -- 日志编号
   audit_log_chg.operator_id       AS operator_id,     -- 操作人ID
   audit_log_chg.operator_type     AS operator_type,   -- 操作人类型
-  audit_log_chg.action            AS action_type,     -- 操作动作（如PLACE_ORDER-下单
+  audit_log_chg.action            AS action_type,     -- 操作动作
   audit_log_chg.resource_type     AS resource_type,   -- 资源类型
   audit_log_chg.resource_id       AS resource_id,     -- 资源ID
   audit_log_chg.ip_address        AS client_ip_code,  -- IP地址

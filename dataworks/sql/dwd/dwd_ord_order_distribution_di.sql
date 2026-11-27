@@ -20,31 +20,53 @@
 --   · 关联订单带下单日分区条件（动态分区裁剪）
 -- ================================================================================================
 WITH s AS (
-    SELECT orderid, buyerid, sellerid, level, pmode, cost_money, sale_money, id, FROM_UNIXTIME(order_time, 'yyyyMMdd') AS order_date
-    FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY orderid, sellerid, buyerid ORDER BY update_time DESC) AS rn
+    SELECT orderid,
+           buyerid,
+           sellerid,
+           level,
+           pmode,
+           cost_money,
+           sale_money,
+           id,
+           FROM_UNIXTIME(order_time, 'yyyyMMdd') AS order_date
+    FROM (SELECT *, ROW_NUMBER() OVER (                                           -- 同一主键多次变更，按 binlog 时间倒序编号
+        PARTITION BY orderid,
+        sellerid,
+        buyerid ORDER BY update_time DESC
+    ) AS rn                                                                       -- 去重序号（1 = 最新）
           FROM ods.ods_ord_order_distribution_split_di WHERE travel_date = '${bizdate}') t
     WHERE rn = 1
 ),
-ranked AS (   -- level：1 / 0 为第一级，2 中间，-1 末级 → 排序键 1 < 2 < -1
-    SELECT s.*, ROW_NUMBER() OVER (PARTITION BY orderid ORDER BY CASE WHEN level IN (0, 1) THEN 0 WHEN level = -1 THEN 2 ELSE 1 END, id) AS distribute_level
+ranked AS (                                                                       -- level：1 / 0 为第一级，2 中间，-1 末级 → 排序键 1 < 2 < -1
+    SELECT s.*,
+           ROW_NUMBER() OVER (PARTITION BY orderid ORDER BY CASE                  -- 同一主键多次变更，按 binlog 时间倒序编号
+               WHEN level IN (0, 1) THEN 0 WHEN level = -1 THEN 2 ELSE 1 END, id) AS distribute_level  -- 分销层级
     FROM s
 )
-INSERT OVERWRITE TABLE dwd.dwd_ord_order_distribution_di PARTITION (travel_date = '${bizdate}')
+INSERT OVERWRITE TABLE dwd.dwd_ord_order_distribution_di PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
 SELECT
-    r.orderid                                                        AS order_no,
-    r.distribute_level,
-    r.sellerid                                                       AS seller_id,
-    r.buyerid                                                        AS buyer_id,
-    CAST(r.sale_money AS DECIMAL(18,2)) / 100                        AS price_amt,
-    CAST(r.cost_money AS DECIMAL(18,2)) / 100                        AS cost_price_amt,
-    o.ticket_qty,
-    CAST(r.sale_money * o.ticket_qty AS DECIMAL(18,2)) / 100         AS settle_amt,
-    CAST(r.pmode AS INT)                                             AS pay_mode,
-    o.scenic_id,
-    o.ticket_id,
-    o.order_time,
-    COALESCE(o.test_flag, 0)                                         AS test_flag,
-    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time
+    r.orderid                                                        AS order_no,  -- 订单号
+    r.distribute_level,                                                           -- 分销层级
+    r.sellerid                                                       AS seller_id,  -- 本级卖方
+    r.buyerid                                                        AS buyer_id,  -- 本级买方
+    CAST(r.sale_money AS DECIMAL(18,2)) / 100                        AS price_amt,  -- 本级结算单价（元）
+    CAST(r.cost_money AS DECIMAL(18,2)) / 100                        AS cost_price_amt,  -- 本级成本单价（元）
+    o.ticket_qty,                                                                 -- 票数
+    CAST(r.sale_money * o.ticket_qty AS DECIMAL(18,2)) / 100         AS settle_amt,  -- 本级结算金额（元）
+    CAST(r.pmode AS INT)                                             AS pay_mode,  -- 本级支付方式
+    o.scenic_id,                                                                  -- 景区ID
+    o.ticket_id,                                                                  -- 票ID
+    o.order_time,                                                                 -- 下单时间
+    COALESCE(o.test_flag, 0)                                         AS test_flag,  -- 是否测试订单
+    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time           -- ETL 加载时间
 FROM ranked r
-LEFT JOIN (SELECT order_no, travel_date, scenic_id, ticket_id, ticket_qty, order_time, test_flag FROM dwd.dwd_ord_order_di) o
-       ON o.travel_date = r.order_date AND o.order_no = r.orderid      -- 带下单日分区：动态分区裁剪
+LEFT JOIN (
+    SELECT order_no,                                                              -- 订单号
+    travel_date,                                                                  -- 数据日期
+    scenic_id,                                                                    -- 景区ID
+    ticket_id,                                                                    -- 票ID
+    ticket_qty,                                                                   -- 票数
+    order_time,                                                                   -- 下单时间
+    test_flag FROM dwd.dwd_ord_order_di
+) o
+       ON o.travel_date = r.order_date AND o.order_no = r.orderid                 -- 按 order_date→travel_date、orderid→order_no 关联｜带下单日分区：动态分区裁剪

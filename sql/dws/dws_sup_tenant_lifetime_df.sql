@@ -8,7 +8,7 @@
 --   · 只读 T-1 快照 + 30 个日分区
 
 WITH today AS (
-    SELECT seller_tenant_id, SUM(pay_amt) AS pay_amt
+    SELECT seller_tenant_id, SUM(pay_amt) AS pay_amt                              -- 支付金额（GMV）
     FROM dws.dws_sup_tenant_trade_di WHERE travel_date = '${bizdate}' AND pay_amt > 0
     GROUP BY seller_tenant_id                                                     -- 按粒度键汇总
 ),
@@ -17,9 +17,12 @@ prev AS (
     FROM dws.dws_sup_tenant_lifetime_df WHERE travel_date = DATE_FORMAT(DATE_SUB(TO_DATE('${bizdate}', 'yyyyMMdd'), 1), 'yyyyMMdd')
 ),
 d30 AS (
-    SELECT seller_tenant_id, SUM(pay_amt) AS pay_30d_amt, COUNT(DISTINCT IF(pay_amt > 0, travel_date, NULL)) AS active_day_30d_qty
+    SELECT seller_tenant_id,                                                      -- 卖家租户ID
+           SUM(pay_amt) AS pay_30d_amt,                                           -- 近30天支付金额
+           COUNT(DISTINCT IF(pay_amt > 0, travel_date, NULL)) AS active_day_30d_qty  -- 近30天动销天数
     FROM dws.dws_sup_tenant_trade_di
-    WHERE travel_date BETWEEN DATE_FORMAT(DATE_SUB(TO_DATE('${bizdate}', 'yyyyMMdd'), 29), 'yyyyMMdd') AND '${bizdate}'
+    WHERE travel_date BETWEEN DATE_FORMAT(DATE_SUB(TO_DATE('${bizdate}', 'yyyyMMdd'), 29), 'yyyyMMdd')
+      AND '${bizdate}'
     GROUP BY seller_tenant_id                                                     -- 按粒度键汇总
 )
 INSERT OVERWRITE TABLE dws.dws_sup_tenant_lifetime_df PARTITION (travel_date = '${bizdate}')  -- 写入当日分区

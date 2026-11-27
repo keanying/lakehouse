@@ -631,15 +631,15 @@ SELECT
     f.payment_batch_no,
     f.proc_time                                                      AS event_time
 FROM ods_fin_fund_flow_rt f
-JOIN dim_fin_account_lookup FOR SYSTEM_TIME AS OF f.proc_time AS a
+JOIN dim_fin_account_lookup FOR SYSTEM_TIME AS OF f.proc_time AS a   -- 关联账户维度（维表查找），只保留商户 / 分销商账户
   ON a.account_no = f.account_no AND a.account_type IN ('MERCHANT', 'DISTRIBUTOR')
-LEFT JOIN dwd_fin_frozen_rt_lookup FOR SYSTEM_TIME AS OF f.proc_time AS fz
+LEFT JOIN dwd_fin_frozen_rt_lookup FOR SYSTEM_TIME AS OF f.proc_time AS fz   -- 解冻流水关联冻结记录，取冻结原因（核销 / 退款）
   ON f.flow_type = 'UNFREEZE' AND fz.account_no = f.account_no AND fz.frozen_no = f.related_no
 LEFT JOIN dim_fin_report_rule_first_lookup FOR SYSTEM_TIME AS OF f.proc_time AS r   -- 规则视图：每个（流水类型, 方向, 冻结事件）已按具体程度取第一条
   ON r.flow_type = f.flow_type AND r.direction_type = IF(f.amount >= 0, 'IN', 'OUT') AND r.frozen_event_type = COALESCE(fz.release_event_type, '')
-LEFT JOIN dwd_fin_payment_rt_lookup FOR SYSTEM_TIME AS OF f.proc_time AS pi
+LEFT JOIN dwd_fin_payment_rt_lookup FOR SYSTEM_TIME AS OF f.proc_time AS pi   -- 入账流水关联支付单，取付款方（交易对手）
   ON f.amount >= 0 AND pi.batch_no = f.payment_batch_no AND pi.payee_account_no = f.account_no
-LEFT JOIN dwd_fin_payment_rt_lookup FOR SYSTEM_TIME AS OF f.proc_time AS po
+LEFT JOIN dwd_fin_payment_rt_lookup FOR SYSTEM_TIME AS OF f.proc_time AS po   -- 出账流水关联支付单，取收款方（交易对手）
   ON f.amount < 0 AND po.batch_no = f.payment_batch_no AND po.payer_account_no = f.account_no
 WHERE f.op_type = 'I';
 """)
@@ -723,10 +723,11 @@ GROUP BY merchant_tenant_id, account_no, report_code, fee_type_name, flow_type, 
 """)
 
 STACK = """STACK(4,
-        'ADV_RECEIPT', receive_amt, refund_amt, to_revenue_amt, CAST(0 AS DECIMAL(18,2)), sale_ticket_qty - refund_ticket_qty, CAST(0 AS BIGINT),
-        'ADV_PAYMENT', pay_amt, return_amt, to_cost_amt, CAST(0 AS DECIMAL(18,2)), buy_ticket_qty - return_ticket_qty, CAST(0 AS BIGINT),
-        'REVENUE', CAST(0 AS DECIMAL(18,2)), CAST(0 AS DECIMAL(18,2)), CAST(0 AS DECIMAL(18,2)), revenue_amt, CAST(0 AS BIGINT), revenue_ticket_qty,
-        'COST', CAST(0 AS DECIMAL(18,2)), CAST(0 AS DECIMAL(18,2)), CAST(0 AS DECIMAL(18,2)), cost_amt, CAST(0 AS BIGINT), cost_ticket_qty
+        -- 每行一个报表：报表编码, 发生额收(in), 发生额付(out), 转实收 / 实付(trans), 确认(confirm), 净票数, 确认票数
+        'ADV_RECEIPT', receive_amt, refund_amt, to_revenue_amt, z_amt, sale_ticket_qty - refund_ticket_qty, z_qty,
+        'ADV_PAYMENT', pay_amt,     return_amt, to_cost_amt,    z_amt, buy_ticket_qty - return_ticket_qty,  z_qty,
+        'REVENUE',     z_amt,       z_amt,      z_amt,          revenue_amt, z_qty,                         revenue_ticket_qty,
+        'COST',        z_amt,       z_amt,      z_amt,          cost_amt,    z_qty,                         cost_ticket_qty
     ) AS (report_code, in_amt, out_amt, trans_amt, confirm_amt, net_ticket_qty, confirm_ticket_qty)"""
 ETL['ads_fin_order_report_dim_di'] = ('hive', hdr('ads.ads_fin_order_report_dim_di', '订单报表多维汇总（日）',
     ['期间值：日汇总按报表展开成通用列（in / out / trans / confirm），一行一个报表 × 维度组合', '日终余额 close_amt：在途快照按维度组合汇总，没有当日发生的组合也保留（期初 / 期末要用）',
@@ -735,8 +736,11 @@ ETL['ads_fin_order_report_dim_di'] = ('hive', hdr('ads.ads_fin_order_report_dim_
 WITH p AS (   -- 期间值：按报表展开
     SELECT merchant_tenant_id, {', '.join(DIMS)},
            {STACK}
-    FROM dws.dws_fin_merchant_order_fund_di
-    WHERE {P}
+    FROM (   -- 该报表不适用的列补 0（STACK 各行类型须一致）
+        SELECT *, CAST(0 AS DECIMAL(18,2)) AS z_amt, CAST(0 AS BIGINT) AS z_qty
+        FROM dws.dws_fin_merchant_order_fund_di
+        WHERE {P}
+    ) s
 ),
 c AS (        -- 日终余额：在途快照按维度组合汇总
     SELECT merchant_tenant_id, report_code, {', '.join(DIMS)}, SUM(unsettled_amt) AS close_amt

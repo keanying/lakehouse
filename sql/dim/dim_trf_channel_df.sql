@@ -13,7 +13,7 @@ channel_src AS (                                              -- 主表「接入
   WHERE travel_date = '${bizdate}'                            -- 只取当日分区
 ),
 api_key_count AS (                                            -- 「API密钥」按 channel_id 预聚合
-  SELECT channel_id, COUNT(key_no) AS v
+  SELECT channel_id, COUNT(key_no) AS v                       -- 拆分 / 展开后的单个值
   FROM ods.ods_trf_api_key_df
   WHERE travel_date = '${bizdate}'                            -- 只取当日分区
   GROUP BY channel_id                                         -- 按粒度键汇总
@@ -28,8 +28,8 @@ SELECT
   channel_src.id                        AS channel_id,        -- 接入端/渠道ID（源表主键 id）
   channel_src.channel_code              AS channel_code,      -- 渠道唯一编码
   channel_src.channel_name              AS channel_name,      -- 渠道展示名
-  channel_src.partner_id                AS partner_code,      -- 合作方ID（Partner 统一抽象
-  channel_src.partner_name              AS partner_name,      -- 合作方名称（冗余展示用
+  channel_src.partner_id                AS partner_code,      -- 合作方ID
+  channel_src.partner_name              AS partner_name,      -- 合作方名称
   channel_src.channel_type              AS channel_type,      -- 渠道类型
   channel_src.channel_scope             AS channel_scope_type,  -- 渠道作用域
   channel_src.owner_tenant_id           AS owner_tenant_id,   -- 渠道所有者租户ID

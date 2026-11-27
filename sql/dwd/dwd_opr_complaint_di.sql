@@ -9,7 +9,7 @@ complaint_rn AS (                                                               
   SELECT binlog_time, complainant_id, complainant_type, complaint_no, complaint_status, complaint_type,
          create_time, handler_id, id, order_group_no, sla_deadline, tenant_id, update_time,
          binlog_op_type,
-         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn      -- 同一主键多次变更，按 binlog 时间倒序编号
+         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn      -- 去重序号（1 = 最新）
   FROM ods.ods_opr_complaint_di
   WHERE travel_date = '${bizdate}'                                                -- 只取当日分区
 ),
@@ -40,10 +40,16 @@ SELECT
   complaint_latest.create_time                                 AS create_time,    -- 创建时间
   complaint_latest.update_time                                 AS update_time,    -- 更新时间
   order_group_dtl.seller_tenant_id                             AS seller_tenant_id,  -- 被投诉的卖家租户ID
-  HOUR(complaint_latest.create_time) AS create_time_hour_no,  -- 投诉提交小时｜口径：投诉提交时间取小时
-  CASE WHEN complaint_latest.complaint_status IN ('RESOLVED', 'CLOSED') THEN complaint_latest.binlog_time END AS resolve_time,  -- 处理完成时间
-  ROUND((UNIX_TIMESTAMP(CASE WHEN complaint_latest.complaint_status IN ('RESOLVED', 'CLOSED') THEN complaint_latest.binlog_time END) - UNIX_TIMESTAMP(complaint_latest.create_time)) / 3600, 2) AS resolve_hour_qty,  -- 处理时长（小时）
-  CASE WHEN COALESCE(CASE WHEN complaint_latest.complaint_status IN ('RESOLVED', 'CLOSED') THEN complaint_latest.binlog_time END, CURRENT_TIMESTAMP()) > complaint_latest.sla_deadline THEN 1 ELSE 0 END AS sla_timeout_type,  -- 是否超 SLA｜口径：解决时间（未解决取当前时间）晚于 SLA 截止
+  HOUR(complaint_latest.create_time) AS create_time_hour_no,                      -- 投诉提交小时｜口径：投诉提交时间取小时
+  CASE                                                                            -- 处理完成时间
+      WHEN complaint_latest.complaint_status IN ('RESOLVED', 'CLOSED') THEN complaint_latest.binlog_time
+  END AS resolve_time,                                                            -- 处理完成时间
+  ROUND((UNIX_TIMESTAMP(CASE WHEN complaint_latest.complaint_status IN ('RESOLVED', 'CLOSED') THEN complaint_latest.binlog_time END)  -- 处理时长（小时）
+      - UNIX_TIMESTAMP(complaint_latest.create_time)) / 3600, 2) AS resolve_hour_qty,  -- 处理时长（小时）
+  CASE                                                                            -- 是否超 SLA｜口径：解决时间（未解决取当前时间）晚于 SLA 截止
+      WHEN COALESCE(CASE WHEN complaint_latest.complaint_status IN ('RESOLVED', 'CLOSED') THEN complaint_latest.binlog_time END, CURRENT_TIMESTAMP()) > complaint_latest.sla_deadline THEN 1
+      ELSE 0
+  END AS sla_timeout_type,                                                        -- 是否超 SLA
   1                                                            AS complaint_qty,  -- 投诉数
   CURRENT_TIMESTAMP()                                          AS etl_time        -- ETL 加载时间
 FROM complaint_latest

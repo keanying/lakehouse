@@ -15,21 +15,21 @@ src_distributor_trade AS (                                              -- 来�
     SUM(distribution_profit_amt) AS distribution_profit_numerator_amt,  -- 分销利润率分子（日）
     SUM(distribution_sale_amt) AS distribution_profit_denominator_amt,  -- 分销利润率分母（日）
     BITMAP_UNION(active_distributor_bitmap) AS active_distributor_bitmap,  -- 动销分销商数去重位图（日）
-    NULL AS new_distribution_relation_qty
+    NULL AS new_distribution_relation_qty                               -- 新建分销关系数（日）：本来源无，补空对齐 UNION ALL
   FROM dws.dws_trf_distributor_trade_di s                               -- 来源表「分销商×供应商×SKU×层级 分销日汇总」
   WHERE s.travel_date = '${bizdate}'                                    -- 只取当日分区
   GROUP BY supplier_tenant_id, distributor_tenant_id                    -- 按粒度键汇总
 ),
 src_distributor_credit AS (                                             -- 来源「分销关系授信快照」按粒度键预聚合
   SELECT
-    CAST(NULL AS BIGINT) AS supplier_tenant_id,
-    CAST(NULL AS BIGINT) AS distributor_tenant_id,
-    NULL AS distribution_ticket_qty,
-    NULL AS distribution_sale_amt,
-    NULL AS distribution_profit_amt,
-    NULL AS distribution_profit_numerator_amt,
-    NULL AS distribution_profit_denominator_amt,
-    CAST(NULL AS BINARY) AS active_distributor_bitmap,
+    CAST(NULL AS BIGINT) AS supplier_tenant_id,                         -- 供应商租户ID：本来源无，补空对齐 UNION ALL
+    CAST(NULL AS BIGINT) AS distributor_tenant_id,                      -- 分销商租户ID：本来源无，补空对齐 UNION ALL
+    NULL AS distribution_ticket_qty,                                    -- 分销票数（日）：本来源无，补空对齐 UNION ALL
+    NULL AS distribution_sale_amt,                                      -- 分销售出金额（日）：本来源无，补空对齐 UNION ALL
+    NULL AS distribution_profit_amt,                                    -- 分销利润（日）：本来源无，补空对齐 UNION ALL
+    NULL AS distribution_profit_numerator_amt,                          -- 分销利润率分子（日）：本来源无，补空对齐 UNION ALL
+    NULL AS distribution_profit_denominator_amt,                        -- 分销利润率分母（日）：本来源无，补空对齐 UNION ALL
+    CAST(NULL AS BINARY) AS active_distributor_bitmap,                  -- 动销分销商数去重位图（日）：本来源无，补空对齐 UNION ALL
     SUM(new_distribution_relation_qty) AS new_distribution_relation_qty  -- 新建分销关系数（日）
   FROM dws.dws_trf_distributor_credit_df s                              -- 来源表「分销关系授信快照」
   WHERE s.travel_date = '${bizdate}'                                    -- 只取当日分区

@@ -5,63 +5,63 @@
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总；快照/累计表：增量来源取截至统计日的全部分区
 
 WITH
-src_order AS (                                        -- 来源「子单明细」按粒度键预聚合
+src_order AS (                                    -- 来源「子单明细」按粒度键预聚合
   SELECT
-    sku_id AS sku_id,                                 -- SKU ID
-    play_date AS play_date,                           -- 游玩日期
-    time_slot_code AS time_slot_code,                 -- 游玩时段
+    sku_id AS sku_id,                             -- SKU ID
+    play_date AS play_date,                       -- 游玩日期
+    time_slot_code AS time_slot_code,             -- 游玩时段
     SUM(CASE WHEN pay_time IS NOT NULL THEN buy_ticket_qty END) AS pay_ticket_qty,  -- 支付票数
-    NULL AS refund_ticket_qty,
-    NULL AS verify_ticket_qty,
+    NULL AS refund_ticket_qty,                    -- 退款票数：本来源无，补空对齐 UNION ALL
+    NULL AS verify_ticket_qty,                    -- 核销票数：本来源无，补空对齐 UNION ALL
     SUM(CASE WHEN pay_time IS NOT NULL THEN DATEDIFF(play_date, TO_DATE(pay_time)) * buy_ticket_qty END) AS advance_book_day_qty,  -- 提前预订天数合计｜口径：（游玩日 − 支付日）× 票数，求平均提前天数用
-    NULL AS stock_available_qty
-  FROM dwd.dwd_ord_order_di s                         -- 来源表「子单明细」
-  WHERE s.travel_date <= '${bizdate}'                 -- 累计口径：取截至统计日的全部分区
-  GROUP BY sku_id, play_date, time_slot_code          -- 按粒度键汇总
+    NULL AS stock_available_qty                   -- 可用库存：本来源无，补空对齐 UNION ALL
+  FROM dwd.dwd_ord_order_di s                     -- 来源表「子单明细」
+  WHERE s.travel_date <= '${bizdate}'             -- 累计口径：取截至统计日的全部分区
+  GROUP BY sku_id, play_date, time_slot_code      -- 按粒度键汇总
 ),
-src_refund_ticket AS (                                -- 来源「退款票明细」按粒度键预聚合
+src_refund_ticket AS (                            -- 来源「退款票明细」按粒度键预聚合
   SELECT
-    sku_id AS sku_id,                                 -- SKU ID
-    play_date AS play_date,                           -- 游玩日期
-    CAST(NULL AS STRING) AS time_slot_code,
-    NULL AS pay_ticket_qty,
+    sku_id AS sku_id,                             -- SKU ID
+    play_date AS play_date,                       -- 游玩日期
+    CAST(NULL AS STRING) AS time_slot_code,       -- 游玩时段：本来源无，补空对齐 UNION ALL
+    NULL AS pay_ticket_qty,                       -- 支付票数：本来源无，补空对齐 UNION ALL
     COUNT(DISTINCT CASE WHEN refund_status = 'COMPLETED' THEN ticket_no END) AS refund_ticket_qty,  -- 退款票数｜口径：退款完成的票
-    NULL AS verify_ticket_qty,
-    NULL AS advance_book_day_qty,
-    NULL AS stock_available_qty
-  FROM dwd.dwd_ord_refund_ticket_di s                 -- 来源表「退款票明细」
-  WHERE s.travel_date <= '${bizdate}'                 -- 累计口径：取截至统计日的全部分区
-  GROUP BY sku_id, play_date                          -- 按粒度键汇总
+    NULL AS verify_ticket_qty,                    -- 核销票数：本来源无，补空对齐 UNION ALL
+    NULL AS advance_book_day_qty,                 -- 提前预订天数合计：本来源无，补空对齐 UNION ALL
+    NULL AS stock_available_qty                   -- 可用库存：本来源无，补空对齐 UNION ALL
+  FROM dwd.dwd_ord_refund_ticket_di s             -- 来源表「退款票明细」
+  WHERE s.travel_date <= '${bizdate}'             -- 累计口径：取截至统计日的全部分区
+  GROUP BY sku_id, play_date                      -- 按粒度键汇总
 ),
-src_verify AS (                                       -- 来源「核销明细（权益级）」按粒度键预聚合
+src_verify AS (                                   -- 来源「核销明细（权益级）」按粒度键预聚合
   SELECT
-    sku_id AS sku_id,                                 -- SKU ID
-    play_date AS play_date,                           -- 游玩日期
-    CAST(NULL AS STRING) AS time_slot_code,
-    NULL AS pay_ticket_qty,
-    NULL AS refund_ticket_qty,
+    sku_id AS sku_id,                             -- SKU ID
+    play_date AS play_date,                       -- 游玩日期
+    CAST(NULL AS STRING) AS time_slot_code,       -- 游玩时段：本来源无，补空对齐 UNION ALL
+    NULL AS pay_ticket_qty,                       -- 支付票数：本来源无，补空对齐 UNION ALL
+    NULL AS refund_ticket_qty,                    -- 退款票数：本来源无，补空对齐 UNION ALL
     COUNT(DISTINCT CASE WHEN verify_result_type='SUCCESS' THEN ticket_no END) AS verify_ticket_qty,  -- 核销票数
-    NULL AS advance_book_day_qty,
-    NULL AS stock_available_qty
-  FROM dwd.dwd_ord_verify_di s                        -- 来源表「核销明细（权益级）」
-  WHERE s.travel_date <= '${bizdate}'                 -- 累计口径：取截至统计日的全部分区
-  GROUP BY sku_id, play_date                          -- 按粒度键汇总
+    NULL AS advance_book_day_qty,                 -- 提前预订天数合计：本来源无，补空对齐 UNION ALL
+    NULL AS stock_available_qty                   -- 可用库存：本来源无，补空对齐 UNION ALL
+  FROM dwd.dwd_ord_verify_di s                    -- 来源表「核销明细（权益级）」
+  WHERE s.travel_date <= '${bizdate}'             -- 累计口径：取截至统计日的全部分区
+  GROUP BY sku_id, play_date                      -- 按粒度键汇总
 ),
-src_pool_snapshot AS (                                -- 来源「库存池日快照」按粒度键预聚合
+src_pool_snapshot AS (                            -- 来源「库存池日快照」按粒度键预聚合
   SELECT
-    sku_id AS sku_id,                                 -- SKU ID
-    play_date AS play_date,                           -- 游玩日期
-    CAST(NULL AS STRING) AS time_slot_code,
-    NULL AS pay_ticket_qty,
-    NULL AS refund_ticket_qty,
-    NULL AS verify_ticket_qty,
-    NULL AS advance_book_day_qty,
-    SUM(available_qty) AS stock_available_qty         -- 可用库存
-  FROM dwd.dwd_inv_pool_snapshot_df s                 -- 来源表「库存池日快照」
-  WHERE s.travel_date = '${bizdate}'                  -- 只取当日分区
-  GROUP BY sku_id, play_date                          -- 按粒度键汇总
+    sku_id AS sku_id,                             -- SKU ID
+    play_date AS play_date,                       -- 游玩日期
+    CAST(NULL AS STRING) AS time_slot_code,       -- 游玩时段：本来源无，补空对齐 UNION ALL
+    NULL AS pay_ticket_qty,                       -- 支付票数：本来源无，补空对齐 UNION ALL
+    NULL AS refund_ticket_qty,                    -- 退款票数：本来源无，补空对齐 UNION ALL
+    NULL AS verify_ticket_qty,                    -- 核销票数：本来源无，补空对齐 UNION ALL
+    NULL AS advance_book_day_qty,                 -- 提前预订天数合计：本来源无，补空对齐 UNION ALL
+    SUM(available_qty) AS stock_available_qty     -- 可用库存
+  FROM dwd.dwd_inv_pool_snapshot_df s             -- 来源表「库存池日快照」
+  WHERE s.travel_date = '${bizdate}'              -- 只取当日分区
+  GROUP BY sku_id, play_date                      -- 按粒度键汇总
 ),
-all_src AS (                                          -- 各来源字段已对齐，UNION ALL 合并（比多表 FULL JOIN 少 shuffle）
+all_src AS (                                      -- 各来源字段已对齐，UNION ALL 合并（比多表 FULL JOIN 少 shuffle）
   SELECT * FROM src_order
   UNION ALL
   SELECT * FROM src_refund_ticket
@@ -72,15 +72,15 @@ all_src AS (                                          -- 各来源字段已对�
 )
 INSERT OVERWRITE TABLE dws.dws_ord_sku_play_date_booking_df PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
 SELECT
-  u.sku_id,                                           -- SKU ID
-  u.play_date,                                        -- 游玩日期
-  u.time_slot_code,                                   -- 游玩时段
-  SUM(u.pay_ticket_qty) AS pay_ticket_qty,            -- 支付票数
-  SUM(u.refund_ticket_qty) AS refund_ticket_qty,      -- 退款票数
+  u.sku_id,                                       -- SKU ID
+  u.play_date,                                    -- 游玩日期
+  u.time_slot_code,                               -- 游玩时段
+  SUM(u.pay_ticket_qty) AS pay_ticket_qty,        -- 支付票数
+  SUM(u.refund_ticket_qty) AS refund_ticket_qty,  -- 退款票数
   SUM(u.pay_ticket_qty) - SUM(u.refund_ticket_qty) AS net_pay_ticket_qty,  -- 净支付票数
-  SUM(u.verify_ticket_qty) AS verify_ticket_qty,      -- 核销票数
+  SUM(u.verify_ticket_qty) AS verify_ticket_qty,  -- 核销票数
   SUM(u.advance_book_day_qty) AS advance_book_day_qty,  -- 提前预订天数合计
   SUM(u.stock_available_qty) AS stock_available_qty,  -- 可用库存
-  CURRENT_TIMESTAMP() AS etl_time                     -- ETL 加载时间
+  CURRENT_TIMESTAMP() AS etl_time                 -- ETL 加载时间
 FROM all_src u
-GROUP BY u.sku_id, u.play_date, u.time_slot_code;     -- 按粒度键汇总
+GROUP BY u.sku_id, u.play_date, u.time_slot_code;  -- 按粒度键汇总

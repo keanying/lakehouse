@@ -23,7 +23,7 @@ SELECT
     CURRENT_TIMESTAMP                                                  AS update_time  -- 最近一次写入时间
 FROM ods_inv_inventory_pool_rt p
 LEFT JOIN (
-    SELECT pool_no,
+    SELECT pool_no,                                                               -- 库存池编号
            SUM(CASE WHEN change_type = 'PRE_DEDUCT' THEN ABS(frozen_change_qty) END) AS prededuct_qty,  -- 预扣量
            SUM(CASE WHEN change_type = 'ROLLBACK' THEN ABS(frozen_change_qty) END)   AS prededuct_release_qty  -- 预扣释放量
     FROM dwd_inv_pool_change_rt

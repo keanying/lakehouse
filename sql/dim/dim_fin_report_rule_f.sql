@@ -10,33 +10,369 @@
 --   · 码表，几十行，下游 BROADCAST
 -- ================================================================================================
 
-INSERT OVERWRITE TABLE dim.dim_fin_report_rule_f                            -- 整表覆盖写入
-SELECT rule_code, source_type, flow_type, fee_item_code, direction_type, frozen_event_type, report_code, measure_code, fee_type_name, sign_qty, rule_desc, confirm_status,
+INSERT OVERWRITE TABLE dim.dim_fin_report_rule_f  -- 整表覆盖写入
+SELECT rule_code,          -- 规则编码
+       source_type,        -- 来源
+       flow_type,          -- 资金流水类型
+       fee_item_code,      -- 费用项（资金流水 fee_item）
+       direction_type,     -- 方向（相对本方商户）
+       frozen_event_type,  -- 冻结事件（解冻时）
+       report_code,        -- 归属报表
+       measure_code,       -- 归属列
+       fee_type_name,      -- 费用类型
+       sign_qty,           -- 对归属报表余额的方向
+       rule_desc,          -- 规则说明（对应需求条目）
+       confirm_status,     -- 确认状态
        DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time  -- ETL 加载时间
 FROM VALUES
-        ('FR01', 'PAYMENT', '', '', 'IN', '', 'ADV_RECEIPT', 'RECEIVE', '付款', 1, '下级下单支付（本方为收款方）→ 预收 +（5.2-1）；含授信，授信是支付方式的一种（3.1）', 'CONFIRMED'),
-        ('FR02', 'PAYMENT', '', '', 'OUT', '', 'ADV_PAYMENT', 'PAY', '付款', 1, '向上级采购付款 → 预付 +（5.2-4）', 'CONFIRMED'),
-        ('FR03', 'REFUND', '', '', 'IN', '', 'ADV_RECEIPT', 'REFUND', '退款', -1, '履约前退款，本方退给下级 → 预收 −（5.2-3）', 'CONFIRMED'),
-        ('FR04', 'REFUND', '', '', 'OUT', '', 'ADV_PAYMENT', 'RETURN', '退款', -1, '上级退回 → 预付 −（5.2-6），与 FR03 成对', 'CONFIRMED'),
-        ('FR05', 'VERIFY', '', '', 'IN', 'VERIFY', 'ADV_RECEIPT', 'TO_REVENUE', '结算', -1, '核销（收侧）→ 预收 −（5.2-2）', 'CONFIRMED'),
-        ('FR06', 'VERIFY', '', '', 'IN', 'VERIFY', 'REVENUE', 'CONFIRM', '结算', 1, '核销（收侧）→ 确认收入 +（5.2-2）', 'CONFIRMED'),
-        ('FR07', 'VERIFY', '', '', 'OUT', 'VERIFY', 'ADV_PAYMENT', 'TO_COST', '结算', -1, '核销（付侧）→ 预付 −（5.2-5）', 'CONFIRMED'),
-        ('FR08', 'VERIFY', '', '', 'OUT', 'VERIFY', 'COST', 'CONFIRM', '结算', 1, '核销（付侧）→ 确认成本 +（5.2-5）', 'CONFIRMED'),
-        ('FR09', 'PAY_SETTLE', '', '', 'IN', '', 'ADV_RECEIPT', 'TO_REVENUE', '结算', -1, '支付即结算：收款同时转实收，同一行收 +、转 −（5.8）', 'PENDING'),
-        ('FR10', 'PAY_SETTLE', '', '', 'IN', '', 'REVENUE', 'CONFIRM', '结算', 1, '支付即结算：下单时确认收入（5.8）', 'PENDING'),
-        ('FR11', 'PAY_SETTLE', '', '', 'OUT', '', 'ADV_PAYMENT', 'TO_COST', '结算', -1, '支付即结算：成本随收入同时确认（配比）', 'PENDING'),
-        ('FR12', 'PAY_SETTLE', '', '', 'OUT', '', 'COST', 'CONFIRM', '结算', 1, '支付即结算：成本随收入同时确认（配比）', 'PENDING'),
+        (
+            'FR01',
+            'PAYMENT',
+            '',
+            '',
+            'IN',
+            '',
+            'ADV_RECEIPT',
+            'RECEIVE',
+            '付款',
+            1,
+            '下级下单支付（本方为收款方）→ 预收 +（5.2-1）；含授信，授信是支付方式的一种（3.1）',
+            'CONFIRMED'
+        ),
+        (
+            'FR02',
+            'PAYMENT',
+            '',
+            '',
+            'OUT',
+            '',
+            'ADV_PAYMENT',
+            'PAY',
+            '付款',
+            1,
+            '向上级采购付款 → 预付 +（5.2-4）',
+            'CONFIRMED'
+        ),
+        (
+            'FR03',
+            'REFUND',
+            '',
+            '',
+            'IN',
+            '',
+            'ADV_RECEIPT',
+            'REFUND',
+            '退款',
+            -1,
+            '履约前退款，本方退给下级 → 预收 −（5.2-3）',
+            'CONFIRMED'
+        ),
+        (
+            'FR04',
+            'REFUND',
+            '',
+            '',
+            'OUT',
+            '',
+            'ADV_PAYMENT',
+            'RETURN',
+            '退款',
+            -1,
+            '上级退回 → 预付 −（5.2-6），与 FR03 成对',
+            'CONFIRMED'
+        ),
+        (
+            'FR05',
+            'VERIFY',
+            '',
+            '',
+            'IN',
+            'VERIFY',
+            'ADV_RECEIPT',
+            'TO_REVENUE',
+            '结算',
+            -1,
+            '核销（收侧）→ 预收 −（5.2-2）',
+            'CONFIRMED'
+        ),
+        (
+            'FR06',
+            'VERIFY',
+            '',
+            '',
+            'IN',
+            'VERIFY',
+            'REVENUE',
+            'CONFIRM',
+            '结算',
+            1,
+            '核销（收侧）→ 确认收入 +（5.2-2）',
+            'CONFIRMED'
+        ),
+        (
+            'FR07',
+            'VERIFY',
+            '',
+            '',
+            'OUT',
+            'VERIFY',
+            'ADV_PAYMENT',
+            'TO_COST',
+            '结算',
+            -1,
+            '核销（付侧）→ 预付 −（5.2-5）',
+            'CONFIRMED'
+        ),
+        (
+            'FR08',
+            'VERIFY',
+            '',
+            '',
+            'OUT',
+            'VERIFY',
+            'COST',
+            'CONFIRM',
+            '结算',
+            1,
+            '核销（付侧）→ 确认成本 +（5.2-5）',
+            'CONFIRMED'
+        ),
+        (
+            'FR09',
+            'PAY_SETTLE',
+            '',
+            '',
+            'IN',
+            '',
+            'ADV_RECEIPT',
+            'TO_REVENUE',
+            '结算',
+            -1,
+            '支付即结算：收款同时转实收，同一行收 +、转 −（5.8）',
+            'PENDING'
+        ),
+        (
+            'FR10',
+            'PAY_SETTLE',
+            '',
+            '',
+            'IN',
+            '',
+            'REVENUE',
+            'CONFIRM',
+            '结算',
+            1,
+            '支付即结算：下单时确认收入（5.8）',
+            'PENDING'
+        ),
+        (
+            'FR11',
+            'PAY_SETTLE',
+            '',
+            '',
+            'OUT',
+            '',
+            'ADV_PAYMENT',
+            'TO_COST',
+            '结算',
+            -1,
+            '支付即结算：成本随收入同时确认（配比）',
+            'PENDING'
+        ),
+        (
+            'FR12',
+            'PAY_SETTLE',
+            '',
+            '',
+            'OUT',
+            '',
+            'COST',
+            'CONFIRM',
+            '结算',
+            1,
+            '支付即结算：成本随收入同时确认（配比）',
+            'PENDING'
+        ),
         ('FR31', 'FUND_FLOW', 'FREEZE', '', '', '', 'NONE', 'OUT', '冻结', 0, '冻结：不进表（5.2-11）', 'CONFIRMED'),
-        ('FR32', 'FUND_FLOW', 'UNFREEZE', '', '', 'REFUND', 'NONE', 'IN', '解冻', 0, '解冻（退款释放）：不进表（5.2-12）', 'CONFIRMED'),
-        ('FR33', 'FUND_FLOW', 'UNFREEZE', '', 'IN', 'VERIFY', 'BALANCE', 'IN', '结算', 1, '解冻（核销触发，界面叫「结算」）：本方份额转入可用余额 → 余额流入（3.6、5.8）', 'CONFIRMED'),
-        ('FR34', 'FUND_FLOW', 'RECHARGE', '', 'IN', '', 'BALANCE', 'IN', '充值/扣款', 1, '充值：仅余额 +（5.2-9）', 'CONFIRMED'),
-        ('FR35', 'FUND_FLOW', 'RECHARGE', '', 'OUT', '', 'BALANCE', 'OUT', '充值/扣款', -1, '扣款：仅余额 −（5.4）', 'CONFIRMED'),
-        ('FR36', 'FUND_FLOW', 'WITHDRAW', '', 'OUT', '', 'BALANCE', 'OUT', '提现', -1, '提现：仅余额 −（5.2-10）', 'CONFIRMED'),
-        ('FR37', 'FUND_FLOW', 'FEE', '', 'OUT', '', 'EXPENSE', 'EXPENSE', '手续费', -1, '平台服务费 / 手续费：费用收支 · 支出（5.2-8）', 'CONFIRMED'),
-        ('FR38', 'FUND_FLOW', 'FEE', '', 'IN', '', 'EXPENSE', 'INCOME', '手续费', 1, '手续费退回：费用收支 · 收入', 'PENDING'),
-        ('FR39', 'FUND_FLOW', 'RESOURCE', '', 'OUT', '', 'EXPENSE', 'EXPENSE', '应用套餐购买', -1, '应用套餐购买：费用收支 · 支出，同时计入余额流出（5.2-7、5.4）', 'CONFIRMED'),
-        ('FR40', 'FUND_FLOW', 'PAYMENT', '', '', '', 'NONE', '', '付款', 0, '下单收款：订单报表取支付记录；核销即结算订单的收款与冻结 / 采购划付在可用余额上相抵，不进余额（支付即结算订单待结算时点字段补齐后改 BALANCE）', 'PENDING'),
-        ('FR41', 'FUND_FLOW', 'REFUND', '', '', '', 'NONE', '', '退款', 0, '订单退款：与退款释放、上级退回在可用余额上相抵，不进余额', 'PENDING'),
-        ('FR42', 'FUND_FLOW', 'TRANSFER_OUT', '', '', '', 'NONE', '', '付款', 0, '采购划付（下单时从本单收款中划出）：与收款相抵，不进余额；需求未定义此流水类型', 'PENDING'),
-        ('FR43', 'FUND_FLOW', 'TRANSFER_IN', '', '', '', 'NONE', '', '付款', 0, '采购划入：同上；业务库注释未列此值，以实际数据为准', 'PENDING')
-    AS v(rule_code, source_type, flow_type, fee_item_code, direction_type, frozen_event_type, report_code, measure_code, fee_type_name, sign_qty, rule_desc, confirm_status);
+        (
+            'FR32',
+            'FUND_FLOW',
+            'UNFREEZE',
+            '',
+            '',
+            'REFUND',
+            'NONE',
+            'IN',
+            '解冻',
+            0,
+            '解冻（退款释放）：不进表（5.2-12）',
+            'CONFIRMED'
+        ),
+        (
+            'FR33',
+            'FUND_FLOW',
+            'UNFREEZE',
+            '',
+            'IN',
+            'VERIFY',
+            'BALANCE',
+            'IN',
+            '结算',
+            1,
+            '解冻（核销触发，界面叫「结算」）：本方份额转入可用余额 → 余额流入（3.6、5.8）',
+            'CONFIRMED'
+        ),
+        (
+            'FR34',
+            'FUND_FLOW',
+            'RECHARGE',
+            '',
+            'IN',
+            '',
+            'BALANCE',
+            'IN',
+            '充值/扣款',
+            1,
+            '充值：仅余额 +（5.2-9）',
+            'CONFIRMED'
+        ),
+        (
+            'FR35',
+            'FUND_FLOW',
+            'RECHARGE',
+            '',
+            'OUT',
+            '',
+            'BALANCE',
+            'OUT',
+            '充值/扣款',
+            -1,
+            '扣款：仅余额 −（5.4）',
+            'CONFIRMED'
+        ),
+        (
+            'FR36',
+            'FUND_FLOW',
+            'WITHDRAW',
+            '',
+            'OUT',
+            '',
+            'BALANCE',
+            'OUT',
+            '提现',
+            -1,
+            '提现：仅余额 −（5.2-10）',
+            'CONFIRMED'
+        ),
+        (
+            'FR37',
+            'FUND_FLOW',
+            'FEE',
+            '',
+            'OUT',
+            '',
+            'EXPENSE',
+            'EXPENSE',
+            '手续费',
+            -1,
+            '平台服务费 / 手续费：费用收支 · 支出（5.2-8）',
+            'CONFIRMED'
+        ),
+        (
+            'FR38',
+            'FUND_FLOW',
+            'FEE',
+            '',
+            'IN',
+            '',
+            'EXPENSE',
+            'INCOME',
+            '手续费',
+            1,
+            '手续费退回：费用收支 · 收入',
+            'PENDING'
+        ),
+        (
+            'FR39',
+            'FUND_FLOW',
+            'RESOURCE',
+            '',
+            'OUT',
+            '',
+            'EXPENSE',
+            'EXPENSE',
+            '应用套餐购买',
+            -1,
+            '应用套餐购买：费用收支 · 支出，同时计入余额流出（5.2-7、5.4）',
+            'CONFIRMED'
+        ),
+        (
+            'FR40',
+            'FUND_FLOW',
+            'PAYMENT',
+            '',
+            '',
+            '',
+            'NONE',
+            '',
+            '付款',
+            0,
+            '下单收款：订单报表取支付记录；核销即结算订单的收款与冻结 / 采购划付在可用余额上相抵，不进余额（支付即结算订单待结算时点字段补齐后改 BALANCE）',
+            'PENDING'
+        ),
+        (
+            'FR41',
+            'FUND_FLOW',
+            'REFUND',
+            '',
+            '',
+            '',
+            'NONE',
+            '',
+            '退款',
+            0,
+            '订单退款：与退款释放、上级退回在可用余额上相抵，不进余额',
+            'PENDING'
+        ),
+        (
+            'FR42',
+            'FUND_FLOW',
+            'TRANSFER_OUT',
+            '',
+            '',
+            '',
+            'NONE',
+            '',
+            '付款',
+            0,
+            '采购划付（下单时从本单收款中划出）：与收款相抵，不进余额；需求未定义此流水类型',
+            'PENDING'
+        ),
+        (
+            'FR43',
+            'FUND_FLOW',
+            'TRANSFER_IN',
+            '',
+            '',
+            '',
+            'NONE',
+            '',
+            '付款',
+            0,
+            '采购划入：同上；业务库注释未列此值，以实际数据为准',
+            'PENDING'
+        )
+    AS v(
+        rule_code,         -- 规则编码
+        source_type,       -- 来源
+        flow_type,         -- 资金流水类型
+        fee_item_code,     -- 费用项（资金流水 fee_item）
+        direction_type,    -- 方向（相对本方商户）
+        frozen_event_type,  -- 冻结事件（解冻时）
+        report_code,       -- 归属报表
+        measure_code,      -- 归属列
+        fee_type_name,     -- 费用类型
+        sign_qty,          -- 对归属报表余额的方向
+        rule_desc,         -- 规则说明（对应需求条目）
+        confirm_status     -- 确认状态
+    );

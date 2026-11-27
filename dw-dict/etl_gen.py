@@ -1328,12 +1328,56 @@ def short_cmt(c):
     v = (m.group(1) if m else c).strip()
     if len(v) > 20 and '（' in v:
         v = v[:v.index('（')]
+    for a, b in (('（', '）'), ('(', ')')):          # 冒号 / 逗号截断后括号不成对：去掉未闭合的括号段
+        if v.count(a) > v.count(b):
+            v = v[:v.rindex(a)].strip()
     return v if len(v) <= 28 else v[:27] + '…'
+
+
+HELPER = {'v': '拆分 / 展开后的单个值', 'w': '分摊权重（同一订单组按票数均分）', 'amt': '分摊后金额（元）', 'side': '收付方向：IN-收 / OUT-付',
+          'counterparty': '交易对手ID', 'cp_type': '交易对手类型', 'cp_id': '交易对手ID', 'dir': '资金方向', 'in_payment_no': '收款支付单号',
+          'out_payment_no': '付款支付单号', 'chg_amt': '变动金额（元）', 'chg_qty': '变动数量', 'lvl': '组织层级（1 为根）', 'name_cn': '中文名称',
+          'role_code_list': '角色编码列表（去重排序，逗号分隔）', 'role_name_list': '角色名称列表', 'permission_code_list': '权限编码列表', 'app_code_list': '应用编码列表',
+          'max_level_no': '最大分销层级', 'paid_today': '当日是否有支付', 'last_change_time': '上次状态变更时间', 'prev_id': '上一条记录ID', 'cls': '日历分类',
+          'rk': '优先级序号（1 = 生效）', 't': '日期', 's': '区间开始日期', 'e': '区间结束日期', 'ps': '上期开始日期', 'pe': '上期结束日期', 'ls': '去年同期开始日期',
+          'le': '去年同期结束日期', 'td_code': '至今类周期编码（MTD / QTD / YTD）', 'month_start': '本月第一天', 'quarter_start': '本季第一天', 'half_start': '本半年第一天',
+          'year_start': '本年第一天', 'i': '数组下标'}
+
+
+def helper_cmt(n, fcm, gcm):
+    """中间列（CTE / 子查询里的辅助列）的中文说明"""
+    if n in HELPER:
+        return HELPER[n]
+    m = re.match(r'^(\w+?)_(\d)$', n)
+    if m and (fcm.get(m.group(1)) or gcm.get(m.group(1))):
+        return f'{fcm.get(m.group(1)) or gcm.get(m.group(1))}（第 {m.group(2)} 个来源的部分值，外层相加）'
+    m = re.match(r'^p(\d)_(id|name)$', n)
+    if m:
+        return f'第 {m.group(1)} 级上级组织' + ('ID' if m.group(2) == 'id' else '名称')
+    m = re.match(r'^([cl])(\d)$', n)
+    if m:
+        return f'第 {m.group(2)} 级区划' + ('编码' if m.group(1) == 'c' else '层级')
+    m = re.match(r'^(b|c|tk|fp|pv|rel|net)_(\w+?)(_part\d)?$', n)
+    if m and (fcm.get(m.group(2)) or gcm.get(m.group(2))):
+        return (fcm.get(m.group(2)) or gcm.get(m.group(2))) + ('（分段）' if m.group(3) else '（关联子查询列）' if m.group(1) not in ('rel', 'net') else '')
+    return ''
 
 
 def annotate(sql, t, D):
     """给加工 SQL 逐行加中文注释：字段中文名、关联表与取用字段、主表/去重/分区/分组说明"""
     fcm = {x['n']: short_cmt(x['cmt']) for x in D.f.get(t, [])}
+    if not hasattr(D, '_gcm'):                      # 全字典同名字段的中文名（中间 CTE 列用）
+        cnt = collections.defaultdict(collections.Counter)
+        for fs in D.f.values():
+            for x in fs:
+                v = short_cmt(x['cmt'])
+                if v and v != x['n']:
+                    cnt[x['n']][v] += 1
+        D._gcm = {k: v.most_common(1)[0][0] for k, v in cnt.items()}
+        D._gcm.update({'rn': '去重序号（1 = 最新）', 'z_amt': '金额补 0（类型对齐）', 'z_qty': '数量补 0（类型对齐）', 'etl_time': 'ETL 加载时间', 'travel_date': '数据日期分区', 'row_hash': '行哈希：除拉链键外全部属性拼接后 MD5，判断是否变化',
+                       'start_date': '拉链开始日期', 'end_date': '拉链结束日期（9999-12-31 为当前有效）'})
+    gcm = D._gcm
+    gcm_fixed = {'z_amt', 'z_qty'}
     lines = sql.split('\n')
     # 别名 → 关联表；别名 → 用到的目标字段
     alias_t, alias_use = {}, collections.defaultdict(list)
@@ -1365,14 +1409,18 @@ def annotate(sql, t, D):
             continue
         name = None
         am = re.search(r'\bAS (\w+),?\s*$', code)
-        if am:
+        if am and not re.match(r'((LEFT |RIGHT |FULL |INNER |CROSS )?(OUTER )?JOIN|FROM)\b', st):   # JOIN / FROM 行的 AS 是表别名
             name = am.group(1)
-        elif re.fullmatch(r'(?:\w+\.)?(\w+),?', st) and st.rstrip(',').split('.')[-1] in fcm:
-            name = st.rstrip(',').split('.')[-1]
-        if name and re.match(r"(CAST\(NULL AS \w+\)|NULL) AS ", st):
-            new = ''   # UNION ALL 对齐用的占位列，不加注释
-        elif name and name in fcm and not re.match(r'(SELECT|FROM|WITH|INSERT)\b', st):
+        elif re.fullmatch(r'(?:SELECT (?:DISTINCT )?)?(?:\w+\.)?(\w+),?', st) and st.rstrip(',').split('.')[-1].split()[-1] in fcm:
+            name = st.rstrip(',').split('.')[-1].split()[-1]
+        if name and 'UNION ALL' in sql and name not in gcm_fixed and re.match(r"(CAST\((NULL|0) AS [\w(),]+\)|NULL|0) AS ", st):
+            new = (fcm.get(name) or gcm.get(name) or name) + '：本来源无，补空对齐 UNION ALL'
+        elif name and name in fcm and not re.match(r'(FROM|WITH|INSERT)\b', st) and not re.match(r'SELECT \*', st):
             new = fcm[name]
+        elif name and name in gcm and not re.match(r'(FROM|WITH|INSERT)\b', st) and not re.match(r'SELECT \*', st):
+            new = gcm[name]
+        elif name and not re.match(r'(FROM|WITH|INSERT)\b', st) and helper_cmt(name, fcm, gcm):
+            new = helper_cmt(name, fcm, gcm)
         elif re.match(r'(INSERT OVERWRITE TABLE|INSERT INTO)\b', st):
             new = '写入当日分区' if 'PARTITION' in st else ('写入 StarRocks 目标表' if st.startswith('INSERT INTO') else '整表覆盖写入')
         elif st.startswith('CREATE MATERIALIZED VIEW'):

@@ -8,7 +8,7 @@ WITH
 customer_rn AS (                                               -- 「C端游客主账号」当日增量，同一主键按 binlog 时间倒序编号
   SELECT auth_status, birthday, create_time, customer_kind, customer_no, customer_status, gender, id,
          register_source, register_tenant_id, update_time, binlog_op_type,
-         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn  -- 同一主键多次变更，按 binlog 时间倒序编号
+         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn  -- 去重序号（1 = 最新）
   FROM ods.ods_cus_customer_di
   WHERE travel_date = '${bizdate}'                             -- 只取当日分区
 ),
@@ -37,7 +37,15 @@ SELECT  /*+ BROADCAST(channel_dim) */
   customer_latest.create_time        AS create_time,           -- 创建时间
   customer_latest.update_time        AS update_time,           -- 更新时间
   channel_dim.channel_id             AS register_channel_id,   -- 注册渠道ID
-  CASE WHEN FLOOR(MONTHS_BETWEEN(TO_DATE(customer_latest.create_time), TO_DATE(customer_latest.birthday)) / 12) IS NULL THEN 'UNKNOWN' WHEN FLOOR(MONTHS_BETWEEN(TO_DATE(customer_latest.create_time), TO_DATE(customer_latest.birthday)) / 12) < 18 THEN '0_17' WHEN FLOOR(MONTHS_BETWEEN(TO_DATE(customer_latest.create_time), TO_DATE(customer_latest.birthday)) / 12) <= 25 THEN '18_25' WHEN FLOOR(MONTHS_BETWEEN(TO_DATE(customer_latest.create_time), TO_DATE(customer_latest.birthday)) / 12) <= 35 THEN '26_35' WHEN FLOOR(MONTHS_BETWEEN(TO_DATE(customer_latest.create_time), TO_DATE(customer_latest.birthday)) / 12) <= 45 THEN '36_45' WHEN FLOOR(MONTHS_BETWEEN(TO_DATE(customer_latest.create_time), TO_DATE(customer_latest.birthday)) / 12) <= 60 THEN '46_60' ELSE '60_PLUS' END AS age_band_code,  -- 注册时年龄段｜口径：按生日算注册时年龄后分段
+  CASE                                                         -- 注册时年龄段｜口径：按生日算注册时年龄后分段
+      WHEN FLOOR(MONTHS_BETWEEN(TO_DATE(customer_latest.create_time), TO_DATE(customer_latest.birthday)) / 12) IS NULL THEN 'UNKNOWN'
+      WHEN FLOOR(MONTHS_BETWEEN(TO_DATE(customer_latest.create_time), TO_DATE(customer_latest.birthday)) / 12) < 18 THEN '0_17'
+      WHEN FLOOR(MONTHS_BETWEEN(TO_DATE(customer_latest.create_time), TO_DATE(customer_latest.birthday)) / 12) <= 25 THEN '18_25'
+      WHEN FLOOR(MONTHS_BETWEEN(TO_DATE(customer_latest.create_time), TO_DATE(customer_latest.birthday)) / 12) <= 35 THEN '26_35'
+      WHEN FLOOR(MONTHS_BETWEEN(TO_DATE(customer_latest.create_time), TO_DATE(customer_latest.birthday)) / 12) <= 45 THEN '36_45'
+      WHEN FLOOR(MONTHS_BETWEEN(TO_DATE(customer_latest.create_time), TO_DATE(customer_latest.birthday)) / 12) <= 60 THEN '46_60'
+      ELSE '60_PLUS'
+  END AS age_band_code,                                        -- 注册时年龄段
   customer_latest.create_time        AS register_time,         -- 注册时间
   1                                  AS register_qty,          -- 注册人数
   CURRENT_TIMESTAMP()                AS etl_time               -- ETL 加载时间

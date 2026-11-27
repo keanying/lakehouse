@@ -13,62 +13,103 @@
 DROP TABLE IF EXISTS tmp.dim_cus_tourist_df_${bizdate};
 
 CREATE TABLE tmp.dim_cus_tourist_df_${bizdate} STORED AS ORC AS
-WITH today AS (   -- 今日新增的游客明细（排除测试订单）
-    SELECT id_card_hash AS tourist_key, id_card_type, gender, YEAR(CURRENT_DATE()) - age AS birth_year, province_code, city_code, phone_hash,
-           SUBSTR(order_time, 1, 10) AS order_date, SUBSTR(verify_time, 1, 10) AS visit_date, order_no, scenic_id
+WITH today AS (                                                                   -- 今日新增的游客明细（排除测试订单）
+    SELECT id_card_hash AS tourist_key,                                           -- 游客键 = SHA256(证件类型 + 证件号)
+           id_card_type,                                                          -- 证件类型
+           gender,                                                                -- 性别
+           YEAR(CURRENT_DATE()) - age AS birth_year,                              -- 出生年份
+           province_code,
+           city_code,
+           phone_hash,                                                            -- 最近手机号哈希
+           SUBSTR(order_time, 1, 10) AS order_date,
+           SUBSTR(verify_time, 1, 10) AS visit_date,                              -- 游览日期
+           order_no,
+           scenic_id
     FROM dwd.dwd_ord_traveler_di
-    WHERE travel_date = '${bizdate}' AND id_card_hash IS NOT NULL AND test_flag = 0
+    WHERE travel_date = '${bizdate}' AND id_card_hash IS NOT NULL AND test_flag = 0  -- 只取当日分区，并按条件过滤
 ),
 n AS (
-    SELECT tourist_key, MAX(id_card_type) AS id_card_type, MAX(gender) AS gender, MAX(birth_year) AS birth_year,
-           MAX(province_code) AS source_province_code, MAX(city_code) AS source_city_code, MAX(phone_hash) AS phone_hash,
-           MIN(order_date) AS first_order_date, MAX(order_date) AS last_order_date,
-           MIN(visit_date) AS first_visit_date, MAX(visit_date) AS last_visit_date,
-           COUNT(DISTINCT order_no) AS order_qty, COUNT(visit_date) AS visit_qty,
-           COUNT(DISTINCT IF(visit_date IS NOT NULL, scenic_id, NULL)) AS visit_scenic_qty
+    SELECT tourist_key,                                                           -- 游客键 = SHA256(证件类型 + 证件号)
+           MAX(id_card_type) AS id_card_type,                                     -- 证件类型
+           MAX(gender) AS gender,                                                 -- 性别
+           MAX(birth_year) AS birth_year,                                         -- 出生年份
+           MAX(province_code) AS source_province_code,                            -- 客源省（证件地区）
+           MAX(city_code) AS source_city_code,                                    -- 客源市（证件地区）
+           MAX(phone_hash) AS phone_hash,                                         -- 最近手机号哈希
+           MIN(order_date) AS first_order_date,                                   -- 首次下单日期
+           MAX(order_date) AS last_order_date,                                    -- 最近下单日期
+           MIN(visit_date) AS first_visit_date,                                   -- 首次到访（核销）日期
+           MAX(visit_date) AS last_visit_date,                                    -- 最近到访日期
+           COUNT(DISTINCT order_no) AS order_qty,                                 -- 累计订单数
+           COUNT(visit_date) AS visit_qty,                                        -- 累计到访次数
+           COUNT(DISTINCT IF(visit_date IS NOT NULL, scenic_id, NULL)) AS visit_scenic_qty  -- 累计到访景区数
     FROM today
-    GROUP BY tourist_key
+    GROUP BY tourist_key                                                          -- 按粒度键汇总
 ),
-auth AS (   -- 实名认证：tourist_info 证件号在 ODS 已哈希，取哈希段关联
-    SELECT SUBSTRING_INDEX(i.certificate_no, '#', -1) AS tourist_key, MAX(IF(a.status = '1', 1, 0)) AS real_name_flag
+auth AS (                                                                         -- 实名认证：tourist_info 证件号在 ODS 已哈希，取哈希段关联
+    SELECT SUBSTRING_INDEX(i.certificate_no, '#', -1) AS tourist_key,             -- 游客键 = SHA256(证件类型 + 证件号)
+           MAX(IF(a.status = '1', 1, 0)) AS real_name_flag                        -- 是否实名认证
     FROM ods.ods_cus_tourist_info_df i
     JOIN ods.ods_cus_tourist_auth_info_df a ON a.tourist_id = i.id AND a.travel_date = '${bizdate}'
-    WHERE i.travel_date = '${bizdate}'
-    GROUP BY SUBSTRING_INDEX(i.certificate_no, '#', -1)
+    WHERE i.travel_date = '${bizdate}'                                            -- 只取当日分区
+    GROUP BY SUBSTRING_INDEX(i.certificate_no, '#', -1)                           -- 按粒度键汇总
 ),
 m AS (
     SELECT
-        COALESCE(n.tourist_key, h.tourist_key)                         AS tourist_key,
-        COALESCE(n.id_card_type, h.id_card_type)                       AS id_card_type,
-        COALESCE(h.gender, n.gender)                                   AS gender,
-        COALESCE(h.birth_year, n.birth_year)                           AS birth_year,
-        COALESCE(h.source_province_code, n.source_province_code)       AS source_province_code,
-        COALESCE(h.source_city_code, n.source_city_code)               AS source_city_code,
-        h.phone_province_code,                                         -- 待确认：维表只存手机号哈希，号段归属需在 DWD 单独带出后再累计
-        COALESCE(n.phone_hash, h.phone_hash)                           AS phone_hash,           -- 取最近一次
-        GREATEST(COALESCE(h.real_name_flag, 0), COALESCE(au.real_name_flag, 0)) AS real_name_flag,
-        CASE WHEN h.first_order_date IS NULL OR n.first_order_date < h.first_order_date THEN n.first_order_date ELSE h.first_order_date END AS first_order_date,
-        CASE WHEN h.last_order_date IS NULL OR n.last_order_date > h.last_order_date THEN n.last_order_date ELSE h.last_order_date END AS last_order_date,
-        CASE WHEN h.first_visit_date IS NULL OR n.first_visit_date < h.first_visit_date THEN n.first_visit_date ELSE h.first_visit_date END AS first_visit_date,
-        CASE WHEN h.last_visit_date IS NULL OR n.last_visit_date > h.last_visit_date THEN n.last_visit_date ELSE h.last_visit_date END AS last_visit_date,
-        COALESCE(h.order_qty, 0) + COALESCE(n.order_qty, 0)            AS order_qty,
-        COALESCE(h.visit_qty, 0) + COALESCE(n.visit_qty, 0)            AS visit_qty,
+        COALESCE(n.tourist_key, h.tourist_key)                         AS tourist_key,  -- 游客键 = SHA256(证件类型 + 证件号)
+        COALESCE(n.id_card_type, h.id_card_type)                       AS id_card_type,  -- 证件类型
+        COALESCE(h.gender, n.gender)                                   AS gender,  -- 性别
+        COALESCE(h.birth_year, n.birth_year)                           AS birth_year,  -- 出生年份
+        COALESCE(h.source_province_code, n.source_province_code)       AS source_province_code,  -- 客源省（证件地区）
+        COALESCE(h.source_city_code, n.source_city_code)               AS source_city_code,  -- 客源市（证件地区）
+        h.phone_province_code,                                                    -- 手机号归属省（最近一次）｜待确认：维表只存手机号哈希，号段归属需在 DWD 单独带出后再累计
+        COALESCE(n.phone_hash, h.phone_hash)                           AS phone_hash,  -- 最近手机号哈希｜取最近一次
+        GREATEST(COALESCE(h.real_name_flag, 0), COALESCE(au.real_name_flag, 0)) AS real_name_flag,  -- 是否实名认证
+        CASE
+            WHEN h.first_order_date IS NULL OR n.first_order_date < h.first_order_date THEN n.first_order_date
+            ELSE h.first_order_date
+        END AS first_order_date,                                                  -- 首次下单日期
+        CASE
+            WHEN h.last_order_date IS NULL OR n.last_order_date > h.last_order_date THEN n.last_order_date
+            ELSE h.last_order_date
+        END AS last_order_date,                                                   -- 最近下单日期
+        CASE
+            WHEN h.first_visit_date IS NULL OR n.first_visit_date < h.first_visit_date THEN n.first_visit_date
+            ELSE h.first_visit_date
+        END AS first_visit_date,                                                  -- 首次到访（核销）日期
+        CASE
+            WHEN h.last_visit_date IS NULL OR n.last_visit_date > h.last_visit_date THEN n.last_visit_date
+            ELSE h.last_visit_date
+        END AS last_visit_date,                                                   -- 最近到访日期
+        COALESCE(h.order_qty, 0) + COALESCE(n.order_qty, 0)            AS order_qty,  -- 累计订单数
+        COALESCE(h.visit_qty, 0) + COALESCE(n.visit_qty, 0)            AS visit_qty,  -- 累计到访次数
         -- 近似：跨日同一景区会重复计；精确去重需按 游客 × 景区 累计表
-        COALESCE(h.visit_scenic_qty, 0) + COALESCE(n.visit_scenic_qty, 0) AS visit_scenic_qty
+        COALESCE(h.visit_scenic_qty, 0) + COALESCE(n.visit_scenic_qty, 0) AS visit_scenic_qty  -- 累计到访景区数
     FROM n
-    FULL OUTER JOIN dim.dim_cus_tourist_df h ON h.tourist_key = n.tourist_key      -- 当前维表（昨日结果）
+    FULL OUTER JOIN dim.dim_cus_tourist_df h ON h.tourist_key = n.tourist_key     -- 当前维表（昨日结果）
     LEFT JOIN auth au ON au.tourist_key = COALESCE(n.tourist_key, h.tourist_key)
 )
 SELECT
     tourist_key, id_card_type, gender, birth_year,
-    CASE WHEN birth_year IS NULL THEN '未知' WHEN YEAR(CURRENT_DATE()) - birth_year <= 7 THEN '0-7' WHEN YEAR(CURRENT_DATE()) - birth_year <= 17 THEN '8-17' WHEN YEAR(CURRENT_DATE()) - birth_year <= 27 THEN '18-27'
-         WHEN YEAR(CURRENT_DATE()) - birth_year <= 40 THEN '28-40' WHEN YEAR(CURRENT_DATE()) - birth_year <= 60 THEN '41-60' ELSE '61+' END AS age_group,
+    CASE
+        WHEN birth_year IS NULL THEN '未知'
+        WHEN YEAR(CURRENT_DATE()) - birth_year <= 7 THEN '0-7'
+        WHEN YEAR(CURRENT_DATE()) - birth_year <= 17 THEN '8-17'
+        WHEN YEAR(CURRENT_DATE()) - birth_year <= 27 THEN '18-27'
+         WHEN YEAR(CURRENT_DATE()) - birth_year <= 40 THEN '28-40'
+             WHEN YEAR(CURRENT_DATE()) - birth_year <= 60 THEN '41-60' ELSE '61+' END AS age_group,  -- 年龄段（按统计日）
     source_province_code, source_city_code, phone_province_code, phone_hash, real_name_flag,
-    first_order_date, last_order_date, first_visit_date, last_visit_date, order_qty, visit_qty, visit_scenic_qty,
-    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time
+    first_order_date,                                                             -- 首次下单日期
+    last_order_date,                                                              -- 最近下单日期
+    first_visit_date,                                                             -- 首次到访（核销）日期
+    last_visit_date,                                                              -- 最近到访日期
+    order_qty,                                                                    -- 累计订单数
+    visit_qty,                                                                    -- 累计到访次数
+    visit_scenic_qty,                                                             -- 累计到访景区数
+    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time           -- ETL 加载时间
 FROM m;
 
-INSERT OVERWRITE TABLE dim.dim_cus_tourist_df
+INSERT OVERWRITE TABLE dim.dim_cus_tourist_df                                     -- 整表覆盖写入
 SELECT * FROM tmp.dim_cus_tourist_df_${bizdate};
 
 DROP TABLE IF EXISTS tmp.dim_cus_tourist_df_${bizdate};

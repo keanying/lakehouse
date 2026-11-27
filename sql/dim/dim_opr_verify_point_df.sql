@@ -12,7 +12,7 @@ verify_point_src AS (                                       -- 主表「核销�
   WHERE travel_date = '${bizdate}'                          -- 只取当日分区
 ),
 device_count AS (                                           -- 「设备」按 device_group_id 预聚合
-  SELECT device_group_id, COUNT(id) AS v
+  SELECT device_group_id, COUNT(id) AS v                    -- 拆分 / 展开后的单个值
   FROM ods.ods_opr_device_df
   WHERE travel_date = '${bizdate}'                          -- 只取当日分区
   GROUP BY device_group_id                                  -- 按粒度键汇总

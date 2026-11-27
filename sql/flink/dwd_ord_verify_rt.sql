@@ -18,7 +18,7 @@ SELECT
   a.offline_timestamp                                          AS offline_device_time,  -- 离线时序戳（离线核销时设备时间）
   a.verify_result                                              AS verify_result_type,  -- 结果
   a.tenant_id                                                  AS tenant_id,      -- 租户ID（分库维度）
-  a.create_time                                                AS create_time,    -- 创建时间（在线=服务器时间
+  a.create_time                                                AS create_time,    -- 创建时间
   a.update_time                                                AS update_time,    -- 更新时间
   j1.order_no                                                  AS order_no,       -- 所属子单号
   j1.seller_tenant_id                                          AS seller_tenant_id,  -- 卖家租户ID
@@ -30,16 +30,19 @@ SELECT
   j4.device_type                                               AS device_type,    -- 设备类型
   a.create_time                                                AS verify_time,    -- 核销时间
   HOUR(a.create_time)                                          AS verify_hour_no,  -- 核销小时
-  1 AS verify_person_qty,  -- 本次核销人数｜口径：口径说明：实时按 1 人计；绑定多人的共享权益以离线人数为准
+  1 AS verify_person_qty,                                                         -- 本次核销人数｜口径：口径说明：实时按 1 人计；绑定多人的共享权益以离线人数为准
   1                                                            AS verify_qty,     -- 核销次数
-  j1.unit_price_amt / NULLIF(j2.max_qty, 0)                    AS verify_amt,     -- 核销金额（元
-  CASE WHEN a.verify_result='DUPLICATE' AND a.verify_type ='OFFLINE' THEN 1 ELSE 0 END AS offline_conflict_type,  -- 是否离线冲突
+  j1.unit_price_amt / NULLIF(j2.max_qty, 0)                    AS verify_amt,     -- 核销金额
+  CASE                                                                            -- 是否离线冲突
+      WHEN a.verify_result='DUPLICATE' AND a.verify_type ='OFFLINE' THEN 1
+      ELSE 0
+  END AS offline_conflict_type,                                                   -- 是否离线冲突
   CURRENT_TIMESTAMP                                            AS event_time      -- 事件时间（binlog 时间）
 FROM ods.ods_ord_verify_record_rt a                                               -- 主表「核销记录 binlog 流」
 LEFT JOIN dwd.dwd_ord_ticket_di j1                                                -- 关联「票明细（出票）」，取 所属子单号、卖家租户ID、SKU ID、产品(SPU)ID、游玩日期 等 6 个字段
   ON j1.ticket_no = a.ticket_no                                                   -- 按 ticket_no 关联
  AND j1.travel_date = '${bizdate}'                                                -- 只取当日分区
-LEFT JOIN dwd.dwd_ord_entitlement_di j2                                           -- 关联「权益明细」，取 权益类型、核销金额（元
+LEFT JOIN dwd.dwd_ord_entitlement_di j2                                           -- 关联「权益明细」，取 权益类型、核销金额
   ON j2.entitlement_no = a.entitlement_no                                         -- 按 entitlement_no 关联
  AND j2.travel_date = '${bizdate}'                                                -- 只取当日分区
 LEFT JOIN dim.dim_opr_verify_point_df FOR SYSTEM_TIME AS OF a.proc_time AS j3     -- 关联「核销点维度」，取 核销点类型

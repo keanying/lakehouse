@@ -11,9 +11,9 @@ src_device_status_log AS (                          -- 来源「设备状态变�
     device_id AS device_id,                         -- 设备ID
     SUM(CASE WHEN before_status = 'ACTIVE' THEN status_minute_qty END) AS online_minute_qty,  -- 设备在线时长｜口径：状态日志每条记前一状态持续分钟数，前一状态为有效（在线）的累加；当前未结束的区间次日补记
     COUNT(CASE WHEN after_status='OFFLINE' THEN 1 END) AS offline_times_qty,  -- 设备离线次数
-    NULL AS verify_entitlement_qty,
-    NULL AS device_total_qty,
-    NULL AS offline_verify_qty
+    NULL AS verify_entitlement_qty,                 -- 核销权益次数：本来源无，补空对齐 UNION ALL
+    NULL AS device_total_qty,                       -- 设备数：本来源无，补空对齐 UNION ALL
+    NULL AS offline_verify_qty                      -- 离线核销次数：本来源无，补空对齐 UNION ALL
   FROM dwd.dwd_opr_device_status_log_di s           -- 来源表「设备状态变更明细」
   WHERE s.travel_date = '${bizdate}'                -- 只取当日分区
   GROUP BY tenant_id, device_id                     -- 按粒度键汇总
@@ -22,10 +22,10 @@ src_verify AS (                                     -- 来源「核销明细（�
   SELECT
     tenant_id AS tenant_id,                         -- 租户ID
     device_id AS device_id,                         -- 设备ID
-    NULL AS online_minute_qty,
-    NULL AS offline_times_qty,
+    NULL AS online_minute_qty,                      -- 设备在线时长：本来源无，补空对齐 UNION ALL
+    NULL AS offline_times_qty,                      -- 设备离线次数：本来源无，补空对齐 UNION ALL
     COUNT(CASE WHEN verify_result_type='SUCCESS' THEN verify_no END) AS verify_entitlement_qty,  -- 核销权益次数
-    NULL AS device_total_qty,
+    NULL AS device_total_qty,                       -- 设备数：本来源无，补空对齐 UNION ALL
     COUNT(CASE WHEN verify_type='OFFLINE' and verify_result_type = 'SUCCESS' THEN verify_no END) AS offline_verify_qty  -- 离线核销次数
   FROM dwd.dwd_ord_verify_di s                      -- 来源表「核销明细（权益级）」
   WHERE s.travel_date = '${bizdate}'                -- 只取当日分区
@@ -35,11 +35,11 @@ src_device AS (                                     -- 来源「设备维度」�
   SELECT
     tenant_id AS tenant_id,                         -- 租户ID
     device_id AS device_id,                         -- 设备ID
-    NULL AS online_minute_qty,
-    NULL AS offline_times_qty,
-    NULL AS verify_entitlement_qty,
+    NULL AS online_minute_qty,                      -- 设备在线时长：本来源无，补空对齐 UNION ALL
+    NULL AS offline_times_qty,                      -- 设备离线次数：本来源无，补空对齐 UNION ALL
+    NULL AS verify_entitlement_qty,                 -- 核销权益次数：本来源无，补空对齐 UNION ALL
     COUNT(device_id) AS device_total_qty,           -- 设备数
-    NULL AS offline_verify_qty
+    NULL AS offline_verify_qty                      -- 离线核销次数：本来源无，补空对齐 UNION ALL
   FROM dim.dim_opr_device_df s                      -- 来源表「设备维度」
   WHERE s.travel_date = '${bizdate}'                -- 只取当日分区
   GROUP BY tenant_id, device_id                     -- 按粒度键汇总

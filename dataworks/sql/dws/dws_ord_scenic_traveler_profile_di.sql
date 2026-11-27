@@ -9,87 +9,137 @@
 --   · 待确认（无来源）：order_sale_amt、pay_sale_amt、pay_ticket_qty、verify_sale_amt
 --   · 来源：trv_book = dwd.dwd_ord_traveler_di（预订游客：当日下单）；trv_verify = dwd.dwd_ord_traveler_di（核销游客：当日验证）
 -- ================================================================================================
-INSERT OVERWRITE TABLE dws.dws_ord_scenic_traveler_profile_di PARTITION (travel_date = '${bizdate}')
+INSERT OVERWRITE TABLE dws.dws_ord_scenic_traveler_profile_di PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
 SELECT
-    scenic_id,
-    ticket_id,
-    behavior_type,
-    order_role,
-    team_type,
-    province_code,
-    city_code,
-    gender,
-    age_group,
-    fellow_group,
-    district_code,
-    order_mode,
-    pay_mode,
-    SUM(traveler_qty)                                            AS traveler_qty,
-    SUM(order_order_qty)                                         AS order_order_qty,
-    SUM(order_ticket_qty)                                        AS order_ticket_qty,
-    SUM(verify_ticket_qty)                                       AS verify_ticket_qty,
-    CAST(NULL AS DECIMAL(18,2))                                  AS order_sale_amt,   -- 待确认：没有可用来源
-    CAST(NULL AS DECIMAL(18,2))                                  AS pay_sale_amt,   -- 待确认：没有可用来源
-    CAST(NULL AS BIGINT)                                         AS pay_ticket_qty,   -- 待确认：没有可用来源
-    CAST(NULL AS DECIMAL(18,2))                                  AS verify_sale_amt,   -- 待确认：没有可用来源
-    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time
+    scenic_id,                                                                    -- 景区ID
+    ticket_id,                                                                    -- 票ID
+    behavior_type,                                                                -- 行为
+    order_role,                                                                   -- 主子单
+    team_type,                                                                    -- 团散
+    province_code,                                                                -- 客源省编码（取票人证件 / 手机号归属）
+    city_code,                                                                    -- 客源市编码
+    gender,                                                                       -- 性别
+    age_group,                                                                    -- 年龄段
+    fellow_group,                                                                 -- 同行人数段
+    district_code,                                                                -- 客源区县编码
+    order_mode,                                                                   -- 下单渠道编码
+    pay_mode,                                                                     -- 支付方式编码
+    SUM(traveler_qty)                                            AS traveler_qty,  -- 游客人数
+    SUM(order_order_qty)                                         AS order_order_qty,  -- 预订订单数
+    SUM(order_ticket_qty)                                        AS order_ticket_qty,  -- 预订票数
+    SUM(verify_ticket_qty)                                       AS verify_ticket_qty,  -- 验证票数
+    CAST(NULL AS DECIMAL(18,2))                                  AS order_sale_amt,  -- 预订金额｜待确认：没有可用来源
+    CAST(NULL AS DECIMAL(18,2))                                  AS pay_sale_amt,  -- 支付金额｜待确认：没有可用来源
+    CAST(NULL AS BIGINT)                                         AS pay_ticket_qty,  -- 支付票数｜待确认：没有可用来源
+    CAST(NULL AS DECIMAL(18,2))                                  AS verify_sale_amt,  -- 验证金额｜待确认：没有可用来源
+    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time           -- ETL 加载时间
 FROM (
     -- trv_book：预订游客：当日下单
     SELECT
-        COALESCE(scenic_id, CAST(-1 AS BIGINT))                      AS scenic_id,
-        COALESCE(ticket_id, CAST(-1 AS BIGINT))                      AS ticket_id,
-        'BOOK'                                                       AS behavior_type,
-        order_role,
-        IF(team_flag = 1, 'TEAM', 'INDIVIDUAL')                      AS team_type,
-        province_code,
-        city_code,
-        gender,
-        age_group,
-        CASE WHEN fellow_qty <= 1 THEN '1' WHEN fellow_qty <= 4 THEN '2-4' WHEN fellow_qty <= 9 THEN '5-9' ELSE '10+' END AS fellow_group,
-        district_code,
-        CAST(-1 AS INT)                                              AS order_mode,   -- 该来源无此维度，取默认值
-        CAST(-1 AS INT)                                              AS pay_mode,   -- 该来源无此维度，取默认值
-        COUNT(1)                                                     AS traveler_qty,
-        COUNT(DISTINCT order_no)                                     AS order_order_qty,
-        COUNT(1)                                                     AS order_ticket_qty,
-        CAST(0 AS BIGINT)                                            AS verify_ticket_qty,
-        CAST(0 AS DECIMAL(18,2))                                     AS order_sale_amt,
-        CAST(0 AS DECIMAL(18,2))                                     AS pay_sale_amt,
-        CAST(0 AS BIGINT)                                            AS pay_ticket_qty,
-        CAST(0 AS DECIMAL(18,2))                                     AS verify_sale_amt
+        COALESCE(scenic_id, CAST(-1 AS BIGINT))                      AS scenic_id,  -- 景区ID
+        COALESCE(ticket_id, CAST(-1 AS BIGINT))                      AS ticket_id,  -- 票ID
+        'BOOK'                                                       AS behavior_type,  -- 行为
+        order_role,                                                               -- 主子单
+        IF(team_flag = 1, 'TEAM', 'INDIVIDUAL')                      AS team_type,  -- 团散
+        province_code,                                                            -- 客源省编码（取票人证件 / 手机号归属）
+        city_code,                                                                -- 客源市编码
+        gender,                                                                   -- 性别
+        age_group,                                                                -- 年龄段
+        CASE
+            WHEN fellow_qty <= 1 THEN '1'
+            WHEN fellow_qty <= 4 THEN '2-4'
+            WHEN fellow_qty <= 9 THEN '5-9'
+            ELSE '10+'
+        END AS fellow_group,                                                      -- 同行人数段
+        district_code,                                                            -- 客源区县编码
+        CAST(-1 AS INT)                                              AS order_mode,  -- 下单渠道编码｜该来源无此维度，取默认值
+        CAST(-1 AS INT)                                              AS pay_mode,  -- 支付方式编码｜该来源无此维度，取默认值
+        COUNT(1)                                                     AS traveler_qty,  -- 游客人数
+        COUNT(DISTINCT order_no)                                     AS order_order_qty,  -- 预订订单数
+        COUNT(1)                                                     AS order_ticket_qty,  -- 预订票数
+        CAST(0 AS BIGINT)                                            AS verify_ticket_qty,  -- 验证票数
+        CAST(0 AS DECIMAL(18,2))                                     AS order_sale_amt,  -- 预订金额
+        CAST(0 AS DECIMAL(18,2))                                     AS pay_sale_amt,  -- 支付金额
+        CAST(0 AS BIGINT)                                            AS pay_ticket_qty,  -- 支付票数
+        CAST(0 AS DECIMAL(18,2))                                     AS verify_sale_amt  -- 验证金额
     FROM dwd.dwd_ord_traveler_di
-    WHERE travel_date = '${bizdate}'
+    WHERE travel_date = '${bizdate}'                                              -- 只取当日分区
       AND test_flag = 0
       AND SUBSTR(order_time, 1, 10) = DATE_FORMAT(TO_DATE('${bizdate}', 'yyyyMMdd'), 'yyyy-MM-dd')
-    GROUP BY COALESCE(scenic_id, CAST(-1 AS BIGINT)), COALESCE(ticket_id, CAST(-1 AS BIGINT)), 'BOOK', order_role, IF(team_flag = 1, 'TEAM', 'INDIVIDUAL'), province_code, city_code, gender, age_group, CASE WHEN fellow_qty <= 1 THEN '1' WHEN fellow_qty <= 4 THEN '2-4' WHEN fellow_qty <= 9 THEN '5-9' ELSE '10+' END, district_code
+    GROUP BY COALESCE(scenic_id, CAST(-1 AS BIGINT)),                             -- 按粒度键汇总
+             COALESCE(ticket_id, CAST(-1 AS BIGINT)),
+             'BOOK',
+             order_role,                                                          -- 主子单
+             IF(team_flag = 1, 'TEAM', 'INDIVIDUAL'),
+             province_code,                                                       -- 客源省编码（取票人证件 / 手机号归属）
+             city_code,                                                           -- 客源市编码
+             gender,                                                              -- 性别
+             age_group,                                                           -- 年龄段
+             CASE
+        WHEN fellow_qty <= 1 THEN '1'
+        WHEN fellow_qty <= 4 THEN '2-4'
+        WHEN fellow_qty <= 9 THEN '5-9'
+        ELSE '10+'
+    END , district_code
     UNION ALL
     -- trv_verify：核销游客：当日验证
     SELECT
-        COALESCE(scenic_id, CAST(-1 AS BIGINT))                      AS scenic_id,
-        COALESCE(ticket_id, CAST(-1 AS BIGINT))                      AS ticket_id,
-        'VERIFY'                                                     AS behavior_type,
-        order_role,
-        IF(team_flag = 1, 'TEAM', 'INDIVIDUAL')                      AS team_type,
-        province_code,
-        city_code,
-        gender,
-        age_group,
-        CASE WHEN fellow_qty <= 1 THEN '1' WHEN fellow_qty <= 4 THEN '2-4' WHEN fellow_qty <= 9 THEN '5-9' ELSE '10+' END AS fellow_group,
-        district_code,
-        CAST(-1 AS INT)                                              AS order_mode,   -- 该来源无此维度，取默认值
-        CAST(-1 AS INT)                                              AS pay_mode,   -- 该来源无此维度，取默认值
-        CAST(0 AS BIGINT)                                            AS traveler_qty,
-        CAST(0 AS BIGINT)                                            AS order_order_qty,
-        CAST(0 AS BIGINT)                                            AS order_ticket_qty,
-        COUNT(1)                                                     AS verify_ticket_qty,
-        CAST(0 AS DECIMAL(18,2))                                     AS order_sale_amt,
-        CAST(0 AS DECIMAL(18,2))                                     AS pay_sale_amt,
-        CAST(0 AS BIGINT)                                            AS pay_ticket_qty,
-        CAST(0 AS DECIMAL(18,2))                                     AS verify_sale_amt
+        COALESCE(scenic_id, CAST(-1 AS BIGINT))                      AS scenic_id,  -- 景区ID
+        COALESCE(ticket_id, CAST(-1 AS BIGINT))                      AS ticket_id,  -- 票ID
+        'VERIFY'                                                     AS behavior_type,  -- 行为
+        order_role,                                                               -- 主子单
+        IF(team_flag = 1, 'TEAM', 'INDIVIDUAL')                      AS team_type,  -- 团散
+        province_code,                                                            -- 客源省编码（取票人证件 / 手机号归属）
+        city_code,                                                                -- 客源市编码
+        gender,                                                                   -- 性别
+        age_group,                                                                -- 年龄段
+        CASE
+            WHEN fellow_qty <= 1 THEN '1'
+            WHEN fellow_qty <= 4 THEN '2-4'
+            WHEN fellow_qty <= 9 THEN '5-9'
+            ELSE '10+'
+        END AS fellow_group,                                                      -- 同行人数段
+        district_code,                                                            -- 客源区县编码
+        CAST(-1 AS INT)                                              AS order_mode,  -- 下单渠道编码｜该来源无此维度，取默认值
+        CAST(-1 AS INT)                                              AS pay_mode,  -- 支付方式编码｜该来源无此维度，取默认值
+        CAST(0 AS BIGINT)                                            AS traveler_qty,  -- 游客人数
+        CAST(0 AS BIGINT)                                            AS order_order_qty,  -- 预订订单数
+        CAST(0 AS BIGINT)                                            AS order_ticket_qty,  -- 预订票数
+        COUNT(1)                                                     AS verify_ticket_qty,  -- 验证票数
+        CAST(0 AS DECIMAL(18,2))                                     AS order_sale_amt,  -- 预订金额
+        CAST(0 AS DECIMAL(18,2))                                     AS pay_sale_amt,  -- 支付金额
+        CAST(0 AS BIGINT)                                            AS pay_ticket_qty,  -- 支付票数
+        CAST(0 AS DECIMAL(18,2))                                     AS verify_sale_amt  -- 验证金额
     FROM dwd.dwd_ord_traveler_di
-    WHERE travel_date = '${bizdate}'
+    WHERE travel_date = '${bizdate}'                                              -- 只取当日分区
       AND test_flag = 0
       AND SUBSTR(verify_time, 1, 10) = DATE_FORMAT(TO_DATE('${bizdate}', 'yyyyMMdd'), 'yyyy-MM-dd')
-    GROUP BY COALESCE(scenic_id, CAST(-1 AS BIGINT)), COALESCE(ticket_id, CAST(-1 AS BIGINT)), 'VERIFY', order_role, IF(team_flag = 1, 'TEAM', 'INDIVIDUAL'), province_code, city_code, gender, age_group, CASE WHEN fellow_qty <= 1 THEN '1' WHEN fellow_qty <= 4 THEN '2-4' WHEN fellow_qty <= 9 THEN '5-9' ELSE '10+' END, district_code
-) u
-GROUP BY scenic_id, ticket_id, behavior_type, order_role, team_type, province_code, city_code, gender, age_group, fellow_group, district_code, order_mode, pay_mode
+    GROUP BY COALESCE(scenic_id, CAST(-1 AS BIGINT)),                             -- 按粒度键汇总
+             COALESCE(ticket_id, CAST(-1 AS BIGINT)),
+             'VERIFY',
+             order_role,                                                          -- 主子单
+             IF(team_flag = 1, 'TEAM', 'INDIVIDUAL'),
+             province_code,                                                       -- 客源省编码（取票人证件 / 手机号归属）
+             city_code,                                                           -- 客源市编码
+             gender,                                                              -- 性别
+             age_group,                                                           -- 年龄段
+             CASE
+        WHEN fellow_qty <= 1 THEN '1'
+        WHEN fellow_qty <= 4 THEN '2-4'
+        WHEN fellow_qty <= 9 THEN '5-9'
+        ELSE '10+'
+    END , district_code
+) u                                                                               -- 各来源合并后的明细
+GROUP BY scenic_id,                                                               -- 按粒度键汇总
+         ticket_id,                                                               -- 票ID
+         behavior_type,                                                           -- 行为
+         order_role,                                                              -- 主子单
+         team_type,                                                               -- 团散
+         province_code,                                                           -- 客源省编码（取票人证件 / 手机号归属）
+         city_code,                                                               -- 客源市编码
+         gender,                                                                  -- 性别
+         age_group,                                                               -- 年龄段
+         fellow_group,                                                            -- 同行人数段
+         district_code,                                                           -- 客源区县编码
+         order_mode,                                                              -- 下单渠道编码
+         pay_mode                                                                 -- 支付方式编码

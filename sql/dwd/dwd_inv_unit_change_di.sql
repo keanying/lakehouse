@@ -22,7 +22,7 @@ SELECT  /*+ BROADCAST(pool_dim) */
   inventory_unit_chg.unit_no                                   AS unit_no,        -- 资源个体编号（座位号/房号/舱位号）
   inventory_unit_chg.pool_no                                   AS pool_no,        -- 归属库存池编号
   inventory_unit_chg.unit_status                               AS unit_status,    -- 状态
-  inventory_unit_chg.order_no                                  AS order_no,       -- 锁定子单号（FROZEN-冻结中
+  inventory_unit_chg.order_no                                  AS order_no,       -- 锁定子单号
   inventory_unit_chg.tenant_id                                 AS tenant_id,      -- 租户ID（分库维度）
   inventory_unit_chg.create_time                               AS create_time,    -- 创建时间
   inventory_unit_chg.update_time                               AS update_time,    -- 更新时间

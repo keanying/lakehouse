@@ -17,7 +17,7 @@ SELECT
   tenant_position_src.position_no     AS position_no,      -- 岗位编号
   tenant_position_src.tenant_id       AS tenant_id,        -- 租户ID
   tenant_position_src.position_name   AS position_name,    -- 岗位名称
-  tenant_position_src.position_code   AS position_code,    -- 岗位编码（租户内唯一
+  tenant_position_src.position_code   AS position_code,    -- 岗位编码
   tenant_position_src.position_status AS position_status,  -- 状态
   tenant_position_src.create_time     AS create_time,      -- 创建时间
   tenant_position_src.update_time     AS update_time,      -- 更新时间

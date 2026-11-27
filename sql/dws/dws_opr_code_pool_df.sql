@@ -13,8 +13,8 @@ src_code_pool AS (                                  -- 来源「码池维度」�
     SUM(capacity_qty) AS code_capacity_qty,         -- 码池容量
     SUM(allocated_qty) AS code_allocated_qty,       -- 已分配码数
     SUM(recycled_qty) AS code_recycled_qty,         -- 回收复用码数
-    NULL AS issue_credential_qty,
-    NULL AS revoke_credential_qty
+    NULL AS issue_credential_qty,                   -- 发码数：本来源无，补空对齐 UNION ALL
+    NULL AS revoke_credential_qty                   -- 凭证撤销数：本来源无，补空对齐 UNION ALL
   FROM dim.dim_opr_code_pool_df s                   -- 来源表「码池维度」
   WHERE s.travel_date = '${bizdate}'                -- 只取当日分区
   GROUP BY tenant_id, code_pool_id, pool_type       -- 按粒度键汇总
@@ -23,10 +23,10 @@ src_ticket_credential AS (                          -- 来源「凭证发码/撤
   SELECT
     tenant_id AS tenant_id,                         -- 租户ID
     code_pool_id AS code_pool_id,                   -- 码池ID
-    CAST(NULL AS STRING) AS pool_type,
-    NULL AS code_capacity_qty,
-    NULL AS code_allocated_qty,
-    NULL AS code_recycled_qty,
+    CAST(NULL AS STRING) AS pool_type,              -- 码池类型：本来源无，补空对齐 UNION ALL
+    NULL AS code_capacity_qty,                      -- 码池容量：本来源无，补空对齐 UNION ALL
+    NULL AS code_allocated_qty,                     -- 已分配码数：本来源无，补空对齐 UNION ALL
+    NULL AS code_recycled_qty,                      -- 回收复用码数：本来源无，补空对齐 UNION ALL
     COUNT(credential_no) AS issue_credential_qty,   -- 发码数
     COUNT(CASE WHEN credential_status='REVOKED' THEN credential_no END) AS revoke_credential_qty  -- 凭证撤销数
   FROM dwd.dwd_ord_ticket_credential_di s           -- 来源表「凭证发码/撤销明细」

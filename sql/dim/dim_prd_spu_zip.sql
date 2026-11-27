@@ -34,11 +34,37 @@ src AS (                                         -- 今日最新状态（与拉�
     ON tenant_cur.tenant_id = spu_src.tenant_id  -- 按 tenant_id 关联
 ),
 src_hash AS (                                    -- 今日状态的行哈希（比较是否变化）
-  SELECT s.*, MD5(CONCAT_WS('|', CAST(spu_no AS STRING), CAST(tenant_id AS STRING), CAST(product_type AS STRING), CAST(spu_name AS STRING), CAST(poi_id AS STRING), CAST(cover_image_url_desc AS STRING), CAST(spu_status AS STRING), CAST(create_time AS STRING), CAST(update_time AS STRING), CAST(tenant_name AS STRING))) AS row_hash
+  SELECT s.*,
+         MD5(CONCAT_WS(                          -- 行哈希：除拉链键外全部属性拼接后 MD5，判断是否变化
+             '|',
+             CAST(spu_no AS STRING),
+             CAST(tenant_id AS STRING),
+             CAST(product_type AS STRING),
+             CAST(spu_name AS STRING),
+             CAST(poi_id AS STRING),
+             CAST(cover_image_url_desc AS STRING),
+             CAST(spu_status AS STRING),
+             CAST(create_time AS STRING),
+             CAST(update_time AS STRING),
+             CAST(tenant_name AS STRING)
+         )) AS row_hash                          -- 行哈希：除拉链键外全部属性拼接后 MD5，判断是否变化
   FROM src s
 ),
 his AS (                                         -- 昨日拉链及其行哈希
-  SELECT h.*, MD5(CONCAT_WS('|', CAST(h.spu_no AS STRING), CAST(h.tenant_id AS STRING), CAST(h.product_type AS STRING), CAST(h.spu_name AS STRING), CAST(h.poi_id AS STRING), CAST(h.cover_image_url_desc AS STRING), CAST(h.spu_status AS STRING), CAST(h.create_time AS STRING), CAST(h.update_time AS STRING), CAST(h.tenant_name AS STRING))) AS row_hash
+  SELECT h.*,
+         MD5(CONCAT_WS(                          -- 行哈希：除拉链键外全部属性拼接后 MD5，判断是否变化
+             '|',
+             CAST(h.spu_no AS STRING),
+             CAST(h.tenant_id AS STRING),
+             CAST(h.product_type AS STRING),
+             CAST(h.spu_name AS STRING),
+             CAST(h.poi_id AS STRING),
+             CAST(h.cover_image_url_desc AS STRING),
+             CAST(h.spu_status AS STRING),
+             CAST(h.create_time AS STRING),
+             CAST(h.update_time AS STRING),
+             CAST(h.tenant_name AS STRING)
+         )) AS row_hash                          -- 行哈希：除拉链键外全部属性拼接后 MD5，判断是否变化
   FROM dim.dim_prd_spu_zip h
   WHERE h.travel_date = '${bizdate_prev}'
 )

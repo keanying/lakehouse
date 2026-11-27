@@ -10,12 +10,19 @@
 -- 业务规则 / 修正：
 --   · OTA 外部数据只取日粒度原值，周 / 月由时间表汇总（旧系统同时存外部算好的环比，口径不可控）
 -- ================================================================================================
-INSERT OVERWRITE TABLE ads.ads_trf_ota_platform_di PARTITION (travel_date = '${bizdate}')
-SELECT scenic_id, platform_code, SUM(ota_order_qty) AS ota_order_qty, DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time
+INSERT OVERWRITE TABLE ads.ads_trf_ota_platform_di PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
+SELECT scenic_id,                                                           -- 景区ID
+       platform_code,                                                       -- 平台
+       SUM(ota_order_qty) AS ota_order_qty,                                 -- OTA 订单数（日）
+       DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time  -- ETL 加载时间
 FROM (
     -- 携程交易（外部采集，日粒度）
-    SELECT CAST(scenic_id AS BIGINT) AS scenic_id, 'ctrip' AS platform_code, CAST(order_count AS BIGINT) AS ota_order_qty
+    SELECT CAST(scenic_id AS BIGINT) AS scenic_id,                          -- 景区ID
+           'ctrip' AS platform_code,                                        -- 平台
+           CAST(order_count AS BIGINT) AS ota_order_qty                     -- OTA 订单数（日）
     FROM ods.ods_trf_ota_ctrip_trade_df
-    WHERE travel_date = '${bizdate}' AND DATE_FORMAT(transaction_date, 'yyyyMMdd') = '${bizdate}' AND date_type = 'day'   -- 待确认：date_type / period_type 取值
+    WHERE travel_date = '${bizdate}'                                        -- 只取当日分区｜待确认：date_type / period_type 取值
+      AND DATE_FORMAT(transaction_date, 'yyyyMMdd') = '${bizdate}'
+      AND date_type = 'day'
 ) t
-GROUP BY scenic_id, platform_code
+GROUP BY scenic_id, platform_code                                           -- 按粒度键汇总

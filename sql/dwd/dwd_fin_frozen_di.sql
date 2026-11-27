@@ -9,7 +9,7 @@ frozen_record_rn AS (                                                           
   SELECT account_no, amount, binlog_time, create_time, external_channel, external_frozen,
          external_frozen_no, freeze_type, frozen_event, frozen_no, frozen_status, id, tenant_id,
          ticket_no, update_time, binlog_op_type,
-         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn      -- 同一主键多次变更，按 binlog 时间倒序编号
+         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn      -- 去重序号（1 = 最新）
   FROM ods.ods_fin_frozen_record_di
   WHERE travel_date = '${bizdate}'                                                -- 只取当日分区
 ),
@@ -43,7 +43,7 @@ SELECT  /*+ BROADCAST(account_dim) */
   frozen_record_latest.frozen_event                            AS release_event_type,  -- 冻结事件
   frozen_record_latest.external_frozen                         AS external_frozen_type,  -- 是否外部渠道冻结
   frozen_record_latest.external_channel                        AS external_channel_code,  -- 外部渠道(external_frozen=1时)
-  frozen_record_latest.external_frozen_no                      AS external_frozen_no,  -- 外部冻结单号(第三方返回的冻结流水号
+  frozen_record_latest.external_frozen_no                      AS external_frozen_no,  -- 外部冻结单号
   frozen_record_latest.tenant_id                               AS tenant_id,      -- 租户ID（分库维度）
   frozen_record_latest.create_time                             AS create_time,    -- 创建时间
   frozen_record_latest.update_time                             AS update_time,    -- 更新时间
@@ -51,8 +51,11 @@ SELECT  /*+ BROADCAST(account_dim) */
   account_dim.subject_id                                       AS subject_id,     -- 账户主体ID
   ticket_dtl.sku_id                                            AS sku_id,         -- SKU ID
   frozen_record_latest.create_time                             AS freeze_time,    -- 冻结时间
-  CASE WHEN frozen_record_latest.frozen_status = 'RELEASED' THEN frozen_record_latest.binlog_time END AS release_time,  -- 解冻时间
-  ROUND((UNIX_TIMESTAMP(CASE WHEN frozen_record_latest.frozen_status = 'RELEASED' THEN frozen_record_latest.binlog_time END) - UNIX_TIMESTAMP(frozen_record_latest.create_time)) / 3600, 2) AS freeze_hour_qty,  -- 冻结时长（小时）
+  CASE                                                                            -- 解冻时间
+      WHEN frozen_record_latest.frozen_status = 'RELEASED' THEN frozen_record_latest.binlog_time
+  END AS release_time,                                                            -- 解冻时间
+  ROUND((UNIX_TIMESTAMP(CASE WHEN frozen_record_latest.frozen_status = 'RELEASED' THEN frozen_record_latest.binlog_time END)  -- 冻结时长（小时）
+      - UNIX_TIMESTAMP(frozen_record_latest.create_time)) / 3600, 2) AS freeze_hour_qty,  -- 冻结时长（小时）
   CURRENT_TIMESTAMP()                                          AS etl_time        -- ETL 加载时间
 FROM frozen_record_latest
 LEFT JOIN account_dim                                                             -- 关联「账户维度」，取 账户类型、账户主体ID

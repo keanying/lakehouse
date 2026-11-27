@@ -33,4 +33,5 @@ SELECT
   CURRENT_TIMESTAMP()                         AS etl_time                 -- ETL 加载时间
 FROM payment_channel_config_src
 LEFT JOIN merchant_payment_config_src                                     -- 关联「商户收款配置」，取 商户收款模式、商户支付配置状态
-  ON merchant_payment_config_src.tenant_id = payment_channel_config_src.tenant_id AND merchant_payment_config_src.channel_code = payment_channel_config_src.channel_code;  -- 按 tenant_id、channel_code 关联
+  ON merchant_payment_config_src.tenant_id = payment_channel_config_src.tenant_id  -- 按 tenant_id 关联｜按 tenant_id、channel_code 关联
+    AND merchant_payment_config_src.channel_code = payment_channel_config_src.channel_code;

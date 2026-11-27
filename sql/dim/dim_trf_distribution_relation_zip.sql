@@ -20,28 +20,85 @@ src AS (                                                                        
     distribution_relation_src.parent_relation_id                 AS parent_relation_id,  -- 上级分销关系ID（4级采购链）
     distribution_relation_src.distribution_mode                  AS distribution_mode_type,  -- 分销模式
     distribution_relation_src.payment_mode                       AS payment_mode_type,  -- 支付模式
-    ROUND(distribution_relation_src.credit_limit / 100, 2)       AS credit_limit_amt,  -- 授信额度（元
+    ROUND(distribution_relation_src.credit_limit / 100, 2)       AS credit_limit_amt,  -- 授信额度
     ROUND(distribution_relation_src.credit_used / 100, 2)        AS credit_used_amt,  -- 已用授信（元）
     distribution_relation_src.relation_status                    AS relation_status,  -- 状态
     distribution_relation_src.create_time                        AS create_time,  -- 创建时间
     distribution_relation_src.update_time                        AS update_time,  -- 更新时间
     (1 + IF(p1.id IS NULL, 0, 1) + IF(p2.id IS NULL, 0, 1) + IF(p3.id IS NULL, 0, 1)) AS chain_level_no,  -- 本关系在采购链中的层级｜口径：本关系往上逐级找上级关系（parent_relation_id，最多 4 级）的层数
-    CASE (1 + IF(p1.id IS NULL, 0, 1) + IF(p2.id IS NULL, 0, 1) + IF(p3.id IS NULL, 0, 1)) WHEN 1 THEN distribution_relation_src.supplier_tenant_id WHEN 2 THEN p1.supplier_tenant_id WHEN 3 THEN p2.supplier_tenant_id WHEN 4 THEN p3.supplier_tenant_id END AS level1_tenant_id,  -- 1 级｜口径：最顶层关系的供应商 = 源头供应商
-    CASE (1 + IF(p1.id IS NULL, 0, 1) + IF(p2.id IS NULL, 0, 1) + IF(p3.id IS NULL, 0, 1)) WHEN 1 THEN distribution_relation_src.distributor_tenant_id WHEN 2 THEN p1.distributor_tenant_id WHEN 3 THEN p2.distributor_tenant_id WHEN 4 THEN p3.distributor_tenant_id END AS level2_tenant_id,  -- 2 级分销商租户ID｜口径：最顶层关系的分销商
-    CASE (1 + IF(p1.id IS NULL, 0, 1) + IF(p2.id IS NULL, 0, 1) + IF(p3.id IS NULL, 0, 1)) WHEN 2 THEN distribution_relation_src.distributor_tenant_id WHEN 3 THEN p1.distributor_tenant_id WHEN 4 THEN p2.distributor_tenant_id END AS level3_tenant_id,  -- 3 级分销商租户ID｜口径：第 2 层关系的分销商
-    CASE (1 + IF(p1.id IS NULL, 0, 1) + IF(p2.id IS NULL, 0, 1) + IF(p3.id IS NULL, 0, 1)) WHEN 3 THEN distribution_relation_src.distributor_tenant_id WHEN 4 THEN p1.distributor_tenant_id END AS level4_tenant_id,  -- 4 级分销商租户ID｜口径：第 3 层关系的分销商
+    CASE (1 + IF(p1.id IS NULL, 0, 1) + IF(p2.id IS NULL, 0, 1) + IF(p3.id IS NULL, 0, 1))  -- 1 级｜口径：最顶层关系的供应商 = 源头供应商
+        WHEN 1 THEN distribution_relation_src.supplier_tenant_id
+        WHEN 2 THEN p1.supplier_tenant_id
+        WHEN 3 THEN p2.supplier_tenant_id
+        WHEN 4 THEN p3.supplier_tenant_id
+    END AS level1_tenant_id,                                                      -- 1 级（源头供应商）租户ID
+    CASE (1 + IF(p1.id IS NULL, 0, 1) + IF(p2.id IS NULL, 0, 1) + IF(p3.id IS NULL, 0, 1))  -- 2 级分销商租户ID｜口径：最顶层关系的分销商
+        WHEN 1 THEN distribution_relation_src.distributor_tenant_id
+        WHEN 2 THEN p1.distributor_tenant_id
+        WHEN 3 THEN p2.distributor_tenant_id
+        WHEN 4 THEN p3.distributor_tenant_id
+    END AS level2_tenant_id,                                                      -- 2 级分销商租户ID
+    CASE (1 + IF(p1.id IS NULL, 0, 1) + IF(p2.id IS NULL, 0, 1) + IF(p3.id IS NULL, 0, 1))  -- 3 级分销商租户ID｜口径：第 2 层关系的分销商
+        WHEN 2 THEN distribution_relation_src.distributor_tenant_id
+        WHEN 3 THEN p1.distributor_tenant_id
+        WHEN 4 THEN p2.distributor_tenant_id
+    END AS level3_tenant_id,                                                      -- 3 级分销商租户ID
+    CASE (1 + IF(p1.id IS NULL, 0, 1) + IF(p2.id IS NULL, 0, 1) + IF(p3.id IS NULL, 0, 1))  -- 4 级分销商租户ID｜口径：第 3 层关系的分销商
+        WHEN 3 THEN distribution_relation_src.distributor_tenant_id
+        WHEN 4 THEN p1.distributor_tenant_id
+    END AS level4_tenant_id,                                                      -- 4 级分销商租户ID
     ROUND((distribution_relation_src.credit_limit - distribution_relation_src.credit_used) / 100, 2) AS credit_available_amt  -- 剩余授信额度
   FROM distribution_relation_src
-      LEFT JOIN distribution_relation_src p1 ON p1.id = distribution_relation_src.parent_relation_id   -- 上一级关系
+      LEFT JOIN distribution_relation_src p1 ON p1.id = distribution_relation_src.parent_relation_id  -- 上一级关系
       LEFT JOIN distribution_relation_src p2 ON p2.id = p1.parent_relation_id
       LEFT JOIN distribution_relation_src p3 ON p3.id = p2.parent_relation_id
 ),
 src_hash AS (                                                                     -- 今日状态的行哈希（比较是否变化）
-  SELECT s.*, MD5(CONCAT_WS('|', CAST(relation_no AS STRING), CAST(supplier_tenant_id AS STRING), CAST(distributor_tenant_id AS STRING), CAST(parent_relation_id AS STRING), CAST(distribution_mode_type AS STRING), CAST(payment_mode_type AS STRING), CAST(credit_limit_amt AS STRING), CAST(credit_used_amt AS STRING), CAST(relation_status AS STRING), CAST(create_time AS STRING), CAST(update_time AS STRING), CAST(chain_level_no AS STRING), CAST(level1_tenant_id AS STRING), CAST(level2_tenant_id AS STRING), CAST(level3_tenant_id AS STRING), CAST(level4_tenant_id AS STRING), CAST(credit_available_amt AS STRING))) AS row_hash
+  SELECT s.*,
+         MD5(CONCAT_WS(                                                           -- 行哈希：除拉链键外全部属性拼接后 MD5，判断是否变化
+             '|',
+             CAST(relation_no AS STRING),
+             CAST(supplier_tenant_id AS STRING),
+             CAST(distributor_tenant_id AS STRING),
+             CAST(parent_relation_id AS STRING),
+             CAST(distribution_mode_type AS STRING),
+             CAST(payment_mode_type AS STRING),
+             CAST(credit_limit_amt AS STRING),
+             CAST(credit_used_amt AS STRING),
+             CAST(relation_status AS STRING),
+             CAST(create_time AS STRING),
+             CAST(update_time AS STRING),
+             CAST(chain_level_no AS STRING),
+             CAST(level1_tenant_id AS STRING),
+             CAST(level2_tenant_id AS STRING),
+             CAST(level3_tenant_id AS STRING),
+             CAST(level4_tenant_id AS STRING),
+             CAST(credit_available_amt AS STRING)
+         )) AS row_hash                                                           -- 行哈希：除拉链键外全部属性拼接后 MD5，判断是否变化
   FROM src s
 ),
 his AS (                                                                          -- 昨日拉链及其行哈希
-  SELECT h.*, MD5(CONCAT_WS('|', CAST(h.relation_no AS STRING), CAST(h.supplier_tenant_id AS STRING), CAST(h.distributor_tenant_id AS STRING), CAST(h.parent_relation_id AS STRING), CAST(h.distribution_mode_type AS STRING), CAST(h.payment_mode_type AS STRING), CAST(h.credit_limit_amt AS STRING), CAST(h.credit_used_amt AS STRING), CAST(h.relation_status AS STRING), CAST(h.create_time AS STRING), CAST(h.update_time AS STRING), CAST(h.chain_level_no AS STRING), CAST(h.level1_tenant_id AS STRING), CAST(h.level2_tenant_id AS STRING), CAST(h.level3_tenant_id AS STRING), CAST(h.level4_tenant_id AS STRING), CAST(h.credit_available_amt AS STRING))) AS row_hash
+  SELECT h.*,
+         MD5(CONCAT_WS(                                                           -- 行哈希：除拉链键外全部属性拼接后 MD5，判断是否变化
+             '|',
+             CAST(h.relation_no AS STRING),
+             CAST(h.supplier_tenant_id AS STRING),
+             CAST(h.distributor_tenant_id AS STRING),
+             CAST(h.parent_relation_id AS STRING),
+             CAST(h.distribution_mode_type AS STRING),
+             CAST(h.payment_mode_type AS STRING),
+             CAST(h.credit_limit_amt AS STRING),
+             CAST(h.credit_used_amt AS STRING),
+             CAST(h.relation_status AS STRING),
+             CAST(h.create_time AS STRING),
+             CAST(h.update_time AS STRING),
+             CAST(h.chain_level_no AS STRING),
+             CAST(h.level1_tenant_id AS STRING),
+             CAST(h.level2_tenant_id AS STRING),
+             CAST(h.level3_tenant_id AS STRING),
+             CAST(h.level4_tenant_id AS STRING),
+             CAST(h.credit_available_amt AS STRING)
+         )) AS row_hash                                                           -- 行哈希：除拉链键外全部属性拼接后 MD5，判断是否变化
   FROM dim.dim_trf_distribution_relation_zip h
   WHERE h.travel_date = '${bizdate_prev}'
 )

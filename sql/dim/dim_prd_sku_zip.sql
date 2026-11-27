@@ -22,19 +22,19 @@ tenant_cur AS (                                            -- 「租户（商户
   WHERE travel_date = '${bizdate}' AND end_date = '9999-12-31'  -- 取当日分区里的拉链当前有效版本
 ),
 sale_rule_count AS (                                       -- 「售卖规则维度」按 sku_id 预聚合
-  SELECT sku_id, COUNT(sale_rule_item_id) AS v
+  SELECT sku_id, COUNT(sale_rule_item_id) AS v             -- 拆分 / 展开后的单个值
   FROM dim.dim_prd_sale_rule_df
   WHERE travel_date = '${bizdate}'                         -- 只取当日分区
   GROUP BY sku_id                                          -- 按粒度键汇总
 ),
 sku_attr_max AS (                                          -- 「SKU票属性维度」按 sku_id 预聚合
-  SELECT sku_id, MAX(attribute_value_code) AS v
+  SELECT sku_id, MAX(attribute_value_code) AS v            -- 拆分 / 展开后的单个值
   FROM dim.dim_prd_sku_attr_df
   WHERE travel_date = '${bizdate}' AND attribute_code = 'REAL_NAME'  -- 只取当日分区，并按条件过滤
   GROUP BY sku_id                                          -- 按粒度键汇总
 ),
 sku_attr_max_2 AS (                                        -- 「SKU票属性维度」按 sku_id 预聚合
-  SELECT sku_id, MAX(attribute_value_code) AS v
+  SELECT sku_id, MAX(attribute_value_code) AS v            -- 拆分 / 展开后的单个值
   FROM dim.dim_prd_sku_attr_df
   WHERE travel_date = '${bizdate}' AND attribute_code = 'REFUND_POLICY'  -- 只取当日分区，并按条件过滤
   GROUP BY sku_id                                          -- 按粒度键汇总
@@ -75,11 +75,57 @@ src AS (                                                   -- 今日最新状态
     ON sku_attr_max_2.sku_id = sku_src.id                  -- 按 id→sku_id 关联
 ),
 src_hash AS (                                              -- 今日状态的行哈希（比较是否变化）
-  SELECT s.*, MD5(CONCAT_WS('|', CAST(sku_no AS STRING), CAST(spu_id AS STRING), CAST(tenant_id AS STRING), CAST(sku_name AS STRING), CAST(cost_price_amt AS STRING), CAST(sale_mode_type AS STRING), CAST(version_no AS STRING), CAST(sku_status AS STRING), CAST(tag_list_desc AS STRING), CAST(sale_channel_list_desc AS STRING), CAST(create_time AS STRING), CAST(update_time AS STRING), CAST(spu_no AS STRING), CAST(spu_name AS STRING), CAST(product_type AS STRING), CAST(poi_id AS STRING), CAST(tenant_name AS STRING), CAST(sale_rule_qty AS STRING), CAST(real_name_policy_code AS STRING), CAST(refund_policy_code AS STRING))) AS row_hash
+  SELECT s.*,
+         MD5(CONCAT_WS(                                    -- 行哈希：除拉链键外全部属性拼接后 MD5，判断是否变化
+             '|',
+             CAST(sku_no AS STRING),
+             CAST(spu_id AS STRING),
+             CAST(tenant_id AS STRING),
+             CAST(sku_name AS STRING),
+             CAST(cost_price_amt AS STRING),
+             CAST(sale_mode_type AS STRING),
+             CAST(version_no AS STRING),
+             CAST(sku_status AS STRING),
+             CAST(tag_list_desc AS STRING),
+             CAST(sale_channel_list_desc AS STRING),
+             CAST(create_time AS STRING),
+             CAST(update_time AS STRING),
+             CAST(spu_no AS STRING),
+             CAST(spu_name AS STRING),
+             CAST(product_type AS STRING),
+             CAST(poi_id AS STRING),
+             CAST(tenant_name AS STRING),
+             CAST(sale_rule_qty AS STRING),
+             CAST(real_name_policy_code AS STRING),
+             CAST(refund_policy_code AS STRING)
+         )) AS row_hash                                    -- 行哈希：除拉链键外全部属性拼接后 MD5，判断是否变化
   FROM src s
 ),
 his AS (                                                   -- 昨日拉链及其行哈希
-  SELECT h.*, MD5(CONCAT_WS('|', CAST(h.sku_no AS STRING), CAST(h.spu_id AS STRING), CAST(h.tenant_id AS STRING), CAST(h.sku_name AS STRING), CAST(h.cost_price_amt AS STRING), CAST(h.sale_mode_type AS STRING), CAST(h.version_no AS STRING), CAST(h.sku_status AS STRING), CAST(h.tag_list_desc AS STRING), CAST(h.sale_channel_list_desc AS STRING), CAST(h.create_time AS STRING), CAST(h.update_time AS STRING), CAST(h.spu_no AS STRING), CAST(h.spu_name AS STRING), CAST(h.product_type AS STRING), CAST(h.poi_id AS STRING), CAST(h.tenant_name AS STRING), CAST(h.sale_rule_qty AS STRING), CAST(h.real_name_policy_code AS STRING), CAST(h.refund_policy_code AS STRING))) AS row_hash
+  SELECT h.*,
+         MD5(CONCAT_WS(                                    -- 行哈希：除拉链键外全部属性拼接后 MD5，判断是否变化
+             '|',
+             CAST(h.sku_no AS STRING),
+             CAST(h.spu_id AS STRING),
+             CAST(h.tenant_id AS STRING),
+             CAST(h.sku_name AS STRING),
+             CAST(h.cost_price_amt AS STRING),
+             CAST(h.sale_mode_type AS STRING),
+             CAST(h.version_no AS STRING),
+             CAST(h.sku_status AS STRING),
+             CAST(h.tag_list_desc AS STRING),
+             CAST(h.sale_channel_list_desc AS STRING),
+             CAST(h.create_time AS STRING),
+             CAST(h.update_time AS STRING),
+             CAST(h.spu_no AS STRING),
+             CAST(h.spu_name AS STRING),
+             CAST(h.product_type AS STRING),
+             CAST(h.poi_id AS STRING),
+             CAST(h.tenant_name AS STRING),
+             CAST(h.sale_rule_qty AS STRING),
+             CAST(h.real_name_policy_code AS STRING),
+             CAST(h.refund_policy_code AS STRING)
+         )) AS row_hash                                    -- 行哈希：除拉链键外全部属性拼接后 MD5，判断是否变化
   FROM dim.dim_prd_sku_zip h
   WHERE h.travel_date = '${bizdate_prev}'
 )

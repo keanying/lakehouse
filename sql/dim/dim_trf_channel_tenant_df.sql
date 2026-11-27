@@ -21,10 +21,10 @@ SELECT  /*+ BROADCAST(channel_dim) */
   channel_tenant_binding_src.id              AS channel_tenant_binding_id,  -- 渠道-租户绑定ID（源表主键 id）
   channel_tenant_binding_src.binding_no      AS binding_no,           -- 绑定编号
   channel_tenant_binding_src.channel_id      AS channel_id,           -- 渠道ID
-  channel_tenant_binding_src.tenant_id       AS tenant_id,            -- 租户ID（FK→t_tenant.id
-  channel_tenant_binding_src.partner_id      AS partner_code,         -- 合作方ID（冗余便于查询
+  channel_tenant_binding_src.tenant_id       AS tenant_id,            -- 租户ID
+  channel_tenant_binding_src.partner_id      AS partner_code,         -- 合作方ID
   channel_tenant_binding_src.ota_merchant_id AS ota_merchant_code,    -- OTA侧商户ID
-  channel_tenant_binding_src.ota_sub_channel AS ota_sub_channel_code,  -- OTA子渠道枚举（可选
+  channel_tenant_binding_src.ota_sub_channel AS ota_sub_channel_code,  -- OTA子渠道枚举
   channel_tenant_binding_src.binding_status  AS binding_status,       -- 绑定状态
   channel_tenant_binding_src.valid_from      AS valid_start_time,     -- 生效开始时间
   channel_tenant_binding_src.valid_to        AS valid_end_time,       -- 生效结束时间

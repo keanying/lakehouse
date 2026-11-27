@@ -409,7 +409,7 @@ t('dwd_trf_scenic_inout_di', '出入园明细', '1行=1次过闸 / 入园验证'
 t('dwd_opr_parking_record_di', '停车出入场明细', '1行=1次车辆出入场', 'ods_opr_parking_*（5 个厂商入场 / 出场表）',
   '统一 道尔 / 道尔5 / 科拓 / 帅臣 / 智慧 五个停车系统的入场、出场记录（parking_vendor 区分）', ('union', ['parking_vendor', 'parking_lot_code', 'car_no', 'inout_type', 'inout_time', 'fee_amt']), [])
 t('dwd_opr_retail_order_di', '零售订单明细', '1行=1个零售订单商品行（含退货）', 'ods_opr_retail_yinbao_ticket_di、ods_opr_retail_sixun_order_di、ods_opr_retail_xisland_order_di 等',
-  '统一 银豹 / 思迅 / 小岛 三个零售系统的销售与退货明细（retail_vendor 区分）', ('union', ['retail_vendor', 'shop_code', 'order_no', 'goods_code', 'item_qty', 'sale_amt', 'refund_flag']), [])
+  '统一 银豹 / 思迅 / 小岛 三个零售系统的销售与退货明细（retail_vendor 区分）', ('union', ['retail_vendor', 'shop_code', 'order_no', 'goods_code', 'item_qty', 'sale_amt', 'profit_amt', 'refund_flag']), [])
 t('dwd_fin_trade_journal_di', '账户交易流水', '1行=1笔账户流水', 'ods_fin_trade_journal_di、ods_fin_account_book_subject_df',
   '平台账户收支流水、科目、余额', ('union', ['journal_id', 'account_id', 'subject_code', 'trade_amt', 'balance_amt', 'trade_time']), ['dwd_pft_trade_journal_d_f'])
 t('dwd_sup_member_login_di', '商户登录明细', '1行=1次登录', 'ods_sup_member_login_log_di', '商户账号登录记录（活跃商户口径）', ('union', ['member_id', 'login_time']), ['dwd_company_login_d_f'])
@@ -556,3 +556,7 @@ OTHER = [
     (r'_copy$|_dev$|_err$', ('下线', '副本 / 开发 / 错误节点产物')),
     (r'sbs_', ('项目专用', '渡江战役大屏项目数据，按项目单独维护，不进公共层')),
 ]
+
+# 下游指标补齐（酒店 / 账户 / 零售 / 一卡通维度 / 交易手续费）：在所有表定义之后追加到对应 DWS / ADS
+import proc_metrics  # noqa: E402
+proc_metrics.register(_sys.modules[__name__])

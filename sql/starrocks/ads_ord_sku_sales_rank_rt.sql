@@ -13,9 +13,9 @@ src_tenant_sku_trade AS (                            -- 来源「商户×SKU 分
     s.travel_date AS travel_date,                    -- 数据日期
     s.seller_tenant_id AS seller_tenant_id,          -- 卖家租户ID
     s.sku_id AS sku_id,                              -- SKU ID
-    SUM(s.pay_amt) AS pay_amt,
-    SUM(s.pay_ticket_qty) AS pay_ticket_qty,
-    SUM(s.refund_ticket_qty) AS refund_ticket_qty
+    SUM(s.pay_amt) AS pay_amt,                       -- 支付金额（GMV）
+    SUM(s.pay_ticket_qty) AS pay_ticket_qty,         -- 支付票数
+    SUM(s.refund_ticket_qty) AS refund_ticket_qty    -- 退款票数
   FROM dws.dws_ord_tenant_sku_trade_rt s             -- 来源表「商户×SKU 分钟级交易」
   WHERE s.travel_date = DATE_FORMAT(CURDATE(), '%Y%m%d')  -- 只取今日数据
   GROUP BY s.travel_date, s.seller_tenant_id, s.sku_id  -- 按粒度键汇总

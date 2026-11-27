@@ -20,41 +20,63 @@ WITH tr AS (
     SELECT orderid, idx, lid, tourist, idcard, voucher_type, mobile, check_time,
            FROM_UNIXTIME(CAST(order_time AS BIGINT), 'yyyyMMdd') AS order_date,
            -- ODS 证件号前缀 11 位 = 地区 6 + 出生年 4 + 性别位 1（仅 18 位身份证）
-           IF(LENGTH(SUBSTRING_INDEX(idcard, '#', 1)) = 11, YEAR(CURRENT_DATE()) - CAST(SUBSTR(idcard, 7, 4) AS INT), NULL) AS age,
-           IF(LENGTH(SUBSTRING_INDEX(idcard, '#', 1)) = 11, IF(CAST(SUBSTR(idcard, 11, 1) AS INT) % 2 = 1, 'M', 'F'), 'U') AS gender
-    FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY orderid, idx ORDER BY update_time DESC) AS rn
+           IF(
+               LENGTH(SUBSTRING_INDEX(idcard, '#', 1)) = 11,
+               YEAR(CURRENT_DATE()) - CAST(SUBSTR(idcard, 7, 4) AS INT),
+               NULL
+           ) AS age,                                                              -- 年龄
+           IF(LENGTH(SUBSTRING_INDEX(idcard, '#', 1)) = 11, IF(
+               CAST(SUBSTR(idcard, 11, 1) AS INT) % 2 = 1,
+               'M',
+               'F'
+           ), 'U') AS gender                                                      -- 性别
+    FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY orderid, idx ORDER BY update_time DESC) AS rn  -- 同一主键多次变更，按 binlog 时间倒序编号
           FROM ods.ods_ord_order_traveler_di WHERE travel_date = '${bizdate}') t
     WHERE rn = 1
 ),
-fellow AS (SELECT orderid, COUNT(1) AS fellow_qty FROM tr GROUP BY orderid)   -- 同行人数 = 同订单游客数
-INSERT OVERWRITE TABLE dwd.dwd_ord_traveler_di PARTITION (travel_date = '${bizdate}')
+fellow AS (SELECT orderid, COUNT(1) AS fellow_qty FROM tr GROUP BY orderid)       -- 同行人数 = 同订单游客数
+INSERT OVERWRITE TABLE dwd.dwd_ord_traveler_di PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
 SELECT /*+ BROADCAST(ic, ph) */
-    tr.orderid                                                       AS order_no,
-    CAST(tr.idx AS INT)                                              AS traveler_seq,
-    CAST(tr.lid AS BIGINT)                                           AS scenic_id,
-    o.ticket_id,
-    o.order_role,
-    COALESCE(o.team_flag, 0)                                         AS team_flag,
-    CONCAT(SUBSTR(tr.tourist, 1, 1), '**')                           AS traveler_name_mask,
-    SUBSTRING_INDEX(tr.idcard, '#', -1)                                   AS id_card_hash,
-    tr.voucher_type                                                  AS id_card_type,
-    SUBSTRING_INDEX(tr.mobile, '#', -1)                                   AS phone_hash,
-    tr.gender,
-    tr.age,
-    CASE WHEN tr.age IS NULL THEN '未知' WHEN tr.age <= 7 THEN '0-7' WHEN tr.age <= 17 THEN '8-17' WHEN tr.age <= 27 THEN '18-27'
-         WHEN tr.age <= 40 THEN '28-40' WHEN tr.age <= 60 THEN '41-60' ELSE '61+' END AS age_group,
-    COALESCE(ic.province_code, ph.province_code)                     AS province_code,   -- 证件地区优先，手机号段次之
-    COALESCE(ic.city_code, ph.city_code)                             AS city_code,
-    ic.area_code                                                     AS district_code,
-    IF(ic.area_code IS NOT NULL OR ph.province_code IS NOT NULL, 'CN', NULL) AS country_code,
-    f.fellow_qty,
-    o.order_time,
-    NULLIF(tr.check_time, '0')                                       AS verify_time,
-    COALESCE(o.test_flag, 0)                                         AS test_flag,
-    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time
+    tr.orderid                                                       AS order_no,  -- 订单号
+    CAST(tr.idx AS INT)                                              AS traveler_seq,  -- 订单内游客序号
+    CAST(tr.lid AS BIGINT)                                           AS scenic_id,  -- 景区ID
+    o.ticket_id,                                                                  -- 票ID
+    o.order_role,                                                                 -- 主子单
+    COALESCE(o.team_flag, 0)                                         AS team_flag,  -- 是否团队订单（订单退化维度）
+    CONCAT(SUBSTR(tr.tourist, 1, 1), '**')                           AS traveler_name_mask,  -- 游客姓名（掩码）
+    SUBSTRING_INDEX(tr.idcard, '#', -1)                                   AS id_card_hash,  -- 证件号哈希
+    tr.voucher_type                                                  AS id_card_type,  -- 证件类型
+    SUBSTRING_INDEX(tr.mobile, '#', -1)                                   AS phone_hash,  -- 手机号哈希
+    tr.gender,                                                                    -- 性别
+    tr.age,                                                                       -- 年龄
+    CASE
+        WHEN tr.age IS NULL THEN '未知'
+        WHEN tr.age <= 7 THEN '0-7'
+        WHEN tr.age <= 17 THEN '8-17'
+        WHEN tr.age <= 27 THEN '18-27'
+         WHEN tr.age <= 40 THEN '28-40' WHEN tr.age <= 60 THEN '41-60' ELSE '61+' END AS age_group,  -- 年龄段
+    COALESCE(ic.province_code, ph.province_code)                     AS province_code,  -- 客源省（证件优先、手机号次之）｜证件地区优先，手机号段次之
+    COALESCE(ic.city_code, ph.city_code)                             AS city_code,  -- 客源市
+    ic.area_code                                                     AS district_code,  -- 客源区县
+    IF(ic.area_code IS NOT NULL OR ph.province_code IS NOT NULL, 'CN', NULL) AS country_code,  -- 国家（境外游客）
+    f.fellow_qty,                                                                 -- 同行人数（同订单游客数）
+    o.order_time,                                                                 -- 下单时间
+    NULLIF(tr.check_time, '0')                                       AS verify_time,  -- 核销时间（未核销为空）
+    COALESCE(o.test_flag, 0)                                         AS test_flag,  -- 是否测试订单
+    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time           -- ETL 加载时间
 FROM tr
 LEFT JOIN fellow f ON f.orderid = tr.orderid
-LEFT JOIN (SELECT order_no, travel_date, ticket_id, order_role, team_flag, order_time, test_flag FROM dwd.dwd_ord_order_di) o
-       ON o.travel_date = tr.order_date AND o.order_no = tr.orderid
-LEFT JOIN (SELECT area_code, province_code, city_code FROM dim.dim_opr_idcard_area_f) ic ON ic.area_code = SUBSTR(tr.idcard, 1, 6)
-LEFT JOIN (SELECT phone_prefix, province_code, city_code FROM dim.dim_opr_phone_area_f) ph ON ph.phone_prefix = SUBSTRING_INDEX(tr.mobile, '#', 1)
+LEFT JOIN (
+    SELECT order_no,                                                              -- 订单号
+    travel_date,                                                                  -- 数据日期
+    ticket_id,                                                                    -- 票ID
+    order_role,                                                                   -- 主子单
+    team_flag,                                                                    -- 是否团队订单（订单退化维度）
+    order_time,                                                                   -- 下单时间
+    test_flag FROM dwd.dwd_ord_order_di
+) o
+       ON o.travel_date = tr.order_date AND o.order_no = tr.orderid               -- 按 order_date→travel_date、orderid→order_no 关联
+LEFT JOIN (SELECT area_code, province_code, city_code FROM dim.dim_opr_idcard_area_f) ic  -- 关联「身份证地区码」按键聚合
+  ON ic.area_code = SUBSTR(tr.idcard, 1, 6)
+LEFT JOIN (SELECT phone_prefix, province_code, city_code FROM dim.dim_opr_phone_area_f) ph  -- 关联「手机号归属地」按键聚合
+  ON ph.phone_prefix = SUBSTRING_INDEX(tr.mobile, '#', 1)

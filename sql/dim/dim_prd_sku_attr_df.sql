@@ -36,4 +36,5 @@ FROM sku_meta_value_src
 LEFT JOIN ticket_meta_src                                      -- 关联「票属性元数据」，取 属性名称、值类型
   ON ticket_meta_src.attribute_code = sku_meta_value_src.attribute_code  -- 按 attribute_code 关联
 LEFT JOIN dict_dim                                             -- 关联「枚举码表」，取 属性值中文含义
-  ON dict_dim.dict_type_code = sku_meta_value_src.attribute_code AND dict_dim.dict_code = sku_meta_value_src.attribute_value   -- 口径说明：属性值按 字典类型 = 属性代码 匹配中文名;
+  ON dict_dim.dict_type_code = sku_meta_value_src.attribute_code  -- 按 attribute_code→dict_type_code 关联｜口径说明：属性值按 字典类型 = 属性代码 匹配中文名;
+    AND dict_dim.dict_code = sku_meta_value_src.attribute_value

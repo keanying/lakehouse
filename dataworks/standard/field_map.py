@@ -1,0 +1,242 @@
+"""旧数仓导出字段 → 标准模型的逐字段对照（补 legacy_metrics 解不出的字段）。
+
+两类：
+- 指标：各业务过程的专用字段名（酒店预订 / 入住、一卡通 o{n}c / o{n}a、出入园 in / out、停车、零售、账户收支、团散 …）→ 标准指标 + 维度取值；
+- 非指标：时间列 → 统计周期（时间表）；维度 / 属性 / 明细列 → 在导出对应标准表的上游链路（DWS → DWD / DIM）里找到同名（或标准化后同名、别名）字段。
+"""
+import re
+
+import rules
+
+# 旧字段别名 → 标准字段（明细 / 属性列）
+ALIAS = {
+    'vertify_time': 'first_verify_time', 'vertify_datetime': 'verify_time', 'vertify_date': 'verify_date', 'booking_channel': 'order_mode', 'booking_date': 'order_time',
+    'booking_price': 'sale_price_amt', 'distributor_price': 'sale_price_amt', 'land_publisher_id': 'supplier_id', 'resource_id': 'resource_id', 'user_id': 'member_id',
+    'order_id': 'order_no', 'main_order_id': 'main_order_no', 'remote_order_id': 'remote_order_no', 'team_order_id': 'team_order_no', 'order_status_code': 'order_status',
+    'order_pay_status': 'pay_status', 'booker_id': 'buyer_id', 'is_team': 'team_flag', 'ticket_taker_sex': 'gender', 'ticket_taker_age': 'age', 'sex': 'gender',
+    'ticket_taker_province': 'taker_province_code', 'ticket_taker_city': 'taker_city_code', 'ticket_taker_mobile': 'taker_phone_hash', 'ticket_taker_idcard': 'taker_id_card_hash',
+    'con_sys_bind': 'con_sys_bind_id', 'sys_bind_id': 'con_sys_bind_id', 'hotel_name': 'hotel_name', 'operate_id': 'operator_id', 'operator': 'operator_id',
+    'sub_sid': 'supplier_id', 'sub_lid': 'scenic_id', 'sub_tid': 'ticket_id', 'sub_pid': 'product_id', 'sub_p_type': 'product_type', 'pack_type': 'order_role',
+    'main_tid': 'main_ticket_id', 'main_type': 'order_role', 'pay_way': 'pay_mode', 'channel': 'order_mode', 'level': 'distribution_level',
+    'card_lid': 'scenic_id', 'card_pid': 'card_product_id', 'card_tid': 'ticket_id', 'gid': 'gate_group_id', 'node_id': 'terminal_no', 'trade_account_id': 'account_id',
+    'account_book_id': 'account_id', 'package_open_id': 'module_id', 'package_no': 'package_id', 'user_account_id': 'account', 'customer_mobile': 'mobile_hash',
+    'insertdate': 'stat_date', 'created_at': 'stat_date', 'updated_at': 'update_time', 'update_time': 'update_time', 'dw_ins_time': 'etl_time', 'visit_date': 'stat_date',
+    'operation_channel_id': 'aio_channel', 'num_type': 'fellow_group', 'age_id': 'age_group', 'age_describe': 'age_group', 'team_type': 'team_type',
+    'pre_booked_days': 'advance_day_qty', 'vertify_code': 'voucher_code', 'distribute_system_type': 'distribute_system_code', 'use_coupon': 'use_coupon_flag',
+    'non_refund_withdraw': 'non_refundable_flag', 'pay_funding_type': 'pay_account_type', 'ticket_taker_age': 'taker_age', 'purchase_system': 'purchase_system_code',
+    'mall_supplier_account_id': 'mall_supplier_id', 'order_is_test': 'test_flag', 'resource_land_id': 'resource_id', 'distributor_type': 'buyer_type',
+    'land_type': 'scenic_type_code', 'land_adcode': 'district_code', 'land_zip_code': 'zip_code', 'ticket_taker_adcode': 'taker_district_code',
+    'ticket_taker_province_idcard': 'taker_province_code', 'ticket_taker_city_idcard': 'taker_city_code', 'ticket_taker_county_idcard': 'taker_district_code',
+    'expiration_time': 'valid_end_time', 'add_ticket_time': 'action_time', 'order_type': 'order_role', 'distribute_1_type': 'buyer_type', 'record_id': 'order_no',
+    'main_tid': 'main_ticket_id', 'site_id': 'site_id', 'product_type': 'product_type', 'p_type': 'product_type',
+    'order_pay_funding_type_id': 'pay_mode', 'order_pay_channel_id': 'pay_mode', 'sales_channel_id': 'order_mode', 'travel_minute': 'stat_minute',
+}
+TIME = re.compile(r'^(year|month|week|quarter|day|hour|fulldate|stat_date|insertdate|created_at|booking_month|booking_date|date_type|deadline|time_range|travel_minute|pay_date|'
+                  r'(vertify|booking|pay|play|expiration|cancel)_(year|month|quarter|week|hour|date)|today|yesterday|weeks|more_week)$')
+TECH = re.compile(r'^(id|dw_ins_time|update_time|updated_at|etl_time|payload|key|value|flat|configuration|auth_key|remark|memo)$')
+
+
+def _hotel(c):
+    m = re.match(r'^(booking_cancel|check_in_cancel|booking|check_in)_(count|room_num|adult|children|people|charge|pay)$', c)
+    if not m:
+        return None
+    act = {'booking': 'booking', 'booking_cancel': 'booking_cancel', 'check_in': 'checkin', 'check_in_cancel': 'checkin_cancel'}[m.group(1)]
+    meas = {'count': 'order_qty', 'room_num': 'room_qty', 'adult': 'adult_qty', 'children': 'child_qty', 'people': 'guest_qty', 'charge': 'sales_amt', 'pay': 'pay_amt'}[m.group(2)]
+    return f'hotel_{act}_{meas}', {}
+
+
+def _aio(c):
+    m = re.match(r'^o(\d+)([ca])$', c)
+    if m:
+        return ('aio_trade_qty' if m.group(2) == 'c' else 'aio_trade_amt'), {'trade_type': m.group(1)}
+    m = re.match(r'^(co|cr)([ca])$', c)
+    if m:
+        return ('aio_trade_qty' if m.group(2) == 'c' else 'aio_trade_amt'), {'trade_type': 'CONSUME' if m.group(1) == 'co' else 'REFUND（标准为负数，旧为正数）'}
+    return None
+
+
+# 旧 dws_cus_order_channel_aids_d_f：booking_channel（下单渠道）编码 → 字段前缀
+CHANNEL = {0: 'plat', 1: 'account', 9: 'vip', 10: 'cloud', 11: 'mall', 12: 'cdm', 13: 'pc', 14: 'agm', 15: 'smart_terminal', 16: 'adj', 17: 'tb', 18: 'year_card',
+           19: 'mall_plat', 20: 'ota', 21: 'pay_code', 22: 'one_card', 23: 'subticket', 24: 'group', 33: 'efuzhou', 34: 'assorted', 35: 'integral_mall', 36: 'pos',
+           38: 'icbc', 39: 'bankunion', 40: 'bankunion_pos', 41: 'wft', 42: 'yb', 43: 'wx_wpf', 44: 'adj_group', 45: 'cloud_union_pay', 46: 'offline', 47: 'staff_card',
+           48: 'hand_card', 49: 'desk_cloud', 50: 'app', 55: 'special', 56: 'wx_app', 57: 'dy_tik', 58: 'ali', 59: 'group_purchase_code', 60: 'jjy_year'}
+CH_OF = {v: k for k, v in CHANNEL.items()}
+CH_RE = '|'.join(sorted(CH_OF, key=len, reverse=True))
+
+
+TAG = {'resource_center': 'RESOURCE_CENTER', 'limited_conversion': 'SECKILL', 'kj': 'CUT_PRICE', 'pt': 'GROUP_BOOKING', 'qmyx': 'ALL_DIS', 'yhq': 'COUPON',
+       'external_code': 'EXTERNAL_CODE', 'pft_park_card': 'PARK_CARD', 'pft_annual_card': 'ANNUAL_CARD', 'xcx_fxzy': 'DISTRIBUTOR'}
+
+
+PROD = {'mp': '门票', 'tp': '套票', 'yc': '演出', 'nk': '年卡', 'lyq': '旅游券', 'jd': '酒店', 'tc': '套餐', 'jscp': '景+产品'}
+
+
+def _channel(c):
+    m = re.match(rf"^prod_({'|'.join(PROD)})_new_(gmv|ticket_num|order_num)$", c)
+    if m:
+        return {'gmv': 'order_sale_amt', 'ticket_num': 'order_ticket_qty', 'order_num': 'order_order_qty'}[m.group(2)], {'产品类型（票维度带出）': PROD[m.group(1)]}
+    m = re.match(rf"^({'|'.join(TAG)})_(gmv|ticket_num|order_num)(?:_(kh|hz))?$", c)
+    if m:
+        return {'gmv': 'order_sale_amt', 'ticket_num': 'order_ticket_qty', 'order_num': 'order_order_qty'}[m.group(2)], {'marketing_type': TAG[m.group(1)]}
+    m = re.match(rf'^(?:({CH_RE})_)?(gmv|ticket_num|order_num)(?:_(kh|hz))?$', c)
+    if not m:
+        m2 = re.match(r'^(gmv|ticket_num|order_num)_(frist|first|second|third)_month$', c)
+        if m2:
+            return {'gmv': 'order_sale_amt', 'ticket_num': 'order_ticket_qty', 'order_num': 'order_order_qty'}[m2.group(1)], {'统计周期（时间表）': f'近 3 月第 {m2.group(2)} 月'}
+        return None
+    met = {'gmv': 'order_sale_amt', 'ticket_num': 'order_ticket_qty', 'order_num': 'order_order_qty'}[m.group(2)]
+    return met, ({'order_mode': str(CH_OF[m.group(1)])} if m.group(1) else {})
+
+
+def _mps(c):
+    m = re.match(r'^(net_)?(sales|verify|cancel|revoke|after_sale)_(order_qty|ticket_qty|income_amt|expense_amt|income_discount_amt|expense_discount_amt|income_fee_amt|expense_fee_amt)$', c)
+    if m:
+        act = {'sales': 'pay', 'verify': 'verify', 'cancel': 'cancel', 'revoke': 'revoke', 'after_sale': 'after_sale'}[m.group(2)]
+        meas = m.group(3)
+        note = {'派生': '净额 = 支付 − 取消 − 撤销 − 售后（查询时由原子指标计算）'} if m.group(1) else {}
+        if meas in ('income_discount_amt', 'expense_discount_amt'):
+            return None                     # 优惠金额：明细层没有来源字段，作为缺口保留
+        if meas == 'income_fee_amt' and act in ('cancel', 'revoke'):
+            return f'{act}_fee_amt', note
+        if meas == 'expense_fee_amt':
+            return None
+        if act == 'after_sale':
+            return {'ticket_qty': 'after_sale_ticket_qty', 'income_amt': 'after_sale_refund_amt', 'expense_amt': None}.get(meas) and (
+                {'ticket_qty': 'after_sale_ticket_qty', 'income_amt': 'after_sale_refund_amt'}[meas], note)
+        return f"{act}_{ {'order_qty': 'order_qty', 'ticket_qty': 'ticket_qty', 'income_amt': 'sale_amt', 'expense_amt': 'cost_amt'}[meas]}", note
+    if c in ('collect_ticket_qty', 'pickup_ticket_qty'):
+        return 'print_ticket_qty', {}
+    m = re.match(r'^refund_fee_(income|expense)_amt$', c)
+    if m and m.group(1) == 'income':
+        return 'cancel_fee_amt', {'派生': '退款手续费 = 取消手续费 + 撤销手续费'}
+    return None
+
+
+def _pass(c):
+    m = re.match(r'^[tm](\d{1,2})$', c)
+    if m:
+        return 'enter_qty', {'stat_hour': m.group(1)}
+    return {'entry_park_visitors_qty': ('enter_qty', {}), 'exit_park_visitors_qty': ('exit_qty', {}), 'in_park_visitors_qty': ('in_park_qty', {}),
+            'current_visitors': ('in_park_qty', {}), 'scenic_cumulative_day': ('enter_qty', {'累计': '当日累计'})}.get(c)
+
+
+def _subticket(c):
+    return {'pay_ticket_cnt': ('order_ticket_qty', {}), 'sub_pay_ticket_cnt': ('order_ticket_qty', {'order_role': 'SUB'}), 'pay_ticket': ('order_ticket_qty', {}),
+            'sub_pay_ticket': ('order_ticket_qty', {'order_role': 'SUB'})}.get(c)
+
+
+def _inout(c):
+    return {'in': ('enter_qty', {}), 'out': ('exit_qty', {}), 'employee': ('enter_qty', {'person_type': 'STAFF'})}.get(c)
+
+
+def _park(c):
+    return {'in': ('park_entry_qty', {}), 'out': ('park_exit_qty', {}), 'being': ('park_in_lot_qty', {}), 'duration': ('park_minute_qty', {})}.get(c)
+
+
+def _branch(c):
+    return {'check_orders': ('verify_order_qty', {}), 'check_tickets': ('verify_ticket_qty', {}), 'check_people': ('verify_person_qty', {})}.get(c)
+
+
+def _retail(c):
+    return {'sale_money': ('retail_sale_amt', {}), 'sale_num': ('retail_item_qty', {}), 'payment_money': ('retail_pay_amt', {}), 'discount_amount': ('retail_discount_amt', {}),
+            'cancel_payment_money': ('retail_refund_amt', {}), 'cancel_num': ('retail_refund_item_qty', {}), 'order_num': ('retail_order_qty', {}),
+            'number_of_people': ('retail_customer_qty', {}), 'profit_money': ('retail_profit_amt', {}), 'cancel_profit_money': ('retail_refund_profit_amt', {})}.get(c)
+
+
+def _account(c):
+    return {'income': ('account_income_amt', {}), 'expense': ('account_expense_amt', {}), 'frozen_income': ('account_frozen_income_amt', {}),
+            'frozen_expense': ('account_frozen_expense_amt', {}), 'available_income': ('account_available_income_amt', {}),
+            'available_expense': ('account_available_expense_amt', {})}.get(c)
+
+
+def _toi(c):
+    m = re.match(r'^(booking|verified)_(team|indi)_(orders|tourists)$', c)
+    if not m:
+        return None
+    a = 'order' if m.group(1) == 'booking' else 'verify'
+    return (f'{a}_order_qty' if m.group(3) == 'orders' else f'{a}_ticket_qty'), {'team_type': 'TEAM' if m.group(2) == 'team' else 'INDIVIDUAL'}
+
+
+def _passflow(c):
+    m = re.match(r'^(1d|last_7d|last_30d|last_365d)_qty(_yoy)?$', c)
+    if m:
+        return 'enter_qty', {'统计周期（时间表）': m.group(1) + ('（同比）' if m.group(2) else '')}
+    return {'roll': ('enter_qty', {'inout_type': 'roll'})}.get(c)
+
+
+DECODERS = [(r'hotel', _hotel), (r'allinone_card|aioc', _aio), (r'channel_aids|cus_company', _channel), (r'mps_\w*report', _mps),
+            (r'terminal_pass|sup_trf_tourist|passenger_flow', _pass), (r'package_sub_ticket', _subticket), (r'scenic_inout_(cycle|week)|device_inout|device_ticket', _inout), (r'scenic_park', _park),
+            (r'branch_terminal', _branch), (r'retail', _retail), (r'account_trans', _account), (r'toi_count', _toi), (r'tourist_in_out_qty', _passflow)]
+
+
+def decode(col, where):
+    """业务过程专用字段 → (标准指标, 维度取值) 或 None"""
+    c = col.lower()
+    for p, fn in DECODERS:
+        if re.search(p, where):
+            r = fn(c)
+            if r:
+                return r
+    return None
+
+
+# 仍无法由标准模型提供的字段：按原因归类（缺口 · 原因），在消费清单里计入「待补口径」
+GAP = [
+    (r'mps_\w*report', r'discount|expense_fee|after_sale_expense|reprint|refund_fee_expense',
+     '明细无来源：优惠金额 / 买方手续费 / 重打印只在报表库预计算表（r_report_dwm_common）里，需业务库补同步订单优惠与手续费明细'),
+    (r'channel_aids|cus_company', r'^(new_media|ota_)\w*', '按固定账号清单判定（旧 SQL 硬编码 6 个账号 / OTA 账号），需提供账号配置表后作为分销商维度标签'),
+    (r'channel_aids|cus_company', r'^pft_\w+_num_kh$|concat_all|customer_mobile', '客户属性页专用拼接 / 计数（产品数、扫码、存储、短信申请）或敏感明文，需业务确认是否保留'),
+    (r'landtravel', r'.', '景旅纵横认证（按证件类型的核销人数）与短信量：客户专项报表，需确认证件类型码表后在游客画像增加 证件类型 维度'),
+    (r'attraction_visitor_stats', r'.', '景区客群统计（省内外 / 港澳台 / 老人儿童 / 晨练 / 复购）：AI 项目专用口径，需业务给出判定规则'),
+    (r'res_center_assessment', r'.', '资源中心 2022 年度考核报表：一次性考核口径，建议确认是否仍在用'),
+    (r'digital_brain', r'.', '数字大脑指标配置表：指标名 / 说明为外部配置，原样同步'),
+    (r'user_package', r'.', '套餐合同 / 回款 / 业绩字段：随 OA 合同链路下线，CRM 销售订单（dwd_sup_crm_sales_order_df）可替代时再对'),
+    (r'order_forck|order_verify|order_draw|tourists_source', r'.', '订单明细宽表的派生属性（是否周边 / 国家 / 邮编 / 会员类别 / 取消状态等）：查询时关联维表，或需补维度属性'),
+    (r'retail', r'shop_category|product_category', '门店 / 商品分类：零售系统门店、商品表未同步分类字段，需补同步'),
+    (r'terminal_pass', r'site_id|terminal_type', '终端站点 / 终端类型：闸机维度（dim_trf_gate_f）未带此属性，需补同步终端表'),
+    (r'report_full_summary', r'.', '套票主票 / 分销层级 / 子商户 / 站点：在套票子票汇总与分销链明细里有，交易汇总不带（避免放大），查询改用对应表'),
+    (r'passenger_flow', r'avg_stay', '平均停留时长：需按游客进出配对计算，闸机流水无游客标识（待确认）'),
+    (r'tourist_sex_age|tourist_instance', r'^age$', '年龄（明细值）：标准只存年龄段（age_group），旧表按岁存'),
+    (r'.', r'.', '旧表结构字段（行转列配置 / 项目专用），未纳入标准模型'),
+]
+
+
+def gap_reason(col, where):
+    for tp, cp, why in GAP:
+        if re.search(tp, where) and re.search(cp, col.lower()):
+            return why
+    return ''
+
+
+def make_resolver(tables, fields):
+    """非指标字段：时间列 / 维度属性 / 明细列 → 标准表字段"""
+    cols = {}
+    for f in fields:
+        cols.setdefault(str(f[1]).split('.', 1)[-1], set()).add(f[4])
+    up = {t['name']: [u.strip() for u in re.split('、', t['up'] or '') if u.strip()] for t in tables}
+
+    def chain(t, seen=None):
+        seen = seen if seen is not None else []
+        if t in seen or t not in up:
+            return seen
+        seen.append(t)
+        for u in up[t]:
+            if not u.startswith('ods_'):
+                chain(u, seen)
+        return seen
+    dims = [t['name'] for t in tables if t['layer'] == 'DIM']
+
+    def resolve(col, std):
+        c = col.lower()
+        if TIME.match(c):
+            return '统计周期（时间表）', '时间列：查询时关联 dim_opr_period_f / dim_opr_date_f'
+        if TECH.match(c):
+            return '技术列', '主键 / 加载时间 / 扩展报文，迁移时按目标表结构生成'
+        cands = [c, ALIAS.get(c, ''), rules.std_col(c)[0]]
+        cands += [x + '_id' for x in cands if x] + [x[:-3] for x in cands if x.endswith('_id')]
+        for t in chain(std) + dims:
+            for x in cands:
+                if x and x in cols.get(t, ()):
+                    return '属性 / 明细字段', f'→ {t}.{x}'
+        return None
+    return resolve

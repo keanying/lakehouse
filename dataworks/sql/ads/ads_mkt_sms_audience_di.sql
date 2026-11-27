@@ -10,15 +10,23 @@
 -- 业务规则 / 修正：
 --   · 短信营销人群：只出哈希，不出明文手机号；发送时由营销系统按哈希回查（旧 ads 直接导出明文手机号）
 -- ================================================================================================
-INSERT OVERWRITE TABLE ads.ads_mkt_sms_audience_di PARTITION (travel_date = '${bizdate}')
+INSERT OVERWRITE TABLE ads.ads_mkt_sms_audience_di PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
 SELECT
-    o.scenic_id,
-    o.taker_phone_hash,
+    o.scenic_id,                                                                  -- 景区ID
+    o.taker_phone_hash,                                                           -- 取票人手机号哈希
     -- 新客：此前没有在该景区下过单（按游客维度的首单日判定，避免回扫全部历史订单）
-    MAX(IF(t.first_order_date IS NULL OR t.first_order_date >= DATE_FORMAT(TO_DATE('${bizdate}', 'yyyyMMdd'), 'yyyy-MM-dd'), 1, 0)) AS new_user_flag,
-    COUNT(1)                                                         AS order_order_qty,
-    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time
+    MAX(IF(
+        t.first_order_date IS NULL OR t.first_order_date >= DATE_FORMAT(TO_DATE('${bizdate}', 'yyyyMMdd'), 'yyyy-MM-dd'),
+        1,
+        0
+    )) AS new_user_flag,                                                          -- 是否新客
+    COUNT(1)                                                         AS order_order_qty,  -- 预订订单数（日）
+    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time           -- ETL 加载时间
 FROM (SELECT scenic_id, taker_phone_hash, taker_id_card_hash FROM dwd.dwd_ord_order_di
-      WHERE travel_date = '${bizdate}' AND test_flag = 0 AND pay_status <> '2' AND taker_phone_hash IS NOT NULL) o
-LEFT JOIN (SELECT tourist_key, first_order_date FROM dim.dim_cus_tourist_df) t ON t.tourist_key = o.taker_id_card_hash
-GROUP BY o.scenic_id, o.taker_phone_hash
+      WHERE travel_date = '${bizdate}'                                            -- 只取当日分区
+        AND test_flag = 0
+        AND pay_status <> '2'
+        AND taker_phone_hash IS NOT NULL) o
+LEFT JOIN (SELECT tourist_key, first_order_date FROM dim.dim_cus_tourist_df) t    -- 关联「游客维度」按键聚合
+  ON t.tourist_key = o.taker_id_card_hash                                         -- 按 taker_id_card_hash→tourist_key 关联
+GROUP BY o.scenic_id, o.taker_phone_hash                                          -- 按粒度键汇总

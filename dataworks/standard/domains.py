@@ -223,7 +223,7 @@ def consumption(nodes, C, mrows, ods_of_source, tables, cover=()):
     fc = collections.defaultdict(collections.Counter)      # 导出目标 → 字段覆盖
     for r in cover:
         fc[str(r[0]).lower()]['总' ] += 1
-        fc[str(r[0]).lower()]['未对' if r[7] in ('—', '', None) else '已对'] += 1
+        fc[str(r[0]).lower()]['未对' if r[7] in ('—', '', None) or str(r[7]).startswith('缺口') else '已对'] += 1
     rows, used_ods = [], collections.Counter()
     for kind, path, hive, tgt, cron, st in items:
         odss = sorted({ods_of_source[k] for k in down(hive) if k in ods_of_source})
@@ -278,6 +278,9 @@ def process_rows(tables, used_ods, cons_rows):
     rows, mat = [], []
     for p in PROC:
         code, b, dd, cn, grain, dwd, srcs, meas, dims_, new = p
+        if dwd not in std:          # 来源 ODS 全部无用已移除的业务过程不再建模
+            continue
+        srcs = [x for x in srcs if x in std or '*' in x]
         ds = sorted(x for x in closure(dwd) if x.startswith(('dws_', 'ads_')))
         rows.append([code, f'{b} {BIZ_CN[b]}', f'{dd} {DATA_DOM[dd]}', cn, grain, dwd, '新增' if new else '已有', '是' if dwd in std else '否',
                      '、'.join(srcs), meas, '、'.join(dims_), '、'.join(ds) or '（明细直接服务 / 待按需汇总）', nuse.get(code, 0)])
@@ -296,3 +299,34 @@ def ods_rows(tables, used_ods):
         dd = (t['name'].split('_') + ['', ''])[1]
         rows.append([t['name'], t['cn'], f"{dd} {DATA_DOM.get(dd, '')}", r or '未归类', to, used_ods.get(t['name'], 0), '在用' if used_ods.get(t['name']) else '未被在用链路使用'])
     return {'cols': ['ODS 表', '中文名', '数据域', '角色', '去向（业务过程 / 维度）', '在用消费链路数', '是否在用'], 'rows': rows}
+
+
+def unused_ods(tables, used_ods, cons_rows):
+    """无用 ODS：没有任何在用链路（导出 / 末端 ADS）读到，且不在任何在用标准表的上游闭包里"""
+    import re
+    std = {t['name']: t for t in tables}
+    need = set()
+
+    def up(n, seen=frozenset()):
+        if n in seen or n not in std:
+            return
+        need.add(n)
+        for u in re.split('、', std[n]['up'] or ''):
+            u = u.strip()
+            if u:
+                need.add(u)
+                up(u, seen | {n})
+    for r in cons_rows:
+        if r[6]:
+            up(r[6])
+    # 在用 ODS 所进入的标准表（业务过程 DWD / 维度）也要保留其全部上游（如关联的活动配置表）
+    for t in tables:
+        if t['layer'] != 'ODS' and any(used_ods.get(u.strip()) for u in re.split('、', t['up'] or '')):
+            up(t['name'])
+    out = {}
+    for t in tables:
+        n = t['name']
+        if t['layer'] == 'ODS' and not used_ods.get(n) and n not in need:
+            why = next((w for p_, w in IDLE if n.startswith(p_)), '')
+            out[n] = '无在用链路读取，在用标准表也不需要' + (f'（{why}）' if why else '')
+    return out
