@@ -8,7 +8,7 @@ WITH
 ticket_credential_rn AS (                                                         -- 「票凭证」当日增量，同一主键按 binlog 时间倒序编号
   SELECT binlog_time, code_pool_id, code_value, create_time, credential_no, credential_type, id, status,
          tenant_id, ticket_no, update_time, binlog_op_type,
-         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn      -- 同一主键多次变更，按 binlog 时间倒序编号
+         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn      -- 去重序号（1 = 最新）
   FROM ods.ods_ord_ticket_credential_di
   WHERE travel_date = '${bizdate}'                                                -- 只取当日分区
 ),
@@ -40,7 +40,9 @@ SELECT
   ticket_dtl.seller_tenant_id                                  AS seller_tenant_id,  -- 卖家租户ID
   ticket_dtl.sku_id                                            AS sku_id,         -- SKU ID
   ticket_credential_latest.create_time                         AS issue_time,     -- 发码时间
-  CASE WHEN ticket_credential_latest.status = 'REVOKED' THEN ticket_credential_latest.binlog_time END AS revoke_time,  -- 撤销时间
+  CASE                                                                            -- 撤销时间
+      WHEN ticket_credential_latest.status = 'REVOKED' THEN ticket_credential_latest.binlog_time
+  END AS revoke_time,                                                             -- 撤销时间
   1                                                            AS credential_qty,  -- 凭证数
   CURRENT_TIMESTAMP()                                          AS etl_time        -- ETL 加载时间
 FROM ticket_credential_latest

@@ -9,15 +9,26 @@
 --   · 只读两个快照分区 + 近 400 天变更明细的每设备最大变更时间
 
 WITH t AS (
-    SELECT id, device_no, tenant_id, device_type, device_group_id, poi_id, device_status, last_heartbeat, update_time, create_time
+    SELECT id,
+           device_no,                                                             -- 设备编号
+           tenant_id,                                                             -- 租户ID
+           device_type,                                                           -- 设备类型
+           device_group_id,                                                       -- 设备分组ID
+           poi_id,                                                                -- 所属 POI ID
+           device_status,
+           last_heartbeat,
+           update_time,
+           create_time
     FROM ods.ods_opr_device_df WHERE travel_date = '${bizdate}'
 ),
 y AS (
-    SELECT id, device_status FROM ods.ods_opr_device_df WHERE travel_date = DATE_FORMAT(DATE_SUB(TO_DATE('${bizdate}', 'yyyyMMdd'), 1), 'yyyyMMdd')
+    SELECT id,
+           device_status FROM ods.ods_opr_device_df WHERE travel_date = DATE_FORMAT(DATE_SUB(TO_DATE('${bizdate}', 'yyyyMMdd'), 1), 'yyyyMMdd')
 ),
 last_chg AS (
-    SELECT device_id, MAX(change_time) AS last_change_time
-    FROM dwd.dwd_opr_device_status_log_di WHERE travel_date >= DATE_FORMAT(DATE_SUB(TO_DATE('${bizdate}', 'yyyyMMdd'), 400), 'yyyyMMdd') AND travel_date < '${bizdate}'
+    SELECT device_id, MAX(change_time) AS last_change_time                        -- 上次状态变更时间
+    FROM dwd.dwd_opr_device_status_log_di WHERE travel_date >= DATE_FORMAT(DATE_SUB(TO_DATE('${bizdate}', 'yyyyMMdd'), 400), 'yyyyMMdd')
+        AND travel_date < '${bizdate}'
     GROUP BY device_id                                                            -- 按粒度键汇总
 )
 INSERT OVERWRITE TABLE dwd.dwd_opr_device_status_log_di PARTITION (travel_date = '${bizdate}')  -- 写入当日分区

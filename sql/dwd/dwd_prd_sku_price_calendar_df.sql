@@ -10,22 +10,44 @@
 --   · 价格点表小，取全部历史分区按主键取最新；日期维表广播
 
 WITH pp AS (                                                                      -- 价格点最新状态
-    SELECT id, price_no, sku_id, channel, date_single, date_from, date_to, weekday_mask, ext_dims, price, priority, effective_from, effective_to, tenant_id
+    SELECT id,
+           price_no,
+           sku_id,                                                                -- SKU ID
+           channel,
+           date_single,
+           date_from,
+           date_to,
+           weekday_mask,
+           ext_dims,
+           price,
+           priority,
+           effective_from,
+           effective_to,
+           tenant_id                                                              -- 租户ID（分库维度）
     FROM (
-        SELECT p.*, ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn  -- 同一主键多次变更，按 binlog 时间倒序编号
+        SELECT p.*, ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn  -- 去重序号（1 = 最新）
         FROM ods.ods_prd_price_point_di p WHERE travel_date <= '${bizdate}'       -- 累计口径：取截至统计日的全部分区
     ) z
     WHERE rn = 1 AND binlog_op_type <> 'DELETE'                                   -- 剔除源库已删除的记录
 ),
 d AS (                                                                            -- 未来 90 天
-    SELECT date_code AS price_date
+    SELECT date_code AS price_date                                                -- 价格日期
     FROM dim.dim_opr_date_f
-    WHERE date_code BETWEEN '${bizdate_dash}' AND DATE_FORMAT(DATE_ADD(TO_DATE('${bizdate_dash}'), 89), 'yyyy-MM-dd')
+    WHERE date_code BETWEEN '${bizdate_dash}'
+      AND DATE_FORMAT(DATE_ADD(TO_DATE('${bizdate_dash}'), 89), 'yyyy-MM-dd')
 ),
 hit AS (
-    SELECT /*+ BROADCAST(d) */ pp.sku_id, d.price_date, COALESCE(pp.channel, 'DEFAULT') AS price_channel_code, COALESCE(pp.ext_dims, '') AS ext_dim_desc,
+    SELECT /*+ BROADCAST(d) */ pp.sku_id,
+           d.price_date,                                                          -- 价格日期
+           COALESCE(pp.channel, 'DEFAULT') AS price_channel_code,                 -- 价格渠道编码
+           COALESCE(pp.ext_dims, '') AS ext_dim_desc,                             -- 扩展维度组合
            pp.price_no, pp.price, pp.priority, pp.tenant_id,
-           CASE WHEN pp.date_single IS NOT NULL THEN 10 WHEN pp.date_from IS NOT NULL THEN 5 WHEN pp.weekday_mask IS NOT NULL THEN 3 ELSE 0 END AS cls
+           CASE                                                                   -- 日历分类
+               WHEN pp.date_single IS NOT NULL THEN 10
+               WHEN pp.date_from IS NOT NULL THEN 5
+               WHEN pp.weekday_mask IS NOT NULL THEN 3
+               ELSE 0
+           END AS cls                                                             -- 日历分类
     FROM pp CROSS JOIN d
     WHERE (pp.effective_from IS NULL OR TO_DATE(pp.effective_from) <= d.price_date)
       AND (pp.effective_to IS NULL OR TO_DATE(pp.effective_to) >= d.price_date)
@@ -35,7 +57,14 @@ hit AS (
 ),
 best AS (
     SELECT * FROM (
-        SELECT hit.*, ROW_NUMBER() OVER (PARTITION BY sku_id, price_date, price_channel_code, ext_dim_desc ORDER BY cls DESC, priority DESC) AS rk FROM hit  -- 同一主键多次变更，按 binlog 时间倒序编号
+        SELECT hit.*,                                                             -- 同一主键多次变更，按 binlog 时间倒序编号
+               ROW_NUMBER() OVER (                                                -- 同一主键多次变更，按 binlog 时间倒序编号
+                   PARTITION BY sku_id,
+                   price_date,                                                    -- 价格日期
+                   price_channel_code,                                            -- 价格渠道编码
+                   ext_dim_desc ORDER BY cls DESC,
+                   priority DESC
+               ) AS rk FROM hit
     ) z WHERE rk = 1
 ),
 rule AS (
@@ -44,8 +73,19 @@ rule AS (
 ),
 rule_hit AS (
     SELECT * FROM (
-        SELECT b.sku_id, b.price_date, b.price_channel_code, b.ext_dim_desc, r.rule_no, r.calculator, r.params,
-               ROW_NUMBER() OVER (PARTITION BY b.sku_id, b.price_date, b.price_channel_code, b.ext_dim_desc ORDER BY r.priority DESC) AS rk  -- 同一主键多次变更，按 binlog 时间倒序编号
+        SELECT b.sku_id,                                                          -- SKU ID
+               b.price_date,                                                      -- 价格日期
+               b.price_channel_code,                                              -- 价格渠道编码
+               b.ext_dim_desc,                                                    -- 扩展维度组合
+               r.rule_no,
+               r.calculator,
+               r.params,
+               ROW_NUMBER() OVER (                                                -- 同一主键多次变更，按 binlog 时间倒序编号｜优先级序号（1 = 生效）
+                   PARTITION BY b.sku_id,
+                   b.price_date,                                                  -- 价格日期
+                   b.price_channel_code,                                          -- 价格渠道编码
+                   b.ext_dim_desc ORDER BY r.priority DESC
+               ) AS rk                                                            -- 优先级序号（1 = 生效）
         FROM best b
         JOIN rule r ON r.sku_id = b.sku_id
          AND (r.effective_from IS NULL OR TO_DATE(r.effective_from) <= b.price_date)
@@ -67,4 +107,8 @@ SELECT
     b.tenant_id,                                                                  -- 租户ID（分库维度）
     CURRENT_TIMESTAMP() AS etl_time                                               -- ETL 加载时间
 FROM best b
-LEFT JOIN rule_hit rh ON rh.sku_id = b.sku_id AND rh.price_date = b.price_date AND rh.price_channel_code = b.price_channel_code AND rh.ext_dim_desc = b.ext_dim_desc;
+LEFT JOIN rule_hit rh
+  ON rh.sku_id = b.sku_id                                                         -- 按 sku_id 关联
+    AND rh.price_date = b.price_date
+    AND rh.price_channel_code = b.price_channel_code
+    AND rh.ext_dim_desc = b.ext_dim_desc;

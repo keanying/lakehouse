@@ -16,4 +16,11 @@ SELECT
     CAST(NULL AS STRING)                                             AS valid_start_time,  -- 配置生效时间｜待确认：同上
     DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time           -- ETL 加载时间
 FROM (SELECT DISTINCT tenant_id FROM ods.ods_fin_merchant_payment_config_df WHERE travel_date = '${bizdate}') c
-CROSS JOIN (SELECT pay_method_type FROM VALUES ('BALANCE'), ('WECHAT'), ('ALIPAY'), ('CREDIT'), ('OFFLINE'), ('ZERO_FEE') AS v(pay_method_type)) m;
+CROSS JOIN (
+    SELECT pay_method_type FROM VALUES ('BALANCE'),
+    ('WECHAT'),
+    ('ALIPAY'),
+    ('CREDIT'),
+    ('OFFLINE'),
+    ('ZERO_FEE') AS v(pay_method_type)
+) m;

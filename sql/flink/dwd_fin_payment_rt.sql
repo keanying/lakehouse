@@ -10,17 +10,17 @@ SELECT
   a.id                                                      AS payment_id,        -- 支付记录ID（源表主键 id）
   a.payment_no                                              AS payment_no,        -- 支付流水号
   a.batch_no                                                AS batch_no,          -- 批量支付单号(同批共享)
-  a.item_no                                                 AS item_no,           -- 批内项号(批内唯一
-  a.depend_on_item                                          AS depend_on_item_no,  -- 依赖项号(必须在依赖项成功后执行
+  a.item_no                                                 AS item_no,           -- 批内项号
+  a.depend_on_item                                          AS depend_on_item_no,  -- 依赖项号
   a.order_group_no                                          AS order_group_no,    -- 归属聚合单号
   a.pay_direction                                           AS pay_direction_type,  -- 资金方向
   a.pay_method                                              AS pay_method_type,   -- 支付方式
   a.receive_channel                                         AS receive_channel_type,  -- 收款渠道(INBOUND-收款时填)
   ROUND(a.amount / 100, 2)                                  AS pay_amt,           -- 支付金额（元）
-  ROUND(a.settle_amount / 100, 2)                           AS settle_amt,        -- 结算金额（元
+  ROUND(a.settle_amount / 100, 2)                           AS settle_amt,        -- 结算金额
   a.transaction_no                                          AS transaction_no,    -- 渠道流水号
-  a.payer_account_no                                        AS payer_account_no,  -- 付款方账户(OUTBOUND-采购付款=采购方
-  a.payee_account_no                                        AS payee_account_no,  -- 收款方账户(INBOUND-收款=卖方
+  a.payer_account_no                                        AS payer_account_no,  -- 付款方账户
+  a.payee_account_no                                        AS payee_account_no,  -- 收款方账户
   a.ticket_no                                               AS ticket_no,         -- 关联票号(用于关联冻结记录)
   a.external_frozen                                         AS external_frozen_type,  -- 是否外部渠道冻结
   a.pay_time                                                AS pay_time,          -- 支付时间

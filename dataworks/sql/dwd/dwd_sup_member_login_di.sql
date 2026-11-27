@@ -9,13 +9,13 @@
 -- 业务规则 / 修正：
 --   · 只保留登录事实；IP / 浏览器 / 系统不进 DWD
 -- ================================================================================================
-INSERT OVERWRITE TABLE dwd.dwd_sup_member_login_di PARTITION (travel_date = '${bizdate}')
+INSERT OVERWRITE TABLE dwd.dwd_sup_member_login_di PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
 SELECT
-    login_time,
-    CAST(mid AS BIGINT)                                          AS member_id,
-    '${bizdate}'                                                 AS stat_date,
-    CAST(mid AS BIGINT)                                          AS user_id,
-    login_source,
-    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time
+    login_time,                                                                 -- 登录日期
+    CAST(mid AS BIGINT)                                          AS member_id,  -- 游客ID
+    '${bizdate}'                                                 AS stat_date,  -- 统计日期
+    CAST(mid AS BIGINT)                                          AS user_id,    -- 商户id
+    login_source,                                                               -- 登录渠道
+    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time         -- ETL 加载时间
 FROM ods.ods_sup_member_login_log_di
-WHERE travel_date = '${bizdate}'
+WHERE travel_date = '${bizdate}'                                                -- 只取当日分区

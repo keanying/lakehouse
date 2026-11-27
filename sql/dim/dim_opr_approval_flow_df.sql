@@ -15,7 +15,7 @@ INSERT OVERWRITE TABLE dim.dim_opr_approval_flow_df PARTITION (travel_date = '${
 SELECT
   approval_flow_src.id                                         AS approval_flow_id,  -- 审批流定义ID（源表主键 id）
   approval_flow_src.flow_no                                    AS flow_no,        -- 审批流编号
-  approval_flow_src.flow_code                                  AS flow_code,      -- 审批流唯一标识码（手动输入
+  approval_flow_src.flow_code                                  AS flow_code,      -- 审批流唯一标识码
   approval_flow_src.flow_name                                  AS flow_name,      -- 审批流名称
   approval_flow_src.scope                                      AS scope_type,     -- 范围
   approval_flow_src.tenant_id                                  AS tenant_id,      -- 租户ID

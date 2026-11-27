@@ -9,7 +9,7 @@ invoice_order_rn AS (                                                           
   SELECT approval_no, create_time, fee_item, id, invoice_amount, invoice_config_id, invoice_file_url,
          invoice_no, invoice_status, invoice_subject, invoice_type, order_group_no, tenant_id,
          update_time, binlog_op_type,
-         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn    -- 同一主键多次变更，按 binlog 时间倒序编号
+         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn    -- 去重序号（1 = 最新）
   FROM ods.ods_fin_invoice_order_di
   WHERE travel_date = '${bizdate}'                                              -- 只取当日分区
 ),

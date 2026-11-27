@@ -10,7 +10,20 @@
 
 INSERT OVERWRITE TABLE dws.dws_fin_merchant_order_fund_di PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
 SELECT
-    merchant_tenant_id, spu_id, sku_id, channel_type, seller_staff_id, sale_point_code, payer_tenant_id, payer_type, payee_tenant_id, payee_type, sale_unit_price_amt, buy_unit_price_amt, receive_pay_method_type, pay_pay_method_type,
+    merchant_tenant_id,                                                           -- 本方商户租户ID
+    spu_id,                                                                       -- 产品(SPU)ID
+    sku_id,                                                                       -- SKU ID
+    channel_type,                                                                 -- 下单渠道（维度）
+    seller_staff_id,                                                              -- 售票员
+    sale_point_code,                                                              -- 售票站点
+    payer_tenant_id,                                                              -- 付款方
+    payer_type,                                                                   -- 付款方类型
+    payee_tenant_id,                                                              -- 收款方
+    payee_type,                                                                   -- 收款方类型
+    sale_unit_price_amt,                                                          -- 卖出单价
+    buy_unit_price_amt,                                                           -- 买入单价
+    receive_pay_method_type,                                                      -- 收款支付方式
+    pay_pay_method_type,                                                          -- 付款支付方式
     SUM(IF(report_code = 'ADV_RECEIPT' AND measure_code = 'RECEIVE', event_amt, 0)) AS receive_amt,  -- 本期收
     SUM(IF(report_code = 'ADV_RECEIPT' AND measure_code = 'REFUND', event_amt, 0)) AS refund_amt,  -- 本期退
     SUM(IF(report_code = 'ADV_RECEIPT' AND measure_code = 'TO_REVENUE', event_amt, 0)) AS to_revenue_amt,  -- 转实收
@@ -28,4 +41,17 @@ SELECT
     DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time           -- ETL 加载时间
 FROM dwd.dwd_fin_merchant_order_fund_di
 WHERE travel_date = '${bizdate}'                                                  -- 只取当日分区
-GROUP BY merchant_tenant_id, spu_id, sku_id, channel_type, seller_staff_id, sale_point_code, payer_tenant_id, payer_type, payee_tenant_id, payee_type, sale_unit_price_amt, buy_unit_price_amt, receive_pay_method_type, pay_pay_method_type;  -- 按粒度键汇总
+GROUP BY merchant_tenant_id,                                                      -- 按粒度键汇总
+         spu_id,                                                                  -- 产品(SPU)ID
+         sku_id,                                                                  -- SKU ID
+         channel_type,                                                            -- 下单渠道（维度）
+         seller_staff_id,                                                         -- 售票员
+         sale_point_code,                                                         -- 售票站点
+         payer_tenant_id,                                                         -- 付款方
+         payer_type,                                                              -- 付款方类型
+         payee_tenant_id,                                                         -- 收款方
+         payee_type,                                                              -- 收款方类型
+         sale_unit_price_amt,                                                     -- 卖出单价
+         buy_unit_price_amt,                                                      -- 买入单价
+         receive_pay_method_type,                                                 -- 收款支付方式
+         pay_pay_method_type;

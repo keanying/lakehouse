@@ -16,8 +16,20 @@ SELECT
   a.tenant_id                                                  AS tenant_id,      -- 租户ID（分库维度）
   a.create_time                                                AS create_time,    -- 创建时间
   a.update_time                                                AS update_time,    -- 更新时间
-  CASE WHEN (a.frozen_quantity - LAG(a.frozen_quantity) OVER (PARTITION BY a.id ORDER BY a.binlog_time)) > 0 AND (a.available_quantity - LAG(a.available_quantity) OVER (PARTITION BY a.id ORDER BY a.binlog_time)) < 0 THEN 'PRE_DEDUCT' WHEN (a.frozen_quantity - LAG(a.frozen_quantity) OVER (PARTITION BY a.id ORDER BY a.binlog_time)) < 0 AND (a.available_quantity - LAG(a.available_quantity) OVER (PARTITION BY a.id ORDER BY a.binlog_time)) > 0 THEN 'ROLLBACK' WHEN (a.frozen_quantity - LAG(a.frozen_quantity) OVER (PARTITION BY a.id ORDER BY a.binlog_time)) < 0 AND COALESCE((a.available_quantity - LAG(a.available_quantity) OVER (PARTITION BY a.id ORDER BY a.binlog_time)), 0) = 0 THEN 'CONFIRM' ELSE 'ADJUST' END AS change_type,  -- 变动类型｜口径：同离线：按冻结 / 可售变化方向判定
-  CAST(NULL AS STRING) AS order_no,  -- 引起变动的子单号｜口径：源端缺口：同离线
+  CASE                                                                            -- 变动类型｜口径：同离线：按冻结 / 可售变化方向判定
+      WHEN (a.frozen_quantity - LAG(a.frozen_quantity)
+          OVER (PARTITION BY a.id ORDER BY a.binlog_time)) > 0
+              AND (a.available_quantity - LAG(a.available_quantity) OVER (PARTITION BY a.id ORDER BY a.binlog_time)) < 0 THEN 'PRE_DEDUCT'
+      WHEN (a.frozen_quantity - LAG(a.frozen_quantity)
+          OVER (PARTITION BY a.id ORDER BY a.binlog_time)) < 0
+              AND (a.available_quantity - LAG(a.available_quantity) OVER (PARTITION BY a.id ORDER BY a.binlog_time)) > 0 THEN 'ROLLBACK'
+      WHEN (a.frozen_quantity - LAG(a.frozen_quantity)
+          OVER (PARTITION BY a.id ORDER BY a.binlog_time)) < 0
+              AND COALESCE((a.available_quantity - LAG(a.available_quantity) OVER (PARTITION BY a.id ORDER BY a.binlog_time)),
+          0) = 0 THEN 'CONFIRM'
+      ELSE 'ADJUST'
+  END AS change_type,                                                             -- 变动类型
+  CAST(NULL AS STRING) AS order_no,                                               -- 引起变动的子单号｜口径：源端缺口：同离线
   GET_JSON_OBJECT(a.dimension_key, '$.date')                   AS play_date,      -- 库存日期
   GET_JSON_OBJECT(a.dimension_key, '$.roomType')               AS room_type_code,  -- 房型编码（酒店）
   GET_JSON_OBJECT(a.dimension_key, '$.showTime')               AS show_time,      -- 场次时间（演出）

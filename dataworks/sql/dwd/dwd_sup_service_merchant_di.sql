@@ -9,15 +9,15 @@
 -- 业务规则 / 修正：
 --   · 过渡期从旧表 dwd_service_business_d_f 平移：旧逻辑由多张中间表 / 外部采集加工，字段与 ODS 不能直接对应；字段口径按字典，上线顺序：先平移保证下游可切换，再按字段清单把「待确认」逐个改为从 ODS 计算后下线旧链路
 -- ================================================================================================
-INSERT OVERWRITE TABLE dwd.dwd_sup_service_merchant_di PARTITION (travel_date = '${bizdate}')
+INSERT OVERWRITE TABLE dwd.dwd_sup_service_merchant_di PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
 SELECT
-    member_id,
-    member_kind,
-    member_type,
-    province                                                     AS province_name,
-    city                                                         AS city_name,
-    start_time,
-    end_time                                                     AS valid_end_time,
-    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time
+    member_id,                                                                    -- 商户id
+    member_kind,                                                                  -- 商户类型
+    member_type,                                                                  -- 商户业态
+    province                                                     AS province_name,  -- 商户所在省
+    city                                                         AS city_name,    -- 商户所在市
+    start_time,                                                                   -- 开始服务日期
+    end_time                                                     AS valid_end_time,  -- 最后服务日期
+    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time           -- ETL 加载时间
 FROM dwd_service_business_d_f
-WHERE pt = '${bizdate}'   -- 过渡期：读旧表，按字段清单逐步改为从 ODS 计算
+WHERE pt = '${bizdate}'                                                           -- 过渡期：读旧表，按字段清单逐步改为从 ODS 计算

@@ -10,24 +10,24 @@
 -- 业务规则 / 修正：
 --   · 过渡期从旧表 dim_plat_staff_d_f 平移：旧逻辑由多张中间表 / 外部采集加工，字段与 ODS 不能直接对应；字段口径按字典，上线顺序：先平移保证下游可切换，再按字段清单把「待确认」逐个改为从 ODS 计算后下线旧链路
 -- ================================================================================================
-INSERT OVERWRITE TABLE dim.dim_sup_staff_df
+INSERT OVERWRITE TABLE dim.dim_sup_staff_df                                       -- 整表覆盖写入
 SELECT
-    CAST(NULL AS BIGINT)                                         AS staff_id,   -- 待确认：来源未同步
-    CAST(NULL AS STRING)                                         AS staff_name,   -- 待确认：来源未同步
-    CAST(NULL AS BIGINT)                                         AS department_id,   -- 待确认：来源未同步
-    stat_date,
-    plat_staff_id,
-    plat_staff_name,
-    plat_staff_department,
-    plat_staff_role,
-    plat_staff_group,
-    plat_staff_status,
-    plat_staff_team2_oa,
-    plat_staff_team1_oa,
-    plat_staff_team_oa,
-    plat_staff_department_oa,
-    CAST(NULL AS BIGINT)                                         AS staff_group_id,   -- 待确认：来源未同步（旧字段 dim_staff_group_d_f.staff_group_id）
-    CAST(NULL AS STRING)                                         AS staff_group_name,   -- 待确认：来源未同步（旧字段 dim_staff_group_d_f.staff_group_name）
-    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time
+    CAST(NULL AS BIGINT)                                         AS staff_id,     -- 员工ID｜待确认：来源未同步
+    CAST(NULL AS STRING)                                         AS staff_name,   -- 员工名称｜待确认：来源未同步
+    CAST(NULL AS BIGINT)                                         AS department_id,  -- 部门ID｜待确认：来源未同步
+    stat_date,                                                                    -- 统计日期
+    plat_staff_id,                                                                -- 平台员工ID
+    plat_staff_name,                                                              -- 平台员工名称
+    plat_staff_department,                                                        -- 平台员工部门
+    plat_staff_role,                                                              -- 平台员工角色
+    plat_staff_group,                                                             -- 平台员工组
+    plat_staff_status,                                                            -- 平台员工状态
+    plat_staff_team2_oa,                                                          -- 平台员工team2OA（待确认）
+    plat_staff_team1_oa,                                                          -- 平台员工team1OA（待确认）
+    plat_staff_team_oa,                                                           -- 平台员工团队OA
+    plat_staff_department_oa,                                                     -- 平台员工部门OA
+    CAST(NULL AS BIGINT)                                         AS staff_group_id,  -- 员工组ID｜待确认：来源未同步（旧字段 dim_staff_group_d_f.staff_group_id）
+    CAST(NULL AS STRING)                                         AS staff_group_name,  -- 员工组名称｜待确认：来源未同步（旧字段 dim_staff_group_d_f.staff_group_name）
+    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time           -- ETL 加载时间
 FROM dim_plat_staff_d_f
-WHERE pt = '${bizdate}'   -- 过渡期：读旧表，按字段清单逐步改为从 ODS 计算
+WHERE pt = '${bizdate}'                                                           -- 过渡期：读旧表，按字段清单逐步改为从 ODS 计算

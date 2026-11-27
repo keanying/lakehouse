@@ -11,19 +11,31 @@
 --   · 采购链明细按票号关联退款票，只取近 400 天分区
 
 WITH settle AS (
-    SELECT distributor_tenant_id, supplier_tenant_id, sku_id, chain_level_no, ticket_no, sale_amt, settle_amt, profit_amt,
-           MAX(chain_level_no) OVER (PARTITION BY ticket_no) AS max_level_no
+    SELECT distributor_tenant_id,                                                 -- 分销商租户ID
+           supplier_tenant_id,                                                    -- 供应商租户ID
+           sku_id,                                                                -- SKU ID
+           chain_level_no,                                                        -- 分销链层级
+           ticket_no,
+           sale_amt,
+           settle_amt,
+           profit_amt,
+           MAX(chain_level_no) OVER (PARTITION BY ticket_no) AS max_level_no      -- 最大分销层级
     FROM dwd.dwd_trf_distribution_settle_di
     WHERE travel_date = '${bizdate}' AND chain_level_no >= 2                      -- 只取当日分区，并按条件过滤｜1 级为游客付款给末级分销商，不算分销采购
 ),
 chain AS (                                                                        -- 退款票回找采购链
     SELECT ticket_no, distributor_tenant_id, supplier_tenant_id, sku_id, chain_level_no
     FROM dwd.dwd_trf_distribution_settle_di
-    WHERE travel_date >= DATE_FORMAT(DATE_SUB(TO_DATE('${bizdate}', 'yyyyMMdd'), 400), 'yyyyMMdd') AND chain_level_no >= 2
+    WHERE travel_date >= DATE_FORMAT(DATE_SUB(TO_DATE('${bizdate}', 'yyyyMMdd'), 400), 'yyyyMMdd')
+      AND chain_level_no >= 2
     GROUP BY ticket_no, distributor_tenant_id, supplier_tenant_id, sku_id, chain_level_no  -- 按粒度键汇总
 ),
 refund AS (
-    SELECT c.distributor_tenant_id, c.supplier_tenant_id, c.sku_id, c.chain_level_no, COUNT(DISTINCT r.ticket_no) AS refund_ticket_qty
+    SELECT c.distributor_tenant_id,                                               -- 分销商租户ID
+           c.supplier_tenant_id,                                                  -- 供应商租户ID
+           c.sku_id,                                                              -- SKU ID
+           c.chain_level_no,                                                      -- 分销链层级
+           COUNT(DISTINCT r.ticket_no) AS refund_ticket_qty                       -- 退款票数
     FROM (SELECT DISTINCT ticket_no FROM dwd.dwd_ord_refund_ticket_di WHERE travel_date = '${bizdate}' AND refund_status = 'COMPLETED') r
     JOIN chain c ON c.ticket_no = r.ticket_no
     GROUP BY c.distributor_tenant_id, c.supplier_tenant_id, c.sku_id, c.chain_level_no  -- 按粒度键汇总

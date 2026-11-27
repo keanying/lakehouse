@@ -27,7 +27,11 @@ SELECT
   blacklist_chg.tenant_id        AS tenant_id,         -- 租户ID
   blacklist_chg.create_time      AS create_time,       -- 创建时间
   blacklist_chg.update_time      AS update_time,       -- 更新时间
-  CASE blacklist_chg.blacklist_status WHEN 'ACTIVE' THEN 'ADD' WHEN 'EXPIRED' THEN 'EXPIRE' WHEN 'REVOKED' THEN 'REVOKE' END AS change_type,  -- 变更类型｜口径：每条变更记录按变更后状态：有效 = 新增，已过期 = 到期失效，已撤销 = 撤销
+  CASE blacklist_chg.blacklist_status                  -- 变更类型｜口径：每条变更记录按变更后状态：有效 = 新增，已过期 = 到期失效，已撤销 = 撤销
+      WHEN 'ACTIVE' THEN 'ADD'
+      WHEN 'EXPIRED' THEN 'EXPIRE'
+      WHEN 'REVOKED' THEN 'REVOKE'
+  END AS change_type,                                  -- 变更类型
   blacklist_chg.binlog_time      AS change_time,       -- 变更时间
   1                              AS change_qty,        -- 变更次数
   CURRENT_TIMESTAMP()            AS etl_time           -- ETL 加载时间

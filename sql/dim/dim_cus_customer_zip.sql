@@ -9,7 +9,7 @@ customer_rn AS (                                                                
   SELECT alipay_user_id, auth_status, birthday, create_time, customer_kind, customer_no, customer_status,
          gender, id, name, phone, register_source, register_tenant_id, update_time, wechat_unionid,
          binlog_op_type,
-         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn      -- 同一主键多次变更，按 binlog 时间倒序编号
+         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn      -- 去重序号（1 = 最新）
   FROM ods.ods_cus_customer_di
   WHERE travel_date = '${bizdate}'                                                -- 只取当日分区
 ),
@@ -30,7 +30,7 @@ src AS (                                                                        
     customer_latest.id                                           AS customer_id,  -- C端游客主账号ID（源表主键 id）
     customer_latest.customer_no                                  AS customer_no,  -- 客户编号
     customer_latest.customer_kind                                AS customer_type,  -- 账号类型
-    customer_latest.phone                                        AS phone_no,     -- 联系电话+登录句柄（非唯一
+    customer_latest.phone                                        AS phone_no,     -- 联系电话+登录句柄
     customer_latest.name                                         AS customer_name,  -- 姓名/昵称（脱敏）
     customer_latest.gender                                       AS gender_type,  -- 性别
     customer_latest.auth_status                                  AS auth_status,  -- 认证状态
@@ -40,19 +40,69 @@ src AS (                                                                        
     customer_latest.create_time                                  AS create_time,  -- 创建时间
     customer_latest.update_time                                  AS update_time,  -- 更新时间
     channel_dim.channel_id                                       AS register_channel_id,  -- 注册渠道ID
-    CASE WHEN FLOOR(MONTHS_BETWEEN(TO_DATE('${bizdate_dash}'), TO_DATE(customer_latest.birthday)) / 12) IS NULL THEN 'UNKNOWN' WHEN FLOOR(MONTHS_BETWEEN(TO_DATE('${bizdate_dash}'), TO_DATE(customer_latest.birthday)) / 12) < 18 THEN '0_17' WHEN FLOOR(MONTHS_BETWEEN(TO_DATE('${bizdate_dash}'), TO_DATE(customer_latest.birthday)) / 12) <= 25 THEN '18_25' WHEN FLOOR(MONTHS_BETWEEN(TO_DATE('${bizdate_dash}'), TO_DATE(customer_latest.birthday)) / 12) <= 35 THEN '26_35' WHEN FLOOR(MONTHS_BETWEEN(TO_DATE('${bizdate_dash}'), TO_DATE(customer_latest.birthday)) / 12) <= 45 THEN '36_45' WHEN FLOOR(MONTHS_BETWEEN(TO_DATE('${bizdate_dash}'), TO_DATE(customer_latest.birthday)) / 12) <= 60 THEN '46_60' ELSE '60_PLUS' END AS age_band_code,  -- 年龄段｜口径：按生日算统计日年龄后分段
-    CASE WHEN customer_latest.wechat_unionid IS NOT NULL AND customer_latest.wechat_unionid <> '' THEN 1 ELSE 0 END AS wechat_bind_type,  -- 是否绑定微信
-    CASE WHEN customer_latest.alipay_user_id IS NOT NULL AND customer_latest.alipay_user_id <> '' THEN 1 ELSE 0 END AS alipay_bind_type  -- 是否绑定支付宝
+    CASE                                                                          -- 年龄段｜口径：按生日算统计日年龄后分段
+        WHEN FLOOR(MONTHS_BETWEEN(TO_DATE('${bizdate_dash}'), TO_DATE(customer_latest.birthday)) / 12) IS NULL THEN 'UNKNOWN'
+        WHEN FLOOR(MONTHS_BETWEEN(TO_DATE('${bizdate_dash}'), TO_DATE(customer_latest.birthday)) / 12) < 18 THEN '0_17'
+        WHEN FLOOR(MONTHS_BETWEEN(TO_DATE('${bizdate_dash}'), TO_DATE(customer_latest.birthday)) / 12) <= 25 THEN '18_25'
+        WHEN FLOOR(MONTHS_BETWEEN(TO_DATE('${bizdate_dash}'), TO_DATE(customer_latest.birthday)) / 12) <= 35 THEN '26_35'
+        WHEN FLOOR(MONTHS_BETWEEN(TO_DATE('${bizdate_dash}'), TO_DATE(customer_latest.birthday)) / 12) <= 45 THEN '36_45'
+        WHEN FLOOR(MONTHS_BETWEEN(TO_DATE('${bizdate_dash}'), TO_DATE(customer_latest.birthday)) / 12) <= 60 THEN '46_60'
+        ELSE '60_PLUS'
+    END AS age_band_code,                                                         -- 年龄段
+    CASE                                                                          -- 是否绑定微信
+        WHEN customer_latest.wechat_unionid IS NOT NULL AND customer_latest.wechat_unionid <> '' THEN 1
+        ELSE 0
+    END AS wechat_bind_type,                                                      -- 是否绑定微信
+    CASE                                                                          -- 是否绑定支付宝
+        WHEN customer_latest.alipay_user_id IS NOT NULL AND customer_latest.alipay_user_id <> '' THEN 1
+        ELSE 0
+    END AS alipay_bind_type                                                       -- 是否绑定支付宝
   FROM customer_latest
   LEFT JOIN channel_dim                                                           -- 关联「渠道/接入端维度」，取 注册渠道ID
     ON channel_dim.channel_code = customer_latest.register_source                 -- 按 register_source→channel_code 关联
 ),
 src_hash AS (                                                                     -- 今日状态的行哈希（比较是否变化）
-  SELECT s.*, MD5(CONCAT_WS('|', CAST(customer_no AS STRING), CAST(customer_type AS STRING), CAST(phone_no AS STRING), CAST(customer_name AS STRING), CAST(gender_type AS STRING), CAST(auth_status AS STRING), CAST(customer_status AS STRING), CAST(register_source_code AS STRING), CAST(register_tenant_id AS STRING), CAST(create_time AS STRING), CAST(update_time AS STRING), CAST(register_channel_id AS STRING), CAST(age_band_code AS STRING), CAST(wechat_bind_type AS STRING), CAST(alipay_bind_type AS STRING))) AS row_hash
+  SELECT s.*,
+         MD5(CONCAT_WS(                                                           -- 行哈希：除拉链键外全部属性拼接后 MD5，判断是否变化
+             '|',
+             CAST(customer_no AS STRING),
+             CAST(customer_type AS STRING),
+             CAST(phone_no AS STRING),
+             CAST(customer_name AS STRING),
+             CAST(gender_type AS STRING),
+             CAST(auth_status AS STRING),
+             CAST(customer_status AS STRING),
+             CAST(register_source_code AS STRING),
+             CAST(register_tenant_id AS STRING),
+             CAST(create_time AS STRING),
+             CAST(update_time AS STRING),
+             CAST(register_channel_id AS STRING),
+             CAST(age_band_code AS STRING),
+             CAST(wechat_bind_type AS STRING),
+             CAST(alipay_bind_type AS STRING)
+         )) AS row_hash                                                           -- 行哈希：除拉链键外全部属性拼接后 MD5，判断是否变化
   FROM src s
 ),
 his AS (                                                                          -- 昨日拉链及其行哈希
-  SELECT h.*, MD5(CONCAT_WS('|', CAST(h.customer_no AS STRING), CAST(h.customer_type AS STRING), CAST(h.phone_no AS STRING), CAST(h.customer_name AS STRING), CAST(h.gender_type AS STRING), CAST(h.auth_status AS STRING), CAST(h.customer_status AS STRING), CAST(h.register_source_code AS STRING), CAST(h.register_tenant_id AS STRING), CAST(h.create_time AS STRING), CAST(h.update_time AS STRING), CAST(h.register_channel_id AS STRING), CAST(h.age_band_code AS STRING), CAST(h.wechat_bind_type AS STRING), CAST(h.alipay_bind_type AS STRING))) AS row_hash
+  SELECT h.*,
+         MD5(CONCAT_WS(                                                           -- 行哈希：除拉链键外全部属性拼接后 MD5，判断是否变化
+             '|',
+             CAST(h.customer_no AS STRING),
+             CAST(h.customer_type AS STRING),
+             CAST(h.phone_no AS STRING),
+             CAST(h.customer_name AS STRING),
+             CAST(h.gender_type AS STRING),
+             CAST(h.auth_status AS STRING),
+             CAST(h.customer_status AS STRING),
+             CAST(h.register_source_code AS STRING),
+             CAST(h.register_tenant_id AS STRING),
+             CAST(h.create_time AS STRING),
+             CAST(h.update_time AS STRING),
+             CAST(h.register_channel_id AS STRING),
+             CAST(h.age_band_code AS STRING),
+             CAST(h.wechat_bind_type AS STRING),
+             CAST(h.alipay_bind_type AS STRING)
+         )) AS row_hash                                                           -- 行哈希：除拉链键外全部属性拼接后 MD5，判断是否变化
   FROM dim.dim_cus_customer_zip h
   WHERE h.travel_date = '${bizdate_prev}'
 )

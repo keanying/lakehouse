@@ -51,6 +51,11 @@ def main():
     # 自动生成里的「待确认」占位字段：按表补齐口径（行级替换 / 补关联 / 整表手写）
     for msg in etl_fix.apply(etl, D2, etl_gen.annotate):
         print('  etl_fix:', msg)
+    # 排版：超长行拆成一列一行，再逐行补字段中文注释（只改空白与注释，SQL 不变）
+    import sqlfmt
+    for t, e in etl.items():
+        if e.get('sql'):
+            e['sql'] = etl_gen.annotate(sqlfmt.fmt(e['sql']), t, D2)
     tdi = {c: i for i, c in enumerate(data2['待确认事项']['cols'])}
     n0 = max(int(r[tdi['序号']]) for r in data2['待确认事项']['rows'] if str(r[tdi['序号']]).isdigit())
     for k, (cat, q, how, imp) in enumerate(etl_fix.TODO, 1):

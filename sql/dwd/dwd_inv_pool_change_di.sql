@@ -13,7 +13,7 @@ inventory_pool_chg AS (                                                         
 ),
 inventory_unit_rn AS (                                                            -- 「UNIT池资源（座位/房间/舱位）」当日增量，同一主键按 binlog 时间倒序编号
   SELECT id, order_no, pool_no, binlog_op_type,
-         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn      -- 同一主键多次变更，按 binlog 时间倒序编号
+         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn      -- 去重序号（1 = 最新）
   FROM ods.ods_inv_inventory_unit_di
   WHERE travel_date = '${bizdate}'                                                -- 只取当日分区
 ),
@@ -33,16 +33,36 @@ SELECT
   inventory_pool_chg.tenant_id                                 AS tenant_id,      -- 租户ID（分库维度）
   inventory_pool_chg.create_time                               AS create_time,    -- 创建时间
   inventory_pool_chg.update_time                               AS update_time,    -- 更新时间
-  CASE WHEN (inventory_pool_chg.frozen_quantity - LAG(inventory_pool_chg.frozen_quantity) OVER (PARTITION BY inventory_pool_chg.id ORDER BY inventory_pool_chg.binlog_time)) > 0 AND (inventory_pool_chg.available_quantity - LAG(inventory_pool_chg.available_quantity) OVER (PARTITION BY inventory_pool_chg.id ORDER BY inventory_pool_chg.binlog_time)) < 0 THEN 'PRE_DEDUCT' WHEN (inventory_pool_chg.frozen_quantity - LAG(inventory_pool_chg.frozen_quantity) OVER (PARTITION BY inventory_pool_chg.id ORDER BY inventory_pool_chg.binlog_time)) < 0 AND (inventory_pool_chg.available_quantity - LAG(inventory_pool_chg.available_quantity) OVER (PARTITION BY inventory_pool_chg.id ORDER BY inventory_pool_chg.binlog_time)) > 0 THEN 'ROLLBACK' WHEN (inventory_pool_chg.frozen_quantity - LAG(inventory_pool_chg.frozen_quantity) OVER (PARTITION BY inventory_pool_chg.id ORDER BY inventory_pool_chg.binlog_time)) < 0 AND COALESCE((inventory_pool_chg.available_quantity - LAG(inventory_pool_chg.available_quantity) OVER (PARTITION BY inventory_pool_chg.id ORDER BY inventory_pool_chg.binlog_time)), 0) = 0 THEN 'CONFIRM' ELSE 'ADJUST' END AS change_type,  -- 变动类型｜口径：冻结增、可售减 = 预扣；冻结减、可售增 = 回滚；冻结减、可售不变 = 确认（转已售）；其余 = 人工调整
-  CAST(NULL AS STRING) AS order_no,  -- 引起变动的子单号｜口径：源端缺口：库存池变更没有记录引起变动的订单（数量型库存池无法回溯），已登记待确认事项
+  CASE                                                                            -- 变动类型｜口径：冻结增、可售减 = 预扣；冻结减、可售增 = 回滚；冻结减、可售不变 = 确认（转已售）；其余 = 人工调整
+      WHEN (inventory_pool_chg.frozen_quantity - LAG(inventory_pool_chg.frozen_quantity)
+          OVER (PARTITION BY inventory_pool_chg.id ORDER BY inventory_pool_chg.binlog_time)) > 0
+              AND (inventory_pool_chg.available_quantity
+                  - LAG(inventory_pool_chg.available_quantity)
+                      OVER (PARTITION BY inventory_pool_chg.id ORDER BY inventory_pool_chg.binlog_time)) < 0 THEN 'PRE_DEDUCT'
+      WHEN (inventory_pool_chg.frozen_quantity - LAG(inventory_pool_chg.frozen_quantity)
+          OVER (PARTITION BY inventory_pool_chg.id ORDER BY inventory_pool_chg.binlog_time)) < 0
+              AND (inventory_pool_chg.available_quantity
+                  - LAG(inventory_pool_chg.available_quantity)
+                      OVER (PARTITION BY inventory_pool_chg.id ORDER BY inventory_pool_chg.binlog_time)) > 0 THEN 'ROLLBACK'
+      WHEN (inventory_pool_chg.frozen_quantity - LAG(inventory_pool_chg.frozen_quantity)
+          OVER (PARTITION BY inventory_pool_chg.id ORDER BY inventory_pool_chg.binlog_time)) < 0
+              AND COALESCE((inventory_pool_chg.available_quantity
+                  - LAG(inventory_pool_chg.available_quantity) OVER (PARTITION BY inventory_pool_chg.id ORDER BY inventory_pool_chg.binlog_time)),
+          0) = 0 THEN 'CONFIRM'
+      ELSE 'ADJUST'
+  END AS change_type,                                                             -- 变动类型
+  CAST(NULL AS STRING) AS order_no,                                               -- 引起变动的子单号｜口径：源端缺口：库存池变更没有记录引起变动的订单（数量型库存池无法回溯），已登记待确认事项
   GET_JSON_OBJECT(inventory_pool_chg.dimension_key, '$.date')  AS play_date,      -- 库存日期
   GET_JSON_OBJECT(inventory_pool_chg.dimension_key, '$.roomType') AS room_type_code,  -- 房型编码（酒店）
   GET_JSON_OBJECT(inventory_pool_chg.dimension_key, '$.showTime') AS show_time,   -- 场次时间（演出）
   LAG(inventory_pool_chg.total_quantity) OVER (PARTITION BY inventory_pool_chg.id ORDER BY inventory_pool_chg.binlog_time) AS before_total_qty,  -- 变动前总库存
   inventory_pool_chg.total_quantity                            AS after_total_qty,  -- 变动后总库存
-  (inventory_pool_chg.total_quantity) - (LAG(inventory_pool_chg.total_quantity) OVER (PARTITION BY inventory_pool_chg.id ORDER BY inventory_pool_chg.binlog_time)) AS total_change_qty,  -- 总库存变化量
-  inventory_pool_chg.available_quantity - LAG(inventory_pool_chg.available_quantity) OVER (PARTITION BY inventory_pool_chg.id ORDER BY inventory_pool_chg.binlog_time) AS available_change_qty,  -- 可售库存变化量
-  inventory_pool_chg.frozen_quantity - LAG(inventory_pool_chg.frozen_quantity) OVER (PARTITION BY inventory_pool_chg.id ORDER BY inventory_pool_chg.binlog_time) AS frozen_change_qty,  -- 冻结库存变化量
+  (inventory_pool_chg.total_quantity) - (LAG(inventory_pool_chg.total_quantity)   -- 总库存变化量
+      OVER (PARTITION BY inventory_pool_chg.id ORDER BY inventory_pool_chg.binlog_time)) AS total_change_qty,  -- 总库存变化量
+  inventory_pool_chg.available_quantity - LAG(inventory_pool_chg.available_quantity)  -- 可售库存变化量
+      OVER (PARTITION BY inventory_pool_chg.id ORDER BY inventory_pool_chg.binlog_time) AS available_change_qty,  -- 可售库存变化量
+  inventory_pool_chg.frozen_quantity - LAG(inventory_pool_chg.frozen_quantity)    -- 冻结库存变化量
+      OVER (PARTITION BY inventory_pool_chg.id ORDER BY inventory_pool_chg.binlog_time) AS frozen_change_qty,  -- 冻结库存变化量
   inventory_pool_chg.binlog_time                               AS change_time,    -- 变动时间
   CURRENT_TIMESTAMP()                                          AS etl_time        -- ETL 加载时间
 FROM inventory_pool_chg

@@ -8,7 +8,7 @@ WITH
 customer_credential_rn AS (                                                 -- 「游客个人凭证」当日增量，同一主键按 binlog 时间倒序编号
   SELECT create_time, credential_no, credential_type, customer_id, id, register_tenant_id, update_time,
          binlog_op_type,
-         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn  -- 同一主键多次变更，按 binlog 时间倒序编号
+         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn  -- 去重序号（1 = 最新）
   FROM ods.ods_cus_customer_credential_di
   WHERE travel_date = '${bizdate}'                                          -- 只取当日分区
 ),

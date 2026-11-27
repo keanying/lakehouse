@@ -10,7 +10,7 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS ads.ads_fin_merchant_report_rt           
 REFRESH ASYNC EVERY (INTERVAL 1 MINUTE)
 AS
 WITH o AS (
-    SELECT merchant_tenant_id,
+    SELECT merchant_tenant_id,                                                    -- 本方商户租户ID
            SUM(IF(report_code = 'ADV_RECEIPT', close_amt, 0)) AS adv_receipt_close_amt,  -- 期末预收（日快照）
            SUM(IF(report_code = 'ADV_RECEIPT', in_amt, 0))    AS adv_receipt_receive_amt,  -- 本期收（日）
            SUM(IF(report_code = 'ADV_RECEIPT', out_amt, 0))   AS adv_receipt_refund_amt,  -- 本期退（日）
@@ -26,20 +26,27 @@ WITH o AS (
     GROUP BY merchant_tenant_id                                                   -- 按粒度键汇总
 ),
 y AS (                                                                            -- 期初 = 前一日期末
-    SELECT merchant_tenant_id, SUM(IF(report_code = 'ADV_RECEIPT', close_amt, 0)) AS adv_receipt_open_amt,
+    SELECT merchant_tenant_id, SUM(IF(report_code = 'ADV_RECEIPT', close_amt, 0)) AS adv_receipt_open_amt,  -- 期初预收（日快照）
            SUM(IF(report_code = 'ADV_PAYMENT', close_amt, 0)) AS adv_payment_open_amt  -- 期初预付（日快照）
     FROM ads.ads_fin_order_report_dim_di WHERE travel_date = DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), '%Y%m%d')
     GROUP BY merchant_tenant_id                                                   -- 按粒度键汇总
 ),
 b AS (
-    SELECT merchant_tenant_id, SUM(balance_open_amt) AS balance_open_amt, SUM(balance_in_amt) AS balance_in_amt, SUM(balance_out_amt) AS balance_out_amt,
-           SUM(balance_close_amt) AS balance_close_amt, SUM(recharge_amt) AS recharge_amt, SUM(withdraw_amt) AS withdraw_amt,  -- 提现（日）
-           SUM(expense_income_amt) AS expense_income_amt, SUM(expense_out_amt) AS expense_out_amt, SUM(unclassified_flow_qty) AS unclassified_flow_qty  -- 待归类流水笔数（日）
+    SELECT merchant_tenant_id,                                                    -- 本方商户租户ID
+           SUM(balance_open_amt) AS balance_open_amt,                             -- 期初余额（日快照）
+           SUM(balance_in_amt) AS balance_in_amt,                                 -- 资金流入（日）
+           SUM(balance_out_amt) AS balance_out_amt,                               -- 资金流出（日）
+           SUM(balance_close_amt) AS balance_close_amt,                           -- 期末余额（日快照）
+           SUM(recharge_amt) AS recharge_amt,                                     -- 充值（日）
+           SUM(withdraw_amt) AS withdraw_amt,                                     -- 提现（日）
+           SUM(expense_income_amt) AS expense_income_amt,                         -- 费用收入（日）
+           SUM(expense_out_amt) AS expense_out_amt,                               -- 费用支出（日）
+           SUM(unclassified_flow_qty) AS unclassified_flow_qty                    -- 待归类流水笔数（日）
     FROM ads.ads_fin_balance_report_rt WHERE travel_date = DATE_FORMAT(CURDATE(), '%Y%m%d')
     GROUP BY merchant_tenant_id                                                   -- 按粒度键汇总
 ),
 k AS (SELECT merchant_tenant_id FROM o UNION SELECT merchant_tenant_id FROM y UNION SELECT merchant_tenant_id FROM b)
-SELECT DATE_FORMAT(CURDATE(), '%Y%m%d') AS travel_date,
+SELECT DATE_FORMAT(CURDATE(), '%Y%m%d') AS travel_date,                           -- 数据日期
        k.merchant_tenant_id,                                                      -- 本方商户租户ID
        COALESCE(y.adv_receipt_open_amt, 0) AS adv_receipt_open_amt,               -- 期初预收（日快照）
        COALESCE(o.adv_receipt_receive_amt, 0) AS adv_receipt_receive_amt,         -- 本期收（日）

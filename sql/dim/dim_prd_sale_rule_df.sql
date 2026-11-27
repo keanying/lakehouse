@@ -20,7 +20,7 @@ SELECT
   sale_rule_item_src.id          AS sale_rule_item_id,   -- 售卖条件项ID（源表主键 id）
   sale_rule_item_src.rule_id     AS rule_id,             -- 归属售卖规则ID
   sale_rule_item_src.rule_type   AS rule_type,           -- 条件类型
-  sale_rule_item_src.rule_value  AS rule_value_desc,     -- 条件值（按rule_type结构化
+  sale_rule_item_src.rule_value  AS rule_value_desc,     -- 条件值
   sale_rule_item_src.tenant_id   AS tenant_id,           -- 租户ID
   sale_rule_item_src.create_time AS create_time,         -- 创建时间
   sale_rule_item_src.update_time AS update_time,         -- 更新时间

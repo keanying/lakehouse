@@ -8,7 +8,7 @@ WITH
 src_customer_lifetime AS (                               -- 来源「游客累计至今汇总」按粒度键预聚合
   SELECT
     seller_tenant_id AS seller_tenant_id,                -- 卖家租户ID
-    CAST(NULL AS STRING) AS rfm_segment_code,
+    CAST(NULL AS STRING) AS rfm_segment_code,            -- RFM 分层
     BITMAP_UNION(pay_buyer_bitmap) AS pay_buyer_bitmap,  -- 支付买家数去重位图（日）
     BITMAP_UNION(repeat_buyer_bitmap) AS repeat_buyer_bitmap,  -- 老客买家数去重位图（日）
     SUM(buyer_type) AS repurchase_numerator_qty,         -- 复购率分子（日）

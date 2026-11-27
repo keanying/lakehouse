@@ -10,16 +10,27 @@
 --   · 三个来源都按池编号预聚合后左关联池快照
 
 WITH pool AS (
-    SELECT pool_no, sku_id, play_date, room_type_code, show_time, total_qty, available_qty, frozen_qty, sold_qty, pool_status
+    SELECT pool_no,                                                               -- 库存池编号
+           sku_id,                                                                -- SKU ID
+           play_date,                                                             -- 游玩日期
+           room_type_code,                                                        -- 房型编码
+           show_time,                                                             -- 场次时间
+           total_qty,
+           available_qty,
+           frozen_qty,
+           sold_qty,
+           pool_status
     FROM dwd.dwd_inv_pool_snapshot_df WHERE travel_date = '${bizdate}'
 ),
 unit AS (
-    SELECT pool_no, COUNT(unit_no) AS unit_total_qty, COUNT(CASE WHEN unit_status = 'OCCUPIED' THEN unit_no END) AS unit_occupied_qty
+    SELECT pool_no,                                                               -- 库存池编号
+           COUNT(unit_no) AS unit_total_qty,                                      -- 座位/房间总数
+           COUNT(CASE WHEN unit_status = 'OCCUPIED' THEN unit_no END) AS unit_occupied_qty  -- 已占用座位/房间数
     FROM dim.dim_inv_unit_df WHERE travel_date = '${bizdate}'
     GROUP BY pool_no                                                              -- 按粒度键汇总
 ),
 chg AS (
-    SELECT pool_no,
+    SELECT pool_no,                                                               -- 库存池编号
            SUM(CASE WHEN change_type = 'PRE_DEDUCT' THEN ABS(frozen_change_qty) END) AS prededuct_qty,  -- 预扣量
            SUM(CASE WHEN change_type = 'CONFIRM' THEN ABS(frozen_change_qty) END)    AS prededuct_confirm_qty,  -- 预扣确认量
            SUM(CASE WHEN change_type = 'ROLLBACK' THEN ABS(frozen_change_qty) END)   AS prededuct_release_qty  -- 预扣释放量

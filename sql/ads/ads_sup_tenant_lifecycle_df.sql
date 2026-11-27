@@ -7,7 +7,7 @@
 WITH
 src_tenant_lifetime AS (                                                          -- 来源「商户累计至今汇总」按粒度键预聚合
   SELECT
-    CAST(NULL AS STRING) AS tenant_lifecycle_stage_code,
+    CAST(NULL AS STRING) AS tenant_lifecycle_stage_code,                          -- 租户生命周期
     BITMAP_UNION(active_tenant_bitmap) AS active_tenant_bitmap,                   -- 动销商户数去重位图（日）
     BITMAP_UNION(active_tenant_bitmap) AS tenant_active_numerator_bitmap,         -- 商户动销率分子（日）
     SUM(active_tenant_qty) AS tenant_active_denominator_qty,                      -- 商户动销率分母（日）

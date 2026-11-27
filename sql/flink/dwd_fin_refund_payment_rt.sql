@@ -13,7 +13,7 @@ SELECT
     DATE_FORMAT(d.create_time, 'yyyyMMdd')                           AS travel_date,  -- 数据日期
     d.id                                                             AS refund_detail_id,  -- 退款明细
     d.refund_detail_no, d.refund_no, d.payment_no,
-    CAST(d.refund_amount AS DECIMAL(18,2)) / 100                     AS refund_amt,  -- 本次退款金额（元
+    CAST(d.refund_amount AS DECIMAL(18,2)) / 100                     AS refund_amt,  -- 本次退款金额
     d.refund_channel                                                 AS refund_channel_type,  -- 退款渠道
     d.refund_transaction_no,                                                      -- 支付中心返回的退款流水号
     d.refund_detail_status,                                                       -- 明细状态
@@ -23,7 +23,11 @@ SELECT
     p.order_group_no,                                                             -- 聚合单号
     p.pay_method_type,                                                            -- 原支付方式
     p.pay_direction_type,                                                         -- 原资金方向
-    IF(d.refund_detail_status = 'SUCCESS', CAST(d.binlog_time AS STRING), CAST(NULL AS STRING)) AS finish_time,  -- 退款到账时间
+    IF(                                                                           -- 退款到账时间
+        d.refund_detail_status = 'SUCCESS',
+        CAST(d.binlog_time AS STRING),
+        CAST(NULL AS STRING)
+    ) AS finish_time,                                                             -- 退款到账时间
     d.proc_time                                                      AS event_time  -- 事件时间（binlog 时间）
 FROM ods_ord_refund_detail_rt d
 LEFT JOIN dwd_fin_payment_rt_lookup FOR SYSTEM_TIME AS OF d.proc_time AS p ON p.payment_no = d.payment_no;

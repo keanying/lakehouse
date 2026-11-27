@@ -11,19 +11,31 @@
 -- 业务规则 / 修正：
 --   · 大屏竖表由标准 ADS 转置得到，口径与报表一致（旧大屏单独一套 SQL，且有写死的模拟数据，见问题清单 D6）
 -- ================================================================================================
-INSERT OVERWRITE TABLE ads.ads_trf_digital_brain_di PARTITION (travel_date = '${bizdate}')
-SELECT scenic_id, data_domain, target_name, data_value AS data_value_qty, DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time
+INSERT OVERWRITE TABLE ads.ads_trf_digital_brain_di PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
+SELECT scenic_id,                                                           -- 景区ID
+       data_domain,                                                         -- 指标域
+       target_name,                                                         -- 指标名称
+       data_value AS data_value_qty,                                        -- 指标值（日）
+       DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time  -- ETL 加载时间
 FROM (
     -- 交易：由标准 ADS 转成「指标域 × 指标」竖表，大屏按 target_name 取数
-    SELECT scenic_id, 'trade' AS data_domain,
+    SELECT scenic_id, 'trade' AS data_domain,                               -- 指标域
            STACK(4, 'order_ticket_qty', CAST(SUM(order_ticket_qty) AS DECIMAL(20,4)), 'order_sale_amt', CAST(SUM(order_sale_amt) AS DECIMAL(20,4)),
                     'verify_ticket_qty', CAST(SUM(verify_ticket_qty) AS DECIMAL(20,4)), 'cancel_ticket_qty', CAST(SUM(cancel_ticket_qty) AS DECIMAL(20,4))) AS (target_name, data_value)
     FROM ads.ads_ord_scenic_trade_overview_di WHERE travel_date = '${bizdate}'
-    GROUP BY scenic_id
+    GROUP BY scenic_id                                                      -- 按粒度键汇总
     UNION ALL
     -- 客流
     SELECT scenic_id, 'flow',
-           STACK(3, 'enter_qty', CAST(SUM(enter_qty) AS DECIMAL(20,4)), 'exit_qty', CAST(SUM(exit_qty) AS DECIMAL(20,4)), 'in_park_qty', CAST(MAX(in_park_qty) AS DECIMAL(20,4))) AS (target_name, data_value)
+           STACK(
+               3,
+               'enter_qty',
+               CAST(SUM(enter_qty) AS DECIMAL(20,4)),
+               'exit_qty',
+               CAST(SUM(exit_qty) AS DECIMAL(20,4)),
+               'in_park_qty',
+               CAST(MAX(in_park_qty) AS DECIMAL(20,4))
+           ) AS (target_name, data_value)
     FROM ads.ads_trf_scenic_passenger_flow_di WHERE travel_date = '${bizdate}'
-    GROUP BY scenic_id
+    GROUP BY scenic_id                                                      -- 按粒度键汇总
 ) t

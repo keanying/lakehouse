@@ -27,10 +27,13 @@ SELECT
   sku_version_snapshot_chg.tenant_id                           AS tenant_id,      -- 租户ID（分库维度）
   sku_version_snapshot_chg.create_time                         AS create_time,    -- 创建时间
   sku_version_snapshot_chg.update_time                         AS update_time,    -- 更新时间
-  sku_version_snapshot_chg.version + 1 AS new_version_no,  -- 变更后版本号｜口径：快照记录的是变更前版本号，变更后 = 变更前 + 1
+  sku_version_snapshot_chg.version + 1 AS new_version_no,                         -- 变更后版本号｜口径：快照记录的是变更前版本号，变更后 = 变更前 + 1
   ROUND(CAST(GET_JSON_OBJECT(sku_version_snapshot_chg.snapshot_data, '$.priceChangeLog.oldPrice') AS DECIMAL(18,2)) / 100, 2) AS old_price_amt,  -- 变更前价格（元）
   ROUND(CAST(GET_JSON_OBJECT(sku_version_snapshot_chg.snapshot_data, '$.priceChangeLog.newPrice') AS DECIMAL(18,2)) / 100, 2) AS new_price_amt,  -- 变更后价格（元）
-  CASE WHEN COALESCE(GET_JSON_OBJECT(sku_version_snapshot_chg.snapshot_data, '$.priceChangeLog.oldPrice'), '') <> COALESCE(GET_JSON_OBJECT(sku_version_snapshot_chg.snapshot_data, '$.priceChangeLog.newPrice'), '') THEN 1 ELSE 0 END AS price_change_type,  -- 本次是否改价｜口径：变更前后价格不同即改价
+  CASE                                                                            -- 本次是否改价｜口径：变更前后价格不同即改价
+      WHEN COALESCE(GET_JSON_OBJECT(sku_version_snapshot_chg.snapshot_data, '$.priceChangeLog.oldPrice'), '') <> COALESCE(GET_JSON_OBJECT(sku_version_snapshot_chg.snapshot_data, '$.priceChangeLog.newPrice'), '') THEN 1
+      ELSE 0
+  END AS price_change_type,                                                       -- 本次是否改价
   sku_version_snapshot_chg.create_time                         AS change_time,    -- 变更时间
   CURRENT_TIMESTAMP()                                          AS etl_time        -- ETL 加载时间
 FROM sku_version_snapshot_chg

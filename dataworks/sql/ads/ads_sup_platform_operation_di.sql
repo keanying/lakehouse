@@ -9,34 +9,34 @@
 --   · 比率类不落比率值，只存分子分母；去重类存位图；快照类取日终值
 --   · 多个上游各自预聚合后 UNION ALL，按 ADS 粒度合并（替代旧系统多表 FULL JOIN）
 -- ================================================================================================
-INSERT OVERWRITE TABLE ads.ads_sup_platform_operation_di PARTITION (travel_date = '${bizdate}')
+INSERT OVERWRITE TABLE ads.ads_sup_platform_operation_di PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
 SELECT
-    member_id,
-    BITMAP_UNION(login_member_bitmap)                            AS login_member_bitmap,
-    SUM(module_open_qty)                                         AS module_open_qty,
-    SUM(order_sale_amt)                                          AS order_sale_amt,
-    SUM(pay_sale_amt)                                            AS pay_sale_amt,
-    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time
+    member_id,                                                                    -- 商户ID
+    BITMAP_UNION(login_member_bitmap)                            AS login_member_bitmap,  -- 登录商户数去重位图（日）
+    SUM(module_open_qty)                                         AS module_open_qty,  -- 模块开通数（日）
+    SUM(order_sale_amt)                                          AS order_sale_amt,  -- 预订金额（日）
+    SUM(pay_sale_amt)                                            AS pay_sale_amt,  -- 支付金额（日）
+    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time           -- ETL 加载时间
 FROM (
     -- dws_sup_member_di
     SELECT
-        member_id,
-        BITMAP_UNION(login_member_qty)                               AS login_member_bitmap,
-        SUM(module_open_qty)                                         AS module_open_qty,
-        CAST(0 AS DECIMAL(18,2))                                     AS order_sale_amt,
-        CAST(0 AS DECIMAL(18,2))                                     AS pay_sale_amt
+        member_id,                                                                -- 商户ID
+        BITMAP_UNION(login_member_qty)                               AS login_member_bitmap,  -- 登录商户数去重位图（日）
+        SUM(module_open_qty)                                         AS module_open_qty,  -- 模块开通数（日）
+        CAST(0 AS DECIMAL(18,2))                                     AS order_sale_amt,  -- 预订金额（日）
+        CAST(0 AS DECIMAL(18,2))                                     AS pay_sale_amt  -- 支付金额（日）
     FROM dws.dws_sup_member_di
-    WHERE travel_date = '${bizdate}'
-    GROUP BY member_id
+    WHERE travel_date = '${bizdate}'                                              -- 只取当日分区
+    GROUP BY member_id                                                            -- 按粒度键汇总
     UNION ALL
     -- dws_ord_scenic_ticket_trade_di
     SELECT
-        CAST(-1 AS BIGINT)                                           AS member_id,   -- 该上游无此维度
-        CAST(NULL AS BINARY)                                         AS login_member_bitmap,
-        CAST(0 AS BIGINT)                                            AS module_open_qty,
-        SUM(order_sale_amt)                                          AS order_sale_amt,
-        SUM(pay_sale_amt)                                            AS pay_sale_amt
+        CAST(-1 AS BIGINT)                                           AS member_id,  -- 商户ID｜该上游无此维度
+        CAST(NULL AS BINARY)                                         AS login_member_bitmap,  -- 登录商户数去重位图（日）
+        CAST(0 AS BIGINT)                                            AS module_open_qty,  -- 模块开通数（日）
+        SUM(order_sale_amt)                                          AS order_sale_amt,  -- 预订金额（日）
+        SUM(pay_sale_amt)                                            AS pay_sale_amt  -- 支付金额（日）
     FROM dws.dws_ord_scenic_ticket_trade_di
-    WHERE travel_date = '${bizdate}'
-) u
-GROUP BY member_id
+    WHERE travel_date = '${bizdate}'                                              -- 只取当日分区
+) u                                                                               -- 各来源合并后的明细
+GROUP BY member_id                                                                -- 按粒度键汇总

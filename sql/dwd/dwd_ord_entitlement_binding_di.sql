@@ -8,7 +8,7 @@ WITH
 person_entitlement_binding_rn AS (                                       -- 「人-权益绑定」当日增量，同一主键按 binlog 时间倒序编号
   SELECT binding_type, create_time, entitlement_no, id, person_id, tenant_id, ticket_no, update_time,
          binlog_op_type,
-         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn  -- 同一主键多次变更，按 binlog 时间倒序编号
+         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn  -- 去重序号（1 = 最新）
   FROM ods.ods_ord_person_entitlement_binding_di
   WHERE travel_date = '${bizdate}'                                       -- 只取当日分区
 ),
@@ -32,7 +32,7 @@ INSERT OVERWRITE TABLE dwd.dwd_ord_entitlement_binding_di PARTITION (travel_date
 SELECT
   person_entitlement_binding_latest.id             AS binding_id,        -- 人-权益绑定ID（源表主键 id）
   person_entitlement_binding_latest.ticket_no      AS ticket_no,         -- 归属票号
-  person_entitlement_binding_latest.person_id      AS person_code,       -- 人ID（空串=开放争抢
+  person_entitlement_binding_latest.person_id      AS person_code,       -- 人ID
   person_entitlement_binding_latest.entitlement_no AS entitlement_no,    -- 权益号
   person_entitlement_binding_latest.binding_type   AS binding_type,      -- 绑定类型
   person_entitlement_binding_latest.tenant_id      AS tenant_id,         -- 租户ID（分库维度）

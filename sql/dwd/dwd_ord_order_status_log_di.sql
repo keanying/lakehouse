@@ -20,7 +20,8 @@ SELECT
   order_chg.order_status                                       AS after_status,   -- 变更后状态
   order_chg.binlog_time                                        AS change_time,    -- 状态变更时间
   1                                                            AS status_change_qty,  -- 状态变更次数
-  (UNIX_TIMESTAMP(order_chg.binlog_time) - UNIX_TIMESTAMP(LAG(order_chg.binlog_time) OVER (PARTITION BY order_chg.id ORDER BY order_chg.binlog_time))) / 60 AS stay_minute_qty,  -- 前一状态停留时长（分钟）
+  (UNIX_TIMESTAMP(order_chg.binlog_time) - UNIX_TIMESTAMP(LAG(order_chg.binlog_time)  -- 前一状态停留时长（分钟）
+      OVER (PARTITION BY order_chg.id ORDER BY order_chg.binlog_time))) / 60 AS stay_minute_qty,  -- 前一状态停留时长（分钟）
   order_chg.tenant_id                                          AS tenant_id,      -- 租户ID（分库维度）
   CURRENT_TIMESTAMP()                                          AS etl_time        -- ETL 加载时间
 FROM order_chg;

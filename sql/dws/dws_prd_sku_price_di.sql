@@ -10,10 +10,10 @@ src_sku_price_calendar AS (                     -- 来源「SKU每日生效价�
     sku_id AS sku_id,                           -- SKU ID
     price_channel_code AS price_channel_code,   -- 价格渠道编码
     MAX(CASE WHEN price_date = '${bizdate_dash}' THEN list_price_amt END) AS list_price_amt,  -- 生效标价｜口径：价格日历中统计日当天生效的挂牌价
-    NULL AS price_change_qty,
-    NULL AS pay_amt,
-    NULL AS pay_ticket_qty,
-    NULL AS sku_change_qty
+    NULL AS price_change_qty,                   -- 调价次数：本来源无，补空对齐 UNION ALL
+    NULL AS pay_amt,                            -- 支付金额（GMV）：本来源无，补空对齐 UNION ALL
+    NULL AS pay_ticket_qty,                     -- 支付票数：本来源无，补空对齐 UNION ALL
+    NULL AS sku_change_qty                      -- SKU属性变更次数：本来源无，补空对齐 UNION ALL
   FROM dwd.dwd_prd_sku_price_calendar_df s      -- 来源表「SKU每日生效价日历」
   WHERE s.travel_date = '${bizdate}'            -- 只取当日分区
   GROUP BY sku_id, price_channel_code           -- 按粒度键汇总
@@ -22,11 +22,11 @@ src_price_point_log AS (                        -- 来源「价格点变更明�
   SELECT
     sku_id AS sku_id,                           -- SKU ID
     price_channel_code AS price_channel_code,   -- 价格渠道编码
-    NULL AS list_price_amt,
+    NULL AS list_price_amt,                     -- 生效标价：本来源无，补空对齐 UNION ALL
     COUNT(1) AS price_change_qty,               -- 调价次数
-    NULL AS pay_amt,
-    NULL AS pay_ticket_qty,
-    NULL AS sku_change_qty
+    NULL AS pay_amt,                            -- 支付金额（GMV）：本来源无，补空对齐 UNION ALL
+    NULL AS pay_ticket_qty,                     -- 支付票数：本来源无，补空对齐 UNION ALL
+    NULL AS sku_change_qty                      -- SKU属性变更次数：本来源无，补空对齐 UNION ALL
   FROM dwd.dwd_prd_price_point_log_di s         -- 来源表「价格点变更明细」
   WHERE s.travel_date = '${bizdate}'            -- 只取当日分区
   GROUP BY sku_id, price_channel_code           -- 按粒度键汇总
@@ -34,12 +34,12 @@ src_price_point_log AS (                        -- 来源「价格点变更明�
 src_order AS (                                  -- 来源「子单明细」按粒度键预聚合
   SELECT
     sku_id AS sku_id,                           -- SKU ID
-    CAST(NULL AS STRING) AS price_channel_code,
-    NULL AS list_price_amt,
-    NULL AS price_change_qty,
+    CAST(NULL AS STRING) AS price_channel_code,  -- 价格渠道编码：本来源无，补空对齐 UNION ALL
+    NULL AS list_price_amt,                     -- 生效标价：本来源无，补空对齐 UNION ALL
+    NULL AS price_change_qty,                   -- 调价次数：本来源无，补空对齐 UNION ALL
     SUM(CASE WHEN pay_time IS NOT NULL THEN unit_price_amt*buy_ticket_qty END) AS pay_amt,  -- 支付金额（GMV）
     SUM(CASE WHEN pay_time IS NOT NULL THEN buy_ticket_qty END) AS pay_ticket_qty,  -- 支付票数
-    NULL AS sku_change_qty
+    NULL AS sku_change_qty                      -- SKU属性变更次数：本来源无，补空对齐 UNION ALL
   FROM dwd.dwd_ord_order_di s                   -- 来源表「子单明细」
   WHERE s.travel_date = '${bizdate}'            -- 只取当日分区
   GROUP BY sku_id                               -- 按粒度键汇总
@@ -47,11 +47,11 @@ src_order AS (                                  -- 来源「子单明细」按�
 src_sku_version AS (                            -- 来源「SKU版本变更明细」按粒度键预聚合
   SELECT
     sku_id AS sku_id,                           -- SKU ID
-    CAST(NULL AS STRING) AS price_channel_code,
-    NULL AS list_price_amt,
-    NULL AS price_change_qty,
-    NULL AS pay_amt,
-    NULL AS pay_ticket_qty,
+    CAST(NULL AS STRING) AS price_channel_code,  -- 价格渠道编码：本来源无，补空对齐 UNION ALL
+    NULL AS list_price_amt,                     -- 生效标价：本来源无，补空对齐 UNION ALL
+    NULL AS price_change_qty,                   -- 调价次数：本来源无，补空对齐 UNION ALL
+    NULL AS pay_amt,                            -- 支付金额（GMV）：本来源无，补空对齐 UNION ALL
+    NULL AS pay_ticket_qty,                     -- 支付票数：本来源无，补空对齐 UNION ALL
     COUNT(snapshot_no) AS sku_change_qty        -- SKU属性变更次数
   FROM dwd.dwd_prd_sku_version_di s             -- 来源表「SKU版本变更明细」
   WHERE s.travel_date = '${bizdate}'            -- 只取当日分区

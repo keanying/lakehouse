@@ -12,8 +12,15 @@ WITH b AS (
     SELECT /*+ BROADCAST(a) */ a.subject_id AS merchant_tenant_id, s.account_no,
            COALESCE(s.opening_balance_amt, s.available_balance_amt) AS balance_open_amt,  -- 期初余额（日快照）
            COALESCE(s.closing_balance_amt, s.available_balance_amt) AS balance_close_amt  -- 期末余额（日快照）
-    FROM (SELECT account_no, available_balance_amt, opening_balance_amt, closing_balance_amt FROM dws.dws_fin_account_balance_df WHERE travel_date = '${bizdate}') s
-    JOIN (SELECT account_no, subject_id FROM dim.dim_fin_account_df WHERE travel_date = '${bizdate}' AND account_type IN ('MERCHANT', 'DISTRIBUTOR')) a ON a.account_no = s.account_no
+    FROM (
+        SELECT account_no,                                                        -- 账本
+        available_balance_amt,
+        opening_balance_amt,
+        closing_balance_amt FROM dws.dws_fin_account_balance_df WHERE travel_date = '${bizdate}'
+    ) s
+    JOIN (SELECT account_no, subject_id FROM dim.dim_fin_account_df
+        WHERE travel_date = '${bizdate}' AND account_type IN ('MERCHANT', 'DISTRIBUTOR')) a  -- 只取当日分区，并按条件过滤
+      ON a.account_no = s.account_no                                              -- 按 account_no 关联
 ),
 f AS (
     SELECT merchant_tenant_id, account_no,
@@ -28,10 +35,16 @@ f AS (
     GROUP BY merchant_tenant_id, account_no                                       -- 按粒度键汇总
 )
 INSERT OVERWRITE TABLE ads.ads_fin_balance_report_di PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
-SELECT COALESCE(b.merchant_tenant_id, f.merchant_tenant_id) AS merchant_tenant_id, COALESCE(b.account_no, f.account_no) AS account_no,
-       b.balance_open_amt, COALESCE(f.balance_in_amt, 0) AS balance_in_amt, COALESCE(f.balance_out_amt, 0) AS balance_out_amt, b.balance_close_amt,
+SELECT COALESCE(b.merchant_tenant_id, f.merchant_tenant_id) AS merchant_tenant_id,  -- 本方商户租户ID
+       COALESCE(b.account_no, f.account_no) AS account_no,                        -- 账本
+       b.balance_open_amt,                                                        -- 期初余额（日快照）
+       COALESCE(f.balance_in_amt, 0) AS balance_in_amt,                           -- 资金流入
+       COALESCE(f.balance_out_amt, 0) AS balance_out_amt,                         -- 资金流出
+       b.balance_close_amt,                                                       -- 期末余额（日快照）
        COALESCE(f.recharge_amt, 0) AS recharge_amt, COALESCE(f.withdraw_amt, 0) AS withdraw_amt,  -- 其中提现
-       COALESCE(f.expense_income_amt, 0) AS expense_income_amt, COALESCE(f.expense_out_amt, 0) AS expense_out_amt,  -- 费用支出（二期 · 费用收支报表）
+       COALESCE(f.expense_income_amt,                                             -- 费用支出（二期 · 费用收支报表）
+                0) AS expense_income_amt, COALESCE(f.expense_out_amt,
+                0) AS expense_out_amt,                                            -- 费用支出（二期 · 费用收支报表）
        COALESCE(f.unclassified_flow_qty, 0) AS unclassified_flow_qty,             -- 待归类流水笔数（应为 0）
        DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time        -- ETL 加载时间
 FROM b

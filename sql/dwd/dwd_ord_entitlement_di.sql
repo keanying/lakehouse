@@ -8,7 +8,7 @@ WITH
 entitlement_rn AS (                                                               -- 「权益」当日增量，同一主键按 binlog 时间倒序编号
   SELECT create_time, entitlement_detail, entitlement_name, entitlement_no, entitlement_type, id, status,
          tenant_id, ticket_no, update_time, used_count, valid_end, valid_start, binlog_op_type,
-         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn      -- 同一主键多次变更，按 binlog 时间倒序编号
+         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn      -- 去重序号（1 = 最新）
   FROM ods.ods_ord_entitlement_di
   WHERE travel_date = '${bizdate}'                                                -- 只取当日分区
 ),
@@ -33,7 +33,7 @@ SELECT
   entitlement_latest.entitlement_name                          AS entitlement_name,  -- 权益名称（如"成人入园""住宿1晚"）
   entitlement_latest.status                                    AS entitlement_status,  -- 权益状态
   entitlement_latest.used_count                                AS used_qty,       -- 已用次数（所有类型共有）
-  entitlement_latest.valid_start                               AS valid_start_time,  -- 权益有效期起始（可收窄于票有效期
+  entitlement_latest.valid_start                               AS valid_start_time,  -- 权益有效期起始
   entitlement_latest.valid_end                                 AS valid_end_time,  -- 权益有效期终止（毫秒精度）
   entitlement_latest.tenant_id                                 AS tenant_id,      -- 租户ID（分库维度）
   entitlement_latest.create_time                               AS create_time,    -- 创建时间
@@ -42,10 +42,10 @@ SELECT
   ticket_dtl.seller_tenant_id                                  AS seller_tenant_id,  -- 卖家租户ID
   ticket_dtl.sku_id                                            AS sku_id,         -- SKU ID
   GET_JSON_OBJECT(entitlement_latest.entitlement_detail, '$.projectId') AS project_id,  -- 权益对应项目ID
-  GET_JSON_OBJECT(entitlement_latest.entitlement_detail, '$.maxCount') AS max_qty,  -- 最大可用次数（COUNTED-计次型
+  GET_JSON_OBJECT(entitlement_latest.entitlement_detail, '$.maxCount') AS max_qty,  -- 最大可用次数
   JSON_ARRAY_LENGTH(GET_JSON_OBJECT(entitlement_latest.entitlement_detail, '$.candidateRefs')) AS candidate_qty,  -- 可选项目数
-  GET_JSON_OBJECT(entitlement_latest.entitlement_detail, '$.durationMinutes') AS duration_minute_qty,  -- 可用时长（分钟
-  ROUND(CAST(GET_JSON_OBJECT(entitlement_latest.entitlement_detail, '$.quotaAmount') AS DECIMAL(18,2)) / 100, 2) AS quota_amt,  -- 额度（元
+  GET_JSON_OBJECT(entitlement_latest.entitlement_detail, '$.durationMinutes') AS duration_minute_qty,  -- 可用时长
+  ROUND(CAST(GET_JSON_OBJECT(entitlement_latest.entitlement_detail, '$.quotaAmount') AS DECIMAL(18,2)) / 100, 2) AS quota_amt,  -- 额度
   (GET_JSON_OBJECT(entitlement_latest.entitlement_detail, '$.maxCount')) - (entitlement_latest.used_count) AS remain_qty,  -- 剩余可用次数 = 最大可用次数 - 已使用次数
   entitlement_latest.create_time                               AS issue_time,     -- 发放时间
   CURRENT_TIMESTAMP()                                          AS etl_time        -- ETL 加载时间

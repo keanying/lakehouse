@@ -17,7 +17,7 @@ SELECT
   a.frozen_event                                               AS release_event_type,  -- 冻结事件
   a.external_frozen                                            AS external_frozen_type,  -- 是否外部渠道冻结
   a.external_channel                                           AS external_channel_code,  -- 外部渠道(external_frozen=1时)
-  a.external_frozen_no                                         AS external_frozen_no,  -- 外部冻结单号(第三方返回的冻结流水号
+  a.external_frozen_no                                         AS external_frozen_no,  -- 外部冻结单号
   a.tenant_id                                                  AS tenant_id,      -- 租户ID（分库维度）
   a.create_time                                                AS create_time,    -- 创建时间
   a.update_time                                                AS update_time,    -- 更新时间
@@ -26,7 +26,11 @@ SELECT
   j2.sku_id                                                    AS sku_id,         -- SKU ID
   a.create_time                                                AS freeze_time,    -- 冻结时间
   CASE WHEN a.frozen_status = 'RELEASED' THEN a.binlog_time END AS release_time,  -- 解冻时间
-  TIMESTAMPDIFF(HOUR, a.create_time, CASE WHEN a.frozen_status = 'RELEASED' THEN a.binlog_time END) AS freeze_hour_qty,  -- 冻结时长（小时）
+  TIMESTAMPDIFF(                                                                  -- 冻结时长（小时）
+      HOUR,
+      a.create_time,                                                              -- 创建时间
+      CASE WHEN a.frozen_status = 'RELEASED' THEN a.binlog_time END
+  ) AS freeze_hour_qty,                                                           -- 冻结时长（小时）
   CURRENT_TIMESTAMP                                            AS event_time      -- 事件时间（binlog 时间）
 FROM ods.ods_fin_frozen_record_rt a                                               -- 主表「冻结记录 binlog 流」
 LEFT JOIN dim.dim_fin_account_df FOR SYSTEM_TIME AS OF a.proc_time AS j1          -- 关联「账户维度」，取 账户类型、账户主体ID

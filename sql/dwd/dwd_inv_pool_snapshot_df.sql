@@ -8,7 +8,7 @@ WITH
 inventory_pool_rn AS (                                                            -- 「库存池」当日增量，同一主键按 binlog 时间倒序编号
   SELECT available_quantity, create_time, dimension_key, frozen_quantity, id, pool_no, pool_status,
          pool_type, sku_id, tenant_id, total_quantity, update_time, binlog_op_type,
-         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn      -- 同一主键多次变更，按 binlog 时间倒序编号
+         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn      -- 去重序号（1 = 最新）
   FROM ods.ods_inv_inventory_pool_di
   WHERE travel_date = '${bizdate}'                                                -- 只取当日分区
 ),

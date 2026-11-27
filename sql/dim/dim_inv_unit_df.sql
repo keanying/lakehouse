@@ -7,7 +7,7 @@
 WITH
 inventory_unit_rn AS (                                                          -- 「UNIT池资源（座位/房间/舱位）」当日增量，同一主键按 binlog 时间倒序编号
   SELECT create_time, id, metadata, pool_no, tenant_id, unit_no, unit_status, update_time, binlog_op_type,
-         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn    -- 同一主键多次变更，按 binlog 时间倒序编号
+         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn    -- 去重序号（1 = 最新）
   FROM ods.ods_inv_inventory_unit_di
   WHERE travel_date = '${bizdate}'                                              -- 只取当日分区
 ),
@@ -19,7 +19,7 @@ inventory_unit_latest AS (                                                      
 ),
 inventory_pool_rn AS (                                                          -- 「库存池」当日增量，同一主键按 binlog 时间倒序编号
   SELECT id, pool_no, sku_id, binlog_op_type,
-         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn    -- 同一主键多次变更，按 binlog 时间倒序编号
+         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn    -- 去重序号（1 = 最新）
   FROM ods.ods_inv_inventory_pool_di
   WHERE travel_date = '${bizdate}'                                              -- 只取当日分区
 ),

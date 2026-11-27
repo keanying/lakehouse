@@ -910,6 +910,12 @@ def main():
     model_.pop('_int', None)
     old = legacy_etl(tables, C['tables'], nodes)
     etl, bad = etl_mod.generate(tables, sh_['字段清单']['rows'], C, ods_of_source, nodes, {k: v['sql'] for k, v in old.items()})
+    # 排版 + 逐行注释：超长行拆成一列一行，字段行补中文名（与 3.0 字典同一套排版工具；只改空白与注释，SQL 不变）
+    import sqlfmt
+    D_ = etl_gen.Dict(disp)
+    for t_, e_ in etl.items():
+        if e_.get('kind') != 'di' and e_.get('sql'):
+            e_['sql'] = etl_gen.annotate(sqlfmt.fmt(e_['sql']), t_, D_)
     write_sql(etl, tables)
     live = {t['name'] for t in tables}
     bad_ref = sorted({(k, m) for k, v in etl.items() for m in re.findall(r'\b(?:ods|dim|dwd|dws)\.(\w+)', v.get('sql') or '') if m not in live})

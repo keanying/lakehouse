@@ -8,7 +8,7 @@ WITH
 account_ban_rn AS (                                                               -- 「账号封禁」当日增量，同一主键按 binlog 时间倒序编号
   SELECT ban_no, ban_source, ban_status, ban_type, banned_actions, create_time, expires_at, id, reason,
          revoked_at, revoked_by, rule_id, subject_id, tenant_id, update_time, binlog_op_type,
-         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn      -- 同一主键多次变更，按 binlog 时间倒序编号
+         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn      -- 去重序号（1 = 最新）
   FROM ods.ods_opr_account_ban_di
   WHERE travel_date = '${bizdate}'                                                -- 只取当日分区
 ),
@@ -37,7 +37,8 @@ SELECT
   account_ban_latest.create_time                               AS create_time,    -- 创建时间
   account_ban_latest.update_time                               AS update_time,    -- 更新时间
   account_ban_latest.create_time                               AS ban_time,       -- 封禁时间
-  (UNIX_TIMESTAMP(COALESCE(account_ban_latest.revoked_at, account_ban_latest.expires_at)) - UNIX_TIMESTAMP(account_ban_latest.create_time)) / 3600 AS ban_hour_qty,  -- 封禁时长
+  (UNIX_TIMESTAMP(COALESCE(account_ban_latest.revoked_at, account_ban_latest.expires_at))  -- 封禁时长
+      - UNIX_TIMESTAMP(account_ban_latest.create_time)) / 3600 AS ban_hour_qty,   -- 封禁时长
   1                                                            AS ban_qty,        -- 封禁次数
   CURRENT_TIMESTAMP()                                          AS etl_time        -- ETL 加载时间
 FROM account_ban_latest;

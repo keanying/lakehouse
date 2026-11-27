@@ -11,14 +11,14 @@
 -- 业务规则 / 修正：
 --   · 过渡期从旧表 dim_pft_module_package_classify_d_f 平移：旧逻辑由多张中间表 / 外部采集加工，字段与 ODS 不能直接对应；字段口径按字典，上线顺序：先平移保证下游可切换，再按字段清单把「待确认」逐个改为从 ODS 计算后下线旧链路
 -- ================================================================================================
-INSERT OVERWRITE TABLE dim.dim_opr_module_package_df
+INSERT OVERWRITE TABLE dim.dim_opr_module_package_df                              -- 整表覆盖写入
 SELECT
-    CAST(NULL AS STRING)                                         AS module_id,   -- 待确认：来源未同步（旧字段 dim_prod_pft_module_package_detail_d_f.module_id）
-    package_id,
-    CAST(NULL AS STRING)                                         AS module_name,   -- 待确认：来源未同步
-    package_classify_name,
-    CAST(operate_id AS BIGINT)                                   AS operator_id,
-    operate_time,
-    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time
+    CAST(NULL AS STRING)                                         AS module_id,    -- 应用模块id｜待确认：来源未同步（旧字段 dim_prod_pft_module_package_detail_d_f.module_id）
+    package_id,                                                                   -- 套餐id
+    CAST(NULL AS STRING)                                         AS module_name,  -- 应用模块名称｜待确认：来源未同步
+    package_classify_name,                                                        -- 套餐组名称
+    CAST(operate_id AS BIGINT)                                   AS operator_id,  -- 操作人员
+    operate_time,                                                                 -- 操作时间
+    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time           -- ETL 加载时间
 FROM dim_pft_module_package_classify_d_f
-WHERE pt = '${bizdate}'   -- 过渡期：读旧表，按字段清单逐步改为从 ODS 计算
+WHERE pt = '${bizdate}'                                                           -- 过渡期：读旧表，按字段清单逐步改为从 ODS 计算
