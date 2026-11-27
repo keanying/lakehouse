@@ -128,7 +128,7 @@ class H(http.server.SimpleHTTPRequestHandler):
 def main():
     ap = argparse.ArgumentParser(description='业务库 DDL 补齐工具')
     ap.add_argument('--file', default=str(DEFAULT_FILE), help='DDL 文件路径（不存在会自动创建）')
-    ap.add_argument('--port', type=int, default=8765)
+    ap.add_argument('--port', type=int, default=8008)
     ap.add_argument('--no-browser', action='store_true')
     a = ap.parse_args()
     f = pathlib.Path(a.file).expanduser().resolve()
@@ -140,8 +140,8 @@ def main():
     else:
         print(f'使用已有 DDL 文件：{f}（已录入 {len(STATE["entries"])} 张）')
     socketserver.TCPServer.allow_reuse_address = True
-    with socketserver.ThreadingTCPServer(('127.0.0.1', a.port), H) as srv:
-        url = f'http://127.0.0.1:{a.port}/'
+    with socketserver.ThreadingTCPServer(('0.0.0.0', a.port), H) as srv:
+        url = f'http://192.168.20.180/:{a.port}/'
         print(f'已启动：{url}  （关闭窗口或 Ctrl+C 退出；录入内容实时写入上面的文件）')
         if not a.no_browser:
             threading.Timer(0.6, lambda: webbrowser.open(url)).start()
