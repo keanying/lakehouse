@@ -46,6 +46,7 @@ SELECT /*+ BROADCAST(ic, ph) */
     COALESCE(o.team_flag, 0)                                         AS team_flag,  -- 是否团队订单（订单退化维度）
     o.order_mode,                                                                 -- 下单渠道编码（订单退化维度）｜下单渠道（订单带出，画像按渠道拆分用）
     o.pay_mode,                                                                   -- 支付方式编码（订单退化维度）｜支付方式（订单带出）
+    o.ticket_price_amt,                                                           -- 游客所持票的销售单价｜票销售单价（订单带出；1 人 1 票，画像金额 = SUM(单价)）
     CONCAT(SUBSTR(tr.tourist, 1, 1), '**')                           AS traveler_name_mask,  -- 游客姓名（掩码）
     SUBSTRING_INDEX(tr.idcard, '#', -1)                                   AS id_card_hash,  -- 证件号哈希
     tr.voucher_type                                                  AS id_card_type,  -- 证件类型
@@ -77,6 +78,7 @@ LEFT JOIN (
     team_flag,                                                                    -- 是否团队订单（订单退化维度）
     order_mode,                                                                   -- 下单渠道编码（订单退化维度）
     pay_mode,                                                                     -- 支付方式编码（订单退化维度）
+    ticket_price_amt,                                                             -- 游客所持票的销售单价
     order_time,                                                                   -- 下单时间
     test_flag FROM dwd.dwd_ord_order_di
 ) o

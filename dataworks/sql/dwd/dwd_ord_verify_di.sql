@@ -25,7 +25,7 @@ WITH t AS (
            CASE WHEN action = 5 AND CAST(GET_JSON_OBJECT(ext_content, '$.need_write_num') AS INT) > 0
                      THEN CAST(GET_JSON_OBJECT(ext_content, '$.need_write_num') AS INT)
                 WHEN (action = 5 AND source NOT IN (53, 54, 32, 85)) OR (action = 33 AND source IN (32, 85)) THEN tnum
-                ELSE 0 END AS verify_qty,
+                ELSE 0 END AS verify_qty,                                         -- 核销数量
            GET_JSON_OBJECT(ext_content, '$.card_no') AS card_no                   -- 卡编号（脱敏）
     FROM ods.ods_ord_order_track_di
     WHERE travel_date = '${bizdate}' AND action IN (5, 33) AND tnum > 0           -- 只取当日分区，并按条件过滤
@@ -54,6 +54,7 @@ SELECT /*+ BROADCAST(tv) */
     CASE WHEN t.card_no IS NOT NULL THEN 'ANNUAL_CARD'
          WHEN t.action = 33 THEN 'OTA_CALLBACK'                                   -- 外部平台回传验证
          ELSE CAST(t.source AS STRING) END                           AS verify_type,  -- 验证方式
+    CAST(t.source AS INT)                                            AS terminal_type,  -- 验证终端类型（轨迹来源，旧终端过闸报表 terminal_type 同源）
     CAST(t.terminal AS STRING)                                       AS terminal_no,  -- 验证终端号
     CAST(t.branchterminal AS STRING)                                 AS branch_terminal_no,  -- 分终端号
     t.oper_member                                                    AS operator_id,  -- 操作员ID

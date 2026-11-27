@@ -4,9 +4,8 @@
 -- 分区：无分区
 -- 调度：每日，依赖上游 DWS 当日分区；完成后回流 / 服务层读取
 -- 上游：dim_sup_member_df、dim_sup_company_df、dws_ord_scenic_ticket_trade_di、dwd_mkt_order_tag_di、ods_opr_sms_sign_apply_df、ods_opr_sms_diy_apply_df、dim_sup_member_relation_zip、dim_prd_ticket_df、dim_prd_scenic_df、dim_prd_resource_df、dim_opr_module_package_df、dwd_opr_package_open_di、dwd_opr_module_open_di、dwd_sup_member_login_di、dwd_opr_sms_send_di、dwd_mkt_sms_task_di、ods_trf_con_sys_member_df、ods_trf_con_sys_df、ods_mkt_posters_df、ods_opr_excel_task_df、ods_mkt_material_center_df
--- 替代旧任务 3 个（上线对数一致后下线）：
+-- 替代旧任务 2 个（上线对数一致后下线）：
 --   · 业务工厂/内部信息/财务部/客户属性cus_company/ads_cus_company_d_f（EMR_SPARK_SQL，cron 00 00 06 * * ?）
---   · 业务工厂/内部信息/财务部/景旅纵横/ads_cus_landtravel_d_f（EMR_SPARK_SQL，cron 00 00 00 * * ?）
 --   · 业务工厂/内部信息/财务部/客户属性cus_company/dim_cus_company_d_f（EMR_SPARK_SQL，cron 00 00 06 * * ?）
 -- 业务规则 / 修正：
 --   · 替代旧 dim_cus_company_d_f（财务部客户属性）及其 4 张中间表（套餐 / 登录 / 合作伙伴 / 产品），全部改从标准表计算

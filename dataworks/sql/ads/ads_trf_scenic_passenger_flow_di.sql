@@ -23,6 +23,8 @@ SELECT
     SUM(exit_qty)                                                AS exit_qty,     -- 出园人次（日）
     MAX(in_park_qty)                                             AS in_park_qty,  -- 在园人数（日快照）
     SUM(verify_ticket_qty)                                       AS verify_ticket_qty,  -- 验证票数（日）
+    SUM(stay_minutes_qty)                                        AS stay_minutes_qty,  -- 游客停留分钟合计（日）
+    SUM(stay_person_qty)                                         AS stay_person_qty,  -- 停留游客数（日）
     DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time           -- ETL 加载时间
 FROM (
     -- dws_trf_scenic_inout_hrs
@@ -32,7 +34,9 @@ FROM (
         SUM(enter_qty)                                               AS enter_qty,  -- 入园人次（日）
         SUM(exit_qty)                                                AS exit_qty,  -- 出园人次（日）
         MAX_BY(in_park_qty, stat_hour)                               AS in_park_qty,  -- 在园人数（日快照）
-        SUM(verify_ticket_qty)                                       AS verify_ticket_qty  -- 验证票数（日）
+        SUM(verify_ticket_qty)                                       AS verify_ticket_qty,  -- 验证票数（日）
+        SUM(stay_minutes_qty)                                        AS stay_minutes_qty,  -- 游客停留分钟合计（日）
+        SUM(stay_person_qty)                                         AS stay_person_qty  -- 停留游客数（日）
     FROM dws.dws_trf_scenic_inout_hrs
     WHERE travel_date = '${bizdate}'                                              -- 只取当日分区
     GROUP BY scenic_id, gate_group_id                                             -- 按粒度键汇总

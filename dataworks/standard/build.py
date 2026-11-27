@@ -556,7 +556,8 @@ def ads_fix(model_, sh_):
     return model_
 
 
-NO_STORE = {'ads_sup_customer_company_df'}
+import project_ads  # noqa: E402
+NO_STORE = {'ads_sup_customer_company_df'} | {s_['name'] for s_ in project_ads.SPECS}   # 属性宽表 / 项目报表：列名按旧表原样保留
 
 
 def ads_storage(sh_):

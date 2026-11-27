@@ -704,6 +704,7 @@ SELECT /*+ BROADCAST(tv) */
     CASE WHEN t.card_no IS NOT NULL THEN 'ANNUAL_CARD'
          WHEN t.action = 33 THEN 'OTA_CALLBACK'                      -- 外部平台回传验证
          ELSE CAST(t.source AS STRING) END                           AS verify_type,
+    CAST(t.source AS INT)                                            AS terminal_type,   -- 验证终端类型（轨迹来源，旧终端过闸报表 terminal_type 同源）
     CAST(t.terminal AS STRING)                                       AS terminal_no,
     CAST(t.branchterminal AS STRING)                                 AS branch_terminal_no,
     t.oper_member                                                    AS operator_id,
@@ -750,6 +751,7 @@ SELECT /*+ BROADCAST(ic, ph) */
     COALESCE(o.team_flag, 0)                                         AS team_flag,
     o.order_mode,                                                    -- 下单渠道（订单带出，画像按渠道拆分用）
     o.pay_mode,                                                      -- 支付方式（订单带出）
+    o.ticket_price_amt,                                              -- 票销售单价（订单带出；1 人 1 票，画像金额 = SUM(单价)）
     CONCAT(SUBSTR(tr.tourist, 1, 1), '**')                           AS traveler_name_mask,
     {HASH.format(c='tr.idcard')}                                   AS id_card_hash,
     tr.voucher_type                                                  AS id_card_type,
@@ -769,7 +771,7 @@ SELECT /*+ BROADCAST(ic, ph) */
     {NOW}
 FROM tr
 LEFT JOIN fellow f ON f.orderid = tr.orderid
-LEFT JOIN (SELECT order_no, travel_date, ticket_id, order_role, team_flag, order_mode, pay_mode, order_time, test_flag FROM dwd.dwd_ord_order_di) o
+LEFT JOIN (SELECT order_no, travel_date, ticket_id, order_role, team_flag, order_mode, pay_mode, ticket_price_amt, order_time, test_flag FROM dwd.dwd_ord_order_di) o
        ON o.travel_date = tr.order_date AND o.order_no = tr.orderid
 LEFT JOIN (SELECT area_code, province_code, city_code FROM dim.dim_opr_idcard_area_f) ic ON ic.area_code = SUBSTR(tr.idcard, 1, 6)
 LEFT JOIN (SELECT phone_prefix, province_code, city_code FROM dim.dim_opr_phone_area_f WHERE phone_prefix_type = 'SEGMENT') ph ON ph.phone_prefix = {PREFIX.format(c='tr.mobile')}

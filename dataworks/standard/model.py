@@ -394,6 +394,7 @@ t('dwd_ord_verify_di', '核销明细', '1行=1次验证（含年卡核销）', '
     ('verify_time', 'STRING', '时间', '验证时间', 'dtime / verify_time / vertify_time'), ('verify_ticket_qty', 'BIGINT', '度量', '本次验证票数', 'tnum / verify_num / verify_ticket'),
     ('verify_sale_amt', 'DECIMAL(18,2)', '度量', '本次验证金额（元）', 'verify_sale_money'), ('verify_cost_amt', 'DECIMAL(18,2)', '度量', '本次验证成本（元）', 'verify_cost_money / cost_money'),
     ('verify_type', 'STRING', '状态类型', '验证方式：闸机 / 手持机 / 人工 / OTA 回传 / 年卡', 'track_action / source'),
+    ('terminal_type', 'INT', '状态类型', '验证终端类型（订单轨迹 source：云票务 / 手持机 / MINI 检票机 / 闸机 / PC 平台 / 小程序 …）', 'source / terminal_type'),
     ('terminal_no', 'STRING', '外键', '验证终端号', 'terminal'), ('branch_terminal_no', 'STRING', '外键', '分终端号', 'branchterminal / branch_terminal'),
     ('operator_id', 'BIGINT', '外键', '操作员ID', 'oper_member / opid'), ('annual_card_flag', 'INT', '状态类型', '是否年卡核销：0-否 1-是', 'card_no'),
     ('traveler_qty', 'BIGINT', '度量', '本次验证游客人数', 'visitors'),
@@ -410,6 +411,7 @@ t('dwd_ord_traveler_di', '订单游客明细', '1行=1张订单×1位游客', 'o
     ('team_flag', 'INT', '状态类型', '是否团队订单（订单退化维度）', 'is_team'),
     ('order_mode', 'INT', '外键', '下单渠道编码（订单退化维度），关联 dim_trf_channel_f', 'ordermode'),
     ('pay_mode', 'INT', '外键', '支付方式编码（订单退化维度），关联 dim_fin_pay_channel_f', 'paymode'),
+    ('ticket_price_amt', 'DECIMAL(18,2)', '度量', '游客所持票的销售单价（元，订单带出；实名制 1 人 1 票，画像按人汇总金额用）', 'tprice'),
     ('traveler_name_mask', 'STRING', '维度属性', '游客姓名（掩码）', 'tourist / name'), ('id_card_hash', 'STRING', '维度属性', '证件号哈希', 'idcard / id_card / personid'),
     ('id_card_type', 'STRING', '状态类型', '证件类型', 'voucher_type'), ('phone_hash', 'STRING', '维度属性', '手机号哈希', 'mobile / tel'),
     ('gender', 'STRING', '维度属性', '性别：M / F / U（证件解析）', 'sex / gender'), ('age', 'INT', '维度属性', '年龄（证件解析，按下单日）', 'age'),
@@ -554,7 +556,10 @@ t('ads_prd_resource_center_di', '资源中心经营', '1行=1天×资源×供应
   [r'^ads_res(ource)?_(center|purchase)', 'ads_resource_center_cutchain_order_d_f2'])
 t('ads_trf_digital_brain_di', '数字大脑指标', '1行=1天×景区×指标域×指标', 'ads_ord_scenic_trade_overview_di、ads_trf_scenic_passenger_flow_di',
   '数字大脑接口用的纵表（指标名 / 指标值）；由各标准 ADS 组装，不再自行计算；演示景区数据不写入生产',
-  [('scenic_id', 'BIGINT', '粒度键', '景区ID'), ('data_domain', 'STRING', '粒度键', '指标域：交易 / 客流 / OTA / 雷达'), ('target_name', 'STRING', '粒度键', '指标名称'),
+  [('key_id', 'STRING', '维度属性', '指标行键：MD5(统计日 | 指标域 | 景区 | 指标名)，接口幂等更新用（旧表同规则）'),
+   ('scenic_id', 'BIGINT', '粒度键', '景区ID'), ('data_domain', 'STRING', '粒度键', '指标域编码：trade-交易 / flow-客流'),
+   ('indicator_domain', 'STRING', '维度属性', '指标域中文名（大屏分组标题）'), ('target_name', 'STRING', '粒度键', '指标名称'),
+   ('target_desc', 'STRING', '维度属性', '指标说明（含单位，大屏 tooltip）'),
    ('data_value', 'DECIMAL(20,4)', '指标', '指标值')], ['ads_digital_brain_target_merge_di'])
 t('ads_mkt_sms_audience_di', '营销短信人群', '1行=1天×景区×取票人（哈希）', 'dwd_ord_order_di、dwd_ord_traveler_di', '营销短信目标人群（新客 / 复购），手机号只存哈希，发送时再关联',
   [('scenic_id', 'BIGINT', '粒度键', '景区ID'), ('taker_phone_hash', 'STRING', '粒度键', '取票人手机号哈希'), ('new_user_flag', 'INT', '维度属性', '是否新客：0-否 1-是')] + mets('order_order_qty'),
@@ -582,3 +587,5 @@ proc_metrics.register(_sys.modules[__name__])
 # 客户公司属性宽表（旧 dim_cus_company_d_f）按标准表重写，替换 ADS 定义
 import company_ads  # noqa: E402
 company_ads.register(_sys.modules[__name__])
+import project_ads  # noqa: E402
+project_ads.register(_sys.modules[__name__])

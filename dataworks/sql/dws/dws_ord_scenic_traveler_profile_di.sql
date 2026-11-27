@@ -28,6 +28,9 @@ SELECT
     SUM(order_order_qty)                                         AS order_order_qty,  -- 预订订单数
     SUM(order_ticket_qty)                                        AS order_ticket_qty,  -- 预订票数
     SUM(verify_ticket_qty)                                       AS verify_ticket_qty,  -- 验证票数
+    SUM(pay_sale_amt)                                            AS pay_sale_amt,  -- 支付金额
+    SUM(pay_ticket_qty)                                          AS pay_ticket_qty,  -- 支付票数
+    SUM(verify_sale_amt)                                         AS verify_sale_amt,  -- 验证金额
     DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time           -- ETL 加载时间
 FROM (
     -- trv_book：预订游客：当日下单
@@ -53,7 +56,10 @@ FROM (
         COUNT(1)                                                     AS traveler_qty,  -- 游客人数
         COUNT(DISTINCT order_no)                                     AS order_order_qty,  -- 预订订单数
         COUNT(1)                                                     AS order_ticket_qty,  -- 预订票数
-        CAST(0 AS BIGINT)                                            AS verify_ticket_qty  -- 验证票数：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS verify_ticket_qty,  -- 验证票数：此来源不产出，补0
+        SUM(COALESCE(ticket_price_amt, 0))                           AS pay_sale_amt,  -- 支付金额
+        COUNT(1)                                                     AS pay_ticket_qty,  -- 支付票数
+        CAST(0 AS DECIMAL(18,2))                                     AS verify_sale_amt  -- 验证金额：此来源不产出，补0
     FROM dwd.dwd_ord_traveler_di
     WHERE travel_date = '${bizdate}'                                              -- 只取当日分区
       AND test_flag = 0
@@ -97,7 +103,10 @@ FROM (
         CAST(0 AS BIGINT)                                            AS traveler_qty,  -- 游客人数：此来源不产出，补0
         CAST(0 AS BIGINT)                                            AS order_order_qty,  -- 预订订单数：此来源不产出，补0
         CAST(0 AS BIGINT)                                            AS order_ticket_qty,  -- 预订票数：此来源不产出，补0
-        COUNT(1)                                                     AS verify_ticket_qty  -- 验证票数
+        COUNT(1)                                                     AS verify_ticket_qty,  -- 验证票数
+        CAST(0 AS DECIMAL(18,2))                                     AS pay_sale_amt,  -- 支付金额：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS pay_ticket_qty,  -- 支付票数：此来源不产出，补0
+        SUM(COALESCE(ticket_price_amt, 0))                           AS verify_sale_amt  -- 验证金额
     FROM dwd.dwd_ord_traveler_di
     WHERE travel_date = '${bizdate}'                                              -- 只取当日分区
       AND test_flag = 0

@@ -721,3 +721,49 @@ proc('dim_trf_account_tag_f', '分销账号标签', '1行=1个平台账号×1个
      ], part='',
      frm={'account_tags': "(\n        SELECT * FROM VALUES\n" + _TV + "\n        AS v(member_id, tag_group, tag_code, tag_name)\n    ) t"},
      notes=[f'共 {len(_TAG)} 个账号；名称按旧字段缩写整理（dylk、ksbdsh、mtqq 等缩写含义待业务核对）'])
+
+
+# ---------------------------------------------------------------- 商户视角经营明细（报表库业务明细：含优惠、手续费、取票 / 重打印）
+_ACTS = [('pay', '预订', 'pay'), ('verify', '核销', 'verify'), ('cancel', '取消', 'cancel'), ('revoke', '撤销', 'revoke')]
+_MPS_COLS = [
+    ('business_no', B, '主键', '业务单号（一次操作一条）', 'business_no'),
+    ('member_id', B, '外键', '本方商户ID（「我」视角）', 'merchant_id'),
+    ('supplier_id', B, '外键', '上级商户（买入来源）ID', 'parent_merchant_id'),
+    ('distributor_id', B, '外键', '下级商户（卖出对象）ID', 'distributor_id'),
+    ('order_no', S, '外键', '订单号', 'order_no'), ('parent_order_no', S, '外键', '主订单号', 'parent_order_no'),
+    ('trade_no', S, '外键', '交易单号', 'trade_no'),
+    ('operate_type', I, '状态类型', '操作类型：1-支付 / 加票 2-核销 / 完结 …', 'CAST(operate_type AS INT)'),
+    ('product_type', S, '状态类型', '产品类型', 'product_type'),
+    ('product_id', B, '外键', '产品（SPU）ID', 'spu_id'), ('ticket_id', B, '外键', '票（SKU）ID', 'sku_id'), ('poi_id', B, '外键', 'POI ID', 'poi_id'),
+    ('order_mode', I, '外键', '销售渠道', 'CAST(sale_channel AS INT)'), ('operate_channel', I, '外键', '操作渠道', 'CAST(operate_channel AS INT)'),
+    ('pay_mode', I, '外键', '销售支付方式', 'CAST(sale_pay_mode AS INT)'), ('cost_pay_mode', I, '外键', '采购支付方式', 'CAST(cost_pay_mode AS INT)'),
+    ('pack_type', I, '状态类型', '套票规则：0-默认 1-主票 2-子票', 'CAST(pack_type AS INT)'),
+    ('sell_operator_id', B, '外键', '售票员ID', 'sell_operator_id'), ('operator_id', B, '外键', '操作人ID', 'operator_id'),
+    ('sell_site_id', B, '外键', '售票站点', 'sell_site_id'), ('operate_site_id', B, '外键', '操作站点', 'operate_site_id'),
+    ('cost_unit_price', DEC, '度量', '采购单价（元）', yuan('cost_unit_price')), ('sale_unit_price', DEC, '度量', '销售单价（元）', yuan('sale_unit_price')),
+]
+for a, cn, src in _ACTS:
+    _MPS_COLS += [(f'{a}_qty', B, '度量', f'{cn}数量', f'{src}_count'),
+                  (f'{a}_cost_amt', DEC, '度量', f'{cn}采购金额（元，本方支出）', yuan(f'{src}_cost_price')),
+                  (f'{a}_cost_discount_amt', DEC, '度量', f'{cn}采购优惠（元）', yuan(f'{src}_cost_discount_price')),
+                  (f'{a}_sale_amt', DEC, '度量', f'{cn}销售金额（元，本方收入）', yuan(f'{src}_sale_price')),
+                  (f'{a}_sale_discount_amt', DEC, '度量', f'{cn}销售优惠（元）', yuan(f'{src}_sale_discount_price'))]
+    if a in ('cancel', 'revoke'):
+        _MPS_COLS += [(f'{a}_cost_fee_amt', DEC, '度量', f'{cn}采购手续费（元）', yuan(f'{src}_cost_fee')),
+                      (f'{a}_sale_fee_amt', DEC, '度量', f'{cn}销售手续费（元）', yuan(f'{src}_sale_fee'))]
+_MPS_COLS += [('after_sale_qty', B, '度量', '售后数量', 'after_sale_count'),
+              ('after_sale_cost_amt', DEC, '度量', '售后采购金额（元）', yuan('after_cost_price')),
+              ('after_sale_sale_amt', DEC, '度量', '售后销售金额（元）', yuan('after_sale_price')),
+              ('collect_qty', B, '度量', '取票数量', 'collect_count'), ('reprint_qty', B, '度量', '重打印数量', 'reprint_count'),
+              ('operate_time', S, '时间', '操作时间', 'operated_at')]
+proc('dwd_ord_mps_detail_di', '商户视角经营明细', '1行=1次订单操作（业务单号）×本方商户', 'ods_ord_report_dwm_common_di',
+     '报表库业务明细：每次支付 / 核销 / 取消 / 撤销 / 售后操作，按「我」（本方商户）视角记数量、采购（支出）与销售（收入）金额、优惠、手续费、取票 / 重打印；'
+     '商户经营报表（mps）的收入 / 支出 / 优惠 / 手续费口径来源',
+     ['ods_ord_report_dwm_common_di'], _MPS_COLS,
+     frm={'ods_ord_report_dwm_common_di': q("""
+SELECT *
+FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY business_no, merchant_id ORDER BY created_at DESC) AS rn
+      FROM ods.ods_ord_report_dwm_common_di WHERE travel_date = '${bizdate}') d
+WHERE d.rn = 1                                                                    -- 同一业务单号 × 商户重复同步取最新""")},
+     notes=['报表库 dwm_common 是逐笔操作明细（不是汇总），优惠金额、买卖双方手续费、重打印只有这里有；作为业务过程来源，不再只用于对数',
+            '金额单位分 → 元；同一业务单号当日多次同步取最新（按 created_at）'])

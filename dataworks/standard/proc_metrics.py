@@ -64,12 +64,57 @@ R['verify_person_qty'] = {'vfy': 'SUM(COALESCE(traveler_qty, verify_ticket_qty))
 METRICS.append(('L482', 'park_in_lot_qty', '场内车辆净增', 'opr', '原子指标', '统计时段内入场车次 − 出场车次（在场车辆变化）', '场内车辆净增 = 入场车次 − 出场车次', '辆', B,
                 'dwd_opr_parking_record_di', 'being'))
 R['park_in_lot_qty'] = {'park': "SUM(CASE inout_type WHEN 'IN' THEN 1 WHEN 'OUT' THEN -1 ELSE 0 END)"}
+# 游客画像（旧 ads_daily_scenic_*_draw）：按游客行汇总票数 / 金额；实名制 1 人 1 票，金额 = SUM(游客所持票单价)
+for _m, _s, _e in (('pay_ticket_qty', 'trv_book', 'COUNT(1)'), ('pay_sale_amt', 'trv_book', 'SUM(COALESCE(ticket_price_amt, 0))'),
+                   ('verify_sale_amt', 'trv_verify', 'SUM(COALESCE(ticket_price_amt, 0))')):
+    R.setdefault(_m, {})[_s] = _e
 for _m, _e in (('order_order_qty', 'COUNT(DISTINCT order_no)'), ('order_ticket_qty', 'SUM(ticket_qty)'), ('order_sale_amt', 'SUM(sale_amt)')):
     R.setdefault(_m, {})['mkt_tag'] = _e
 
+# ---------------------------------------------------------------- 商户视角：优惠、买方（采购）手续费、售后支出、重打印（报表库业务明细 dwd_ord_mps_detail_di）
+# 收入 = 本方作为卖方（sale_*）；支出 = 本方作为买方向上级采购（cost_*）。旧 dws_mps_*_report_summary_di 的 income / expense 同此口径
+MPS_ACT = [('pay', '预订'), ('verify', '核销'), ('cancel', '取消'), ('revoke', '撤销')]
+MPS = []
+for a, an in MPS_ACT:
+    MPS += [(f'{a}_sale_discount_amt', f'{an}销售优惠金额', f'{a}_sale_discount_amt', f'{an}时本方给下级的优惠（收入侧）', f'{"sales" if a == "pay" else a}_income_discount_amt'),
+            (f'{a}_cost_discount_amt', f'{an}采购优惠金额', f'{a}_cost_discount_amt', f'{an}时上级给本方的优惠（支出侧）', f'{"sales" if a == "pay" else a}_expense_discount_amt')]
+MPS += [('cancel_cost_fee_amt', '取消采购手续费', 'cancel_cost_fee_amt', '取消时本方向上级支付的手续费（支出侧）', 'cancel_expense_fee_amt'),
+        ('revoke_cost_fee_amt', '撤销采购手续费', 'revoke_cost_fee_amt', '撤销时本方向上级支付的手续费（支出侧）', 'revoke_expense_fee_amt'),
+        ('after_sale_cost_amt', '售后支出金额', 'after_sale_cost_amt', '售后退给本方的采购金额（支出侧冲回）', 'after_sale_expense_amt')]
+for k, (n, cn, e, kou, old_) in enumerate(MPS, 1):
+    METRICS.append((f'L49{k:02d}', n, cn, 'ord', '原子指标', f'统计日{kou}；商户视角（本方商户 = 供应商维度）', f'{cn} = SUM({e})', '元', DEC, 'dwd_ord_mps_detail_di', old_))
+    R[n] = {'mps': f'SUM({e})'}
+METRICS.append(('L4990', 'reprint_ticket_qty', '重打印票数', 'ord', '原子指标', '统计日重打印的票数（取票后再次打印）', '重打印票数 = SUM(reprint_qty)', '张', B,
+                'dwd_ord_mps_detail_di', 'reprint_ticket_qty'))
+R['reprint_ticket_qty'] = {'mps': 'SUM(reprint_qty)'}
+MPS_M = [m[0] for m in MPS] + ['reprint_ticket_qty']
+
+# ---------------------------------------------------------------- 游客停留时长（旧 ads_trf_scenic_passenger_flow_di.avg_stay_minutes）
+# 停留 = 同一游客当日首条到末条轨迹的时间差；按首次入园的小时、票记一次（可加总），平均停留 = 停留分钟合计 / 停留游客数（查询时计算）
+METRICS.append(('L4991', 'stay_minutes_qty', '游客停留分钟合计', 'trf', '原子指标', '统计日每位游客首末轨迹时间差（分钟）之和，记在首次入园的小时',
+                '停留分钟合计 = SUM((末次轨迹时间 − 首次轨迹时间) / 60)', '分钟', DEC, 'dwd_ord_traveler_di', 'avg_stay_minutes（分子）'))
+METRICS.append(('L4992', 'stay_person_qty', '停留游客数', 'trf', '原子指标', '统计日有轨迹的游客数（停留时长的分母）', '停留游客数 = COUNT(游客)', '人', B,
+                'dwd_ord_traveler_di', 'avg_stay_minutes（分母）'))
+R['stay_minutes_qty'] = {'stay': 'SUM(stay_minutes)'}
+R['stay_person_qty'] = {'stay': 'COUNT(1)'}
+STAY_FRM = """(
+        -- 游客轨迹：每位游客当日首末条轨迹（同旧口径：不区分动作，取时间差）
+        SELECT tr.scenic_id, s.ticket_id, HOUR(s.first_time) AS stat_hour,
+               CAST((UNIX_TIMESTAMP(s.last_time) - UNIX_TIMESTAMP(s.first_time)) / 60 AS DECIMAL(18,2)) AS stay_minutes
+        FROM (SELECT ordernum, CAST(idx AS INT) AS traveler_seq, MIN(tid) AS ticket_id,
+                     FROM_UNIXTIME(MIN(insert_time)) AS first_time, FROM_UNIXTIME(MAX(insert_time)) AS last_time
+              FROM ods.ods_ord_order_traveler_track_di
+              WHERE travel_date = '${bizdate}' AND FROM_UNIXTIME(insert_time, 'yyyyMMdd') = '${bizdate}'
+              GROUP BY ordernum, CAST(idx AS INT)) s
+        JOIN (SELECT order_no, traveler_seq, scenic_id FROM dwd.dwd_ord_traveler_di      -- 景区取游客所在订单（近 90 天下单）
+              WHERE travel_date BETWEEN DATE_FORMAT(DATE_SUB(TO_DATE('${bizdate}', 'yyyyMMdd'), 90), 'yyyyMMdd') AND '${bizdate}') tr
+          ON tr.order_no = s.ordernum AND tr.traveler_seq = s.traveler_seq
+    ) t"""
+
 DIMS = {'trade_account_id': ('BIGINT', '交易账户ID'), 'account_book_id': ('BIGINT', '账本ID'), 'template_item_code': ('STRING', '账本专项费用项编码'),
         'marketing_type': ('STRING', '营销方式：SECKILL-抢购 CUT_PRICE-砍价 GROUP_BOOKING-拼团 COUPON-优惠券 ALL_DIS-全民营销 DISTRIBUTOR-分销专员 RESOURCE_CENTER-资源中心 PARK_CARD-园区一卡通 ANNUAL_CARD-年卡 EXTERNAL_CODE-外部发码'),
-        'aio_channel': ('INT', '一卡通操作渠道：0-未知 1-云票务 2-微商城 3-闸机 4-手持机 5-小程序 6-平台')}
+        'aio_channel': ('INT', '一卡通操作渠道：0-未知 1-云票务 2-微商城 3-闸机 4-手持机 5-小程序 6-平台'),
+        'terminal_type': ('INT', '验证终端类型（订单轨迹 source：云票务 / 手持机 / MINI 检票机 / 闸机 / PC 平台 / 小程序 …）；闸机流水分支不区分，取 -1')}
 
 # 表 -> (新增维度, 新增指标)
 ADD = {
@@ -78,10 +123,11 @@ ADD = {
     'ads_fin_account_balance_di': (['trade_account_id', 'account_book_id', 'template_item_code'], [a[0] for a in ACC]),
     'dws_opr_retail_di': ([], [r[0] for r in RET]), 'ads_opr_retail_di': ([], [r[0] for r in RET]),
     'dws_ord_allinone_card_di': (['aio_channel', 'scenic_id', 'ticket_id', 'pay_mode'], []),
-    'dws_trf_scenic_inout_hrs': (['ticket_id'], ['verify_order_qty', 'verify_ticket_qty', 'verify_person_qty']),
+    'dws_trf_scenic_inout_hrs': (['ticket_id', 'terminal_type'], ['verify_order_qty', 'verify_ticket_qty', 'verify_person_qty', 'stay_minutes_qty', 'stay_person_qty']),
     'dws_opr_parking_hrs': ([], ['park_in_lot_qty']),
-    'dws_ord_scenic_ticket_trade_di': ([], ['pay_cost_amt', 'cancel_fee_amt', 'revoke_fee_amt']),
-    'ads_ord_scenic_trade_overview_di': ([], ['pay_cost_amt', 'cancel_fee_amt', 'revoke_fee_amt']),
+    'ads_trf_scenic_passenger_flow_di': ([], ['stay_minutes_qty', 'stay_person_qty']),
+    'dws_ord_scenic_ticket_trade_di': ([], ['pay_cost_amt', 'cancel_fee_amt', 'revoke_fee_amt'] + MPS_M),
+    'ads_ord_scenic_trade_overview_di': ([], ['pay_cost_amt', 'cancel_fee_amt', 'revoke_fee_amt'] + MPS_M),
 }
 NOTE = {'dws_opr_hotel_di': '；预订 / 入住 × 单数、房间、人数、消费、实付（旧系统「取消」类恒为 0，标准按订单当前状态=取消计）',
         'dws_fin_account_trans_di': '；冻结 / 可用收支与交易账户、账本、费用项维度（替代旧 账户 / 交易账户 / 费用项 3 张汇总）'}
@@ -110,7 +156,8 @@ def register(model):
         by['dws_opr_hotel_di']['grain'] = '1行=1天×酒店（在住间夜 + 当日预订 / 入住事件）'
 
 
-def etl(SRC, R_, DWS_SRC):
+def etl(SRC, R_, DWS_SRC, SRC_FRM=None):
+    SRC_FRM = {} if SRC_FRM is None else SRC_FRM
     SRC['hotel_evt'] = ('dwd.dwd_opr_hotel_order_df', [P], {}, '酒店订单：按预订日 / 到店日取当日事件（全量快照）')
     SRC['aio'] = (SRC['aio'][0], SRC['aio'][1], {**SRC['aio'][2], 'aio_channel': 'channel', 'pay_mode': 'order_pay_mode'}, SRC['aio'][3])
     for k, v in R.items():
@@ -118,4 +165,12 @@ def etl(SRC, R_, DWS_SRC):
     DWS_SRC['dws_opr_hotel_di'] = ['hotel', 'hotel_evt']
     SRC['mkt_tag'] = ('dwd.dwd_mkt_order_tag_di', [P], {}, '订单营销标签：当日下单订单 × 营销方式')
     DWS_SRC['dws_mkt_order_tag_di'] = ['mkt_tag']
-    DWS_SRC['dws_trf_scenic_inout_hrs'] = ['inout', 'vfy']      # 分终端核销（旧 branch_terminal_summary）与出入园同表
+    # 商户视角明细：本方商户记为供应商（与旧 mps 报表的 sup_id 一致），只提供优惠 / 采购手续费 / 售后支出 / 重打印，其余指标仍由订单 / 轨迹 / 核销分支产出
+    SRC['mps'] = ('dwd.dwd_ord_mps_detail_di', [P], {'supplier_id': 'member_id', 'scenic_id': 'product_id', 'member_id': 'member_id',
+                                                     'order_role': "CASE pack_type WHEN 2 THEN 'SUB' ELSE 'MAIN' END", 'stat_hour': 'HOUR(operate_time)'},
+                  '商户视角经营明细（报表库业务明细）：本方商户 = 供应商维度')
+    DWS_SRC['dws_ord_scenic_ticket_trade_di'] = DWS_SRC['dws_ord_scenic_ticket_trade_di'] + ['mps']
+    DWS_SRC['dws_trf_scenic_inout_hrs'] = ['inout', 'vfy', 'stay']
+    SRC['stay'] = ('ods.ods_ord_order_traveler_track_di', [P], {'scenic_id': 'scenic_id', 'ticket_id': 'ticket_id', 'stat_hour': 'stat_hour'},
+                   '游客停留：当日首末轨迹配对（游客轨迹 + 游客明细取景区）')
+    SRC_FRM['stay'] = STAY_FRM      # 分终端核销（旧 branch_terminal_summary）与出入园同表

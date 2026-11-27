@@ -90,6 +90,11 @@ def analyse(nodes, C, mapping_rows, ads_specs, metrics, resolve=None, dims=(), b
             grain -= {'province_code', 'city_code', 'district_code'}
         for i, c in enumerate(rc):
             out = wc[i] if i < len(wc) else c
+            vt = getattr(resolve, 'cols', {}).get(std, set()) if std in field_map.VERBATIM else set()
+            hit = next((x for x in (out, c) if x in vt), None)
+            if hit:                                   # 项目报表：同名列直接对应（不走通用指标解码）
+                cover.append([target, out, ht, c, '', '属性 / 明细字段', std, '属性 / 明细字段', f'→ {std}.{hit}（项目报表，列名沿用旧表）', '', ''])
+                continue
             d = LM.decode(c, ht + ' ' + target)
             x = field_map.decode(out, ht + ' ' + target) or field_map.decode(c, ht + ' ' + target)
             if x and (not d or d['metric'] not in metrics or x[0] in metrics):
@@ -97,7 +102,7 @@ def analyse(nodes, C, mapping_rows, ads_specs, metrics, resolve=None, dims=(), b
                      'note': '、'.join(f'{k}={v}' for k, v in x[1].items() if k not in dims)}
             if not d:
                 dm = LM.dim_of(c)
-                rv = (resolve(c, std) or resolve(out, std)) if resolve and not dm else None
+                rv = (resolve(c, std, ht + ' ' + target) or resolve(out, std, ht + ' ' + target)) if resolve and not dm else None
                 if rv:
                     cover.append([target, out, ht, c, '', rv[0], std, rv[0], rv[1], '', ''])
                     continue
