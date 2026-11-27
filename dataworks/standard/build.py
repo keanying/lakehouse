@@ -556,6 +556,9 @@ def ads_fix(model_, sh_):
     return model_
 
 
+NO_STORE = {'ads_sup_customer_company_df'}
+
+
 def ads_storage(sh_):
     """ADS 字段按 PFT3.0 的日粒度存储设计重排：粒度键 + 日存储字段（比率存分子分母、去重存位图、快照存期末值）"""
     sys.path.insert(0, str(ROOT.parent / 'dw-dict'))
@@ -573,7 +576,7 @@ def ads_storage(sh_):
     for full, rs in ads.items():
         t = full.split('.', 1)[1]
         st = [x for x in model_['store'] if x['t'] == t]
-        if not st:
+        if not st or t in NO_STORE:          # 属性宽表（客户属性等）不是指标表，按定义原样保留
             out += rs
             continue
         head = [r for r in rs if r[6] in ('粒度键', '维度属性')]

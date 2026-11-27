@@ -1,292 +1,63 @@
 -- ================================================================================================
 -- dim.dim_sup_company_df  CRM 客户公司维度
--- 粒度：1行=1个 CRM 客户公司
+-- 粒度：1行=1个 CRM 客户公司（纷享销客客户，未删除）
 -- 分区：无分区
 -- 调度：每日，ODS 全部完成后；维表之间按上游顺序
 -- 上游：ods_sup_crm_account_df、ods_opr_crm_home_area_df
--- 替代旧任务 3 个（上线对数一致后下线）：
---   · 业务工厂/内部信息/财务部/客户属性cus_company/dim_cus_company_d_f（EMR_SPARK_SQL，cron 00 00 06 * * ?）
+-- 替代旧任务 2 个（上线对数一致后下线）：
 --   · 业务工厂/内部信息/财务部/客户属性cus_company/crm_to_hive_dim_crm_home_area_d_f（DI，cron 00 00 06 * * ?）
 --   · 业务工厂/内部信息/财务部/客户属性cus_company/dws_cus_pft_crm_account_d_f（EMR_SPARK_SQL，cron 00 00 00 * * ?）
 -- 业务规则 / 修正：
---   · 过渡期从旧表 dim_cus_company_d_f 平移：旧逻辑由多张中间表 / 外部采集加工，字段与 ODS 不能直接对应；字段口径按字典，上线顺序：先平移保证下游可切换，再按字段清单把「待确认」逐个改为从 ODS 计算后下线旧链路
+--   · 原表把平台账号级的客户属性宽表（套餐 / 登录 / 合作伙伴 / 产品 / 应用开通）挂在本维度，按粒度拆开：本表只放 CRM 客户公司属性，宽表移到 ads_sup_customer_company_df
+--   · CRM 表 174 列中自定义备用列（option1~ 等）与联系人电话 / 地址（个人信息）不进维度
 -- ================================================================================================
-INSERT OVERWRITE TABLE dim.dim_sup_company_df  -- 整表覆盖写入
+INSERT OVERWRITE TABLE dim.dim_sup_company_df                                     -- 整表覆盖写入
 SELECT
-    CAST(NULL AS BIGINT)                                         AS company_id,  -- 公司ID｜待确认：来源未同步
-    CAST(NULL AS STRING)                                         AS company_name,  -- 公司名称｜待确认：来源未同步
-    user_id,                         -- 用户id
-    user_account_id,                 -- 账户id
-    user_customer_id,                -- 客户ID
-    user_name,                       -- 用户名称/账户名称
-    user_company_name,               -- 企业名称
-    customer_name,                   -- 客户名称
-    SUBSTRING_INDEX(customer_mobile, '#', 1)                     AS customer_mobile_mask,  -- 客户手机号
-    user_type_code,                  -- 用户类型编码
-    user_type,                       -- 用户类型(供应商/分销商等)
-    user_is_test,                    -- 测试账号？(正式/测试)
-    user_status,                     -- 用户状态
-    customer_certi_status_code,      -- 客户资质审核状态编码
-    customer_certi_status,           -- 客户资质审核状态
-    customer_country,                -- 客户国家
-    customer_province,               -- 客户省
-    customer_city,                   -- 客户市
-    customer_type_code,              -- 客户类型编码
-    customer_type,                   -- 客户类型(旅行社/景区)
-    user_land_topic,                 -- 景区业态
-    user_level,                      -- 级别
-    user_contract_model_code,        -- 合作模式编码
-    user_contract_model,             -- 合作模式
-    signer_id,                       -- 签单人id
-    signer,                          -- 签单人姓名
-    servicer_id,                     -- 客服id
-    servicer,                        -- 客服姓名
-    user_regist_time,                -- 用户注册时间
-    user_contarct_firstdate,         -- 用户首次合日期
-    user_login_lasttime,             -- 用户上次登录时间
-    first_add_distributor_time,      -- 首次添加分销商时间
-    end_edit_distributor_time,       -- 最后编辑分销商时间
-    partner_num_supp,                -- 供应商数
-    partner_num_ota,                 -- OTA数
-    partner_num_dist,                -- 分销商数
-    partner_num_staff,               -- 员工数
-    partner_num_ticket_system,       -- 票务系统数
-    partner_ticket_system_list,      -- 票务系统列表
-    first_add_ticket_time,           -- 首次添加票时间
-    end_edit_ticket_time,            -- 最后编辑票时间
-    onsale_ticket_num_self,          -- 在售自供应产品票种数
-    onsale_land_num_self,            -- 在售自供应产品数
-    onsale_resource_num_self,        -- 在销售资源数量自营
-    onsale_land_num_dist,            -- 分销产品数
-    off_shelf_ticket_num_self,       -- 下架自供应产品票种数
-    off_shelf_land_num_self,         -- 下架自供应产品数
-    off_shelf_resource_num_self,     -- 下架自供应资源数
-    overdue_ticket_num_self,         -- 上架过期自供应产品票种数
-    overdue_land_num_self,           -- 上架过期自供应产品数
-    overdue_resource_num_self,       -- 上架过期自供应资源数
-    add_ticket_num_self_curr_week,   -- 本周新编辑自供应票种数
-    add_land_num_self_curr_week,     -- 本周新编辑自供应产品数
-    add_resource_num_self_curr_week,  -- 本周新编辑自供应资源数
-    add_ticket_num_self_curr_month,  -- 本月新编辑自供应票种数
-    add_land_num_self_curr_month,    -- 本月新编辑自供应产品数
-    add_resource_num_self_curr_month,  -- 本月新编辑自供应资源数
-    add_ticket_num_self_curr_quarter,  -- 本季新编辑自供应票种数
-    add_land_num_self_curr_quarter,  -- 本季新编辑自供应产品数
-    add_resource_num_self_curr_quarter,  -- 本季新编辑自供应资源数
-    ticket_num_dist,                 -- 分销票种数
-    land_num_dist,                   -- 分销产品数
-    resource_num_dist,               -- 分销资源数
-    amount_package,                  -- 套餐费合计
-    user_package_num_buy,            -- 用户购买套餐次数
-    user_package_num_used,           -- 用户已用套餐次数
-    user_first_supplier_begindate,   -- 用户第一次合作供应商套餐开始日期
-    user_first_supplier_enddate,     -- 用户第一次合作供应商套餐结束日期
-    user_first_supplier_package_id,  -- 用户第一次合作供应商套餐ID
-    user_first_supplier_package_name,  -- 用户第一次合作供应商套餐名称
-    user_first_supplier_package_price,  -- 用户第一次合作供应商套餐价格
-    user_first_supplier_package_classify_name,  -- 用户第一次合作供应商套餐组
-    CAST(user_first_supplier_package_pay_amount AS BIGINT)       AS user_first_supplier_package_pay_amt,  -- 用户第一次合作供应商实收金额（分）
-    user_first_supplier_add_time,    -- 用户第一次合作供应添加时间
-    user_first_package_begindate,    -- 用户第一次合作套餐开始日期
-    user_first_package_enddate,      -- 用户第一次合作套餐结束日期
-    user_first_package_id,           -- 用户第一次套餐id
-    user_first_package_name,         -- 用户第一次套餐名称
-    user_first_package_price,        -- 用户第一次套餐价格(分)
-    user_first_package_role,         -- 用户第一次套餐角色
-    user_first_package_classify_name,  -- 用户第一次套餐套餐组
-    CAST(user_first_package_pay_amount AS BIGINT)                AS user_first_package_pay_amt,  -- 用户第一次套餐实收金额（分）
-    user_first_add_time,             -- 用户第一次套餐添加日期
-    user_curr_package_id,            -- 用户当前套餐id
-    user_curr_package_name,          -- 用户当前套餐名称
-    user_curr_package_adddate,       -- 用户当前套餐签约日期
-    user_curr_package_begindate,     -- 用户当前套餐开始日期
-    user_curr_package_enddate,       -- 用户当前套餐结束日期
-    user_curr_package_price,         -- 用户当前套餐价格(分)
-    CAST(user_curr_package_pay_amount AS BIGINT)                 AS user_curr_package_pay_amt,  -- 用户当前套餐实收金额(分)
-    user_curr_package_role,          -- 用户当前套餐角色
-    user_curr_package_classify_name,  -- 用户当前套餐套餐组
-    user_curr_package_diff_month,    -- 用户当前套餐套餐周期（月）
-    CAST(user_curr_package_avg_pay_amount AS BIGINT)             AS user_curr_package_avg_pay_amt,  -- 用户当前套餐客单价（分）
-    user_curr_package_signer,        -- 用户当前套餐签单人
-    user_curr_package_prepay_months,  -- 用户当前套餐提前续费月数
-    user_curr_package_contract_model,  -- 用户当前套餐合作模式
-    user_last_package_id,            -- 用户上次套餐id
-    user_last_package_name,          -- 用户上次套餐名称
-    user_last_package_adddate,       -- 用户上次套餐签约日期
-    user_last_package_begindate,     -- 用户上次套餐开始日期
-    user_last_package_enddate,       -- 用户上次套餐结束日期
-    user_last_package_price,         -- 用户上次套餐价格（分）
-    CAST(user_last_package_pay_amount AS BIGINT)                 AS user_last_package_pay_amt,  -- 用户上次套餐实收金额(分)
-    user_last_package_role,          -- 用户上次套餐角色
-    user_last_package_classify_name,  -- 用户上次套餐套餐组
-    user_last_package_diff_month,    -- 用户上次套餐套餐周期（月）
-    CAST(user_last_package_avg_pay_amount AS BIGINT)             AS user_last_package_avg_pay_amt,  -- 用户上次套餐客单价（分）
-    user_next_package_id,            -- 用户下个套餐id
-    user_next_package_name,          -- 用户下个套餐名称
-    user_next_package_add_date,      -- 用户下个套餐签约日期
-    user_next_package_begin_date,    -- 用户下个套餐开始日期
-    user_next_package_end_date,      -- 用户下个套餐结束日期
-    user_next_package_price,         -- 用户下个套餐价格（分）
-    CAST(user_next_package_pay_amount AS BIGINT)                 AS user_next_package_pay_amt,  -- 用户下个套餐实收金额（分）
-    user_next_package_signer,        -- 用户下个套餐签单人
-    user_next_package_prepay_months,  -- 用户下个套餐提前续费月数
-    user_next_package_contract_model,  -- 用户下个套餐合作模式
-    user_end_package_id,             -- 用户最终套餐id
-    user_end_package_name,           -- 用户最终套餐名称
-    user_end_package_adddate,        -- 用户最终套餐签约日期
-    user_end_package_begindate,      -- 用户最终套餐开始日期
-    user_end_package_enddate,        -- 用户最终套餐结束日期
-    user_end_package_price,          -- 用户最终套餐价格（分）
-    CAST(user_end_package_pay_amount AS BIGINT)                  AS user_end_package_pay_amt,  -- 用户最终套餐实收金额(分)
-    login_num_plat_curr_week,        -- 本周登录平台次数
-    login_num_terminal_curr_week,    -- 本周登录终端次数
-    login_date_num_plat_curr_week,   -- 本周登录平台天数
-    login_date_num_terminal_curr_week,  -- 本周登录终端天数
-    login_num_plat_last_week,        -- 上周登录平台次数
-    login_num_terminal_last_week,    -- 上周登录终端次数
-    login_date_num_plat_last_week,   -- 上周登录平台天数
-    login_date_num_terminal_last_week,  -- 上周登录终端天数
-    login_num_plat_curr_month,       -- 本月登录平台次数
-    login_num_terminal_curr_month,   -- 本月登录终端次数
-    login_date_num_plat_curr_month,  -- 本月登录平台天数
-    login_date_num_terminal_curr_month,  -- 本月登录终端天数
-    login_num_plat_last_month,       -- 上月登录平台次数
-    login_num_terminal_last_month,   -- 上月登录终端次数
-    login_date_num_plat_last_month,  -- 上月登录平台天数
-    login_date_num_terminal_last_month,  -- 上月登录终端天数
-    login_num_plat_curr_quarter,     -- 本季登录平台次数
-    login_num_terminal_curr_quarter,  -- 本季登录终端次数
-    login_date_num_plat_curr_quarter,  -- 本季登录平台天数
-    login_date_num_terminal_curr_quarter,  -- 本季登录终端天数
-    login_num_plat_last_quarter,     -- 上季登录平台次数
-    login_num_terminal_last_quarter,  -- 上季登录终端次数
-    login_date_num_plat_last_quarter,  -- 上季登录平台天数
-    login_date_num_terminal_last_quarter,  -- 上季登录终端天数
-    is_open_wsc,                     -- 微商城（旧版）
-    is_open_hbtg,                    -- 海报推广
-    is_open_sjlp,                    -- 数据罗盘
-    is_open_qmyx,                    -- 全民营销
-    is_open_yspzd,                   -- 云售票终端
-    is_open_miniyzd,                 -- MINI云终端
-    is_open_znyzj,                   -- 智能云闸机
-    is_open_lyykt,                   -- 旅游一卡通
-    is_open_ljgg,                    -- 链接广告
-    is_open_zzsqpj,                  -- 自助售取票机
-    is_open_appxz,                   -- APP下载
-    is_open_xxpwxt,                  -- 线下票务系统
-    is_open_jdxd,                    -- 计调下单
-    is_open_yhqjb,                   -- 优惠券(旧版)
-    is_open_lynk,                    -- 旅游年卡
-    is_open_b2cscpcd,                -- B2C商城（PC端）
-    is_open_jszdrz,                  -- 结算自动入帐
-    is_open_otaptfx,                 -- OTA平台分销
-    is_open_typtfx,                  -- 同业平台分销
-    is_open_fxdsfcp,                 -- 分销第三方产品
-    is_open_wqglxt,                  -- 温泉管理系统
-    is_open_jqpwxt,                  -- 景区票务系统
-    is_open_yqykt,                   -- 园区一卡通
-    is_open_zfxcp,                   -- 转分销产品
-    is_open_dzfp,                    -- 电子发票
-    is_open_xsqg,                    -- 限时抢购
-    is_open_dsjfx,                   -- 大数据分析
-    is_open_flgl,                    -- 返利管理
-    is_open_mygxdj,                  -- 蚂蚁供销对接
-    is_open_yzwscdj,                 -- 有赞微商城对接
-    is_open_kjwsc,                   -- 砍价(微商城)
-    is_open_ptwsc,                   -- 拼团(微商城)
-    is_open_miniyxcx,                -- MiNi云小程序
-    is_open_jfsc,                    -- 积分商城
-    is_open_fxzy,                    -- 分销专员
-    is_open_hytx,                    -- 会员体系
-    is_open_zghxf,                   -- 公众号吸粉
-    is_open_hbffl,                   -- 红包翻翻乐
-    is_open_zyzx,                    -- 资源中心
-    is_open_wxzxwsc,                 -- 微信直销（微商城）
-    is_open_xcxsc,                   -- 小程序商城
-    is_open_yhq,                     -- 优惠券
-    is_open_fsyy,                    -- 分时预约
-    is_open_gzhyx,                   -- 公众号营销
-    is_open_xcxpro,                  -- 小程序Pro
-    is_open_xfxzy,                   -- 新分销专员
-    is_open_rlzx,                    -- 人脸中心
-    is_open_ckgl,                    -- 窗口管理
-    is_open_zpgl,                    -- 纸票管理
-    is_open_btglgysb,                -- 报团管理（供应商版）
-    is_open_btglfxsb,                -- 报团管理（分销商版）
-    is_open_schygl,                  -- 商城会员管理
-    is_open_yqjs,                    -- 园区计时
-    is_open_jqsjlp,                  -- 景区数据罗盘
-    is_open_dlymdj,                  -- 独立域名搭建
-    is_open_wbmfmgl,                 -- 外部码发码管理
-    is_open_typtfxjcb,               -- 同业平台分销(基础版)
-    is_open_wxkq,                    -- 微信卡券
-    is_open_gpxzhbmd,                -- 购票限制(黑白名单)
-    is_open_crysjtj,                 -- 出入园数据统计
-    is_open_zdgl,                    -- 终端管理
-    is_open_lxssjlp,                 -- 旅行社数据罗盘
-    is_open_dxttzdy,                 -- 短信抬头自定义
-    is_openzdydxmb,                  -- 自定义短信模板
-    is_open_lyxd,                    -- 旅游小店
-    is_open_xypgl,                   -- 协议票管理
-    is_open_tstdyy,                  -- 特殊团队预约
-    is_open_smyzbzb,                 -- 扫码验证-标准版
-    is_open_smyzzyb,                 -- 扫码验证-专业版
-    is_open_wlzx,                    -- 物料中心
-    is_open_wpttbfx,                 -- 微平台图表分析
-    is_open_dyglgysb,                -- 导游管理(供应商版)
-    is_open_dyglfxsb,                -- 导游管理(分销商版)
-    is_open_yxdx,                    -- 营销短信
-    is_open_gpqz,                    -- 购票前置
-    is_open_ddxxyc,                  -- 订单信息隐藏
-    is_open_kjgp,                    -- 快捷购票
-    is_open_xmtfx,                   -- 新媒体分销
-    is_open_flglx,                   -- 返利管理（新）
-    is_open_bbyy,                    -- 报表应用
-    is_open_tdyy,                    -- 团队预约
-    is_open_fxskjgp,                 -- 分销商快捷购票
-    is_open_plzzbb,                  -- 票类纸质报表
-    is_open_qplfx,                   -- 全品类分销
-    is_open_tgdm,                    -- 团购导码
-    is_open_xcxzxjq,                 -- 小程序中心(景区)
-    is_open_xcxzxlxsb,               -- 小程序中心(旅行社版)
-    is_open_jyjcsj,                  -- 经营基础数据
-    is_open_jyfxsj,                  -- 经营分析数据
-    is_open_ycjs,                    -- 游船计时
-    is_open_jyxpbg,                  -- 经营小飘报告
-    is_open_jyhysj,                  -- 经营行业数据
-    is_open_tysy,                    -- 统一收银
-    is_open_xykt,                    -- 新一卡通
-    is_open_hyzx,                    -- 会员中心
-    is_open_xcxzxnkb,                -- 小程序中心（年卡版）
-    is_open_jdgl,                    -- 酒店管理
-    is_open_zhdl,                    -- 智慧导览
-    is_open_jfgl,                    -- 积分管理
-    is_open_fzbbx,                   -- 分账报表(新)
-    spare_field1,                    -- 预留字段1
-    spare_field2,                    -- 预留字段2
-    spare_field3,                    -- 预留字段3
-    spare_field4,                    -- 预留字段4
-    spare_field5,                    -- 预留字段5
-    spare_field6,                    -- 预留字段6
-    spare_field7,                    -- 预留字段7
-    spare_field8,                    -- 预留字段8
-    spare_field9,                    -- 预留字段9
-    spare_field10,                   -- 预留字段10
-    spare_field11,                   -- 预留字段11
-    spare_field12,                   -- 预留字段12
-    spare_field13,                   -- 预留字段13
-    spare_field14,                   -- 预留字段14
-    spare_field15,                   -- 预留字段15
-    spare_field16,                   -- 预留字段16
-    spare_field17,                   -- 预留字段17
-    spare_field18,                   -- 预留字段18
-    spare_field19,                   -- 预留字段19
-    spare_field20,                   -- 预留字段20
-    spare_field21,                   -- 预留字段21
-    spare_field22,                   -- 预留字段22
-    spare_field23,                   -- 预留字段23
-    spare_field24,                   -- 预留字段24
-    spare_field25,                   -- 预留字段25
-    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time  -- ETL 加载时间
-FROM dim_cus_company_d_f
-WHERE pt = '${bizdate}'              -- 过渡期：读旧表，按字段清单逐步改为从 ODS 计算
+    CAST(id AS BIGINT)                                           AS company_id,   -- CRM 客户ID
+    account_no                                                   AS company_no,   -- CRM 客户编号
+    name                                                         AS company_name,  -- 客户名称
+    field_0w21l__c                                               AS platform_account,  -- 平台账号 / ID / 手机
+    IF(field_0w21l__c RLIKE '^[0-9]{3,10}$', CAST(field_0w21l__c AS BIGINT), NULL) AS member_id,  -- 平台账号ID（平台账号原文为纯数字时）
+    account_type,                                                                 -- 客户分类
+    account_level,                                                                -- 客户类型（合作客户等级）
+    field_41liw__c                                               AS customer_attribute,  -- 客户属性
+    field_mvq72__c                                               AS cooperation_attribute,  -- 合作属性
+    record_type,                                                                  -- 业务类型
+    account_source,                                                               -- 客户来源
+    industry_level1,                                                              -- 一级行业
+    industry_level2,                                                              -- 二级行业
+    field_nz4yo__c                                               AS main_category,  -- 主营类目
+    field_4h84y__c                                               AS scenic_type,  -- 景区类型
+    field_0ut89__c                                               AS scenic_level,  -- 景区等级
+    field_5q3iq__c                                               AS travel_agency_type,  -- 旅行社类型
+    country__r                                                   AS country_name,  -- 国家
+    province                                                     AS province_code,  -- 省编码
+    province__r                                                  AS province_name,  -- 省
+    city                                                         AS city_code,    -- 市编码
+    city__r                                                      AS city_name,    -- 市
+    district__r                                                  AS district_name,  -- 区县
+    owner__r                                                     AS owner_name,   -- 负责人
+    owner_department,                                                             -- 负责人主属部门
+    home_area_group,                                                              -- 归属区域组（按负责人部门）
+    lv1_team,                                                                     -- 一级团队
+    lv2_team,                                                                     -- 二级团队
+    lv3_team,                                                                     -- 三级团队
+    deal_status,                                                                  -- 成交状态
+    life_status,                                                                  -- 生命状态
+    biz_status,                                                                   -- 分配状态
+    field_tkx02__c                                               AS first_deal_date,  -- 首签成单日期
+    last_deal_closed_time                                        AS last_deal_time,  -- 最后一次成交时间
+    CAST(last_deal_closed_amount AS DECIMAL(18,2))               AS last_deal_amt,  -- 最后一次成交金额（元）
+    last_followed_time,                                                           -- 最后跟进时间
+    high_seas_name,                                                               -- 所属公海
+    uniform_social_credit_code                                   AS credit_code,  -- 统一社会信用代码
+    create_time,                                                                  -- 创建时间
+    last_modified_time,                                                           -- 最后修改时间
+    DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time           -- ETL 加载时间
+FROM (
+        SELECT a.*, h.home_area_group, h.lv1_team, h.lv2_team, h.lv3_team
+        FROM ods.ods_sup_crm_account_df a                                         -- 主表「CRM账户」
+        LEFT JOIN (SELECT department, MAX(home_area_group) AS home_area_group, MAX(lv1_team) AS lv1_team, MAX(lv2_team) AS lv2_team, MAX(lv3_team) AS lv3_team
+                   FROM ods.ods_opr_crm_home_area_df WHERE travel_date = '${bizdate}' GROUP BY department) h ON h.department = a.owner_department  -- 部门 → 归属区域 / 团队
+        WHERE a.travel_date = '${bizdate}' AND COALESCE(a.is_deleted, 0) = 0      -- 只取当日分区，并按条件过滤
+    ) t

@@ -210,7 +210,7 @@ t('dim_sup_supplier_df', '供应商维度', '1行=1个供应商（租户，sid�
     ('first_ticket_time', 'STRING', '时间', '首次上架票时间', 'MIN(uu_jq_ticket.update_time)'),
     ('test_flag', 'INT', '状态类型', '是否测试账号：用户分组 2 / 3', 'pft_member.group_id IN (2,3)')),
   ['dim_cus_core_attributes_df', 'dim_cus_user_customer_info_df', 'dim_bloc_company_d_f', 'ods_c_land_authorize_d_f'], part='')
-t('dim_sup_member_df', '会员（平台账号）维度', '1行=1个平台账号（pft_member）', 'ods_sup_member_df、ods_sup_member_ext_df、ods_opr_region_area_df、ods_sup_member_relation_df、ods_prd_scenic_df、ods_opr_distribute_system_type_df、ods_opr_datav_auth_df、ods_trf_tb_bind_df、ods_fin_merchant_payment_method_df',
+t('dim_sup_member_df', '会员（平台账号）维度', '1行=1个平台账号（pft_member）', 'ods_sup_member_df、ods_sup_member_ext_df、ods_sup_customer_certification_df、ods_sup_member_product_config_df、ods_opr_region_area_df、ods_sup_member_relation_df、ods_prd_scenic_df、ods_opr_distribute_system_type_df、ods_opr_datav_auth_df、ods_trf_tb_bind_df、ods_fin_merchant_payment_method_df',
   '平台所有账号（供应商 / 分销商 / 散客会员 / 员工账号）的统一维度，角色标志由业务行为推出；联系人手机号只存哈希',
   F(('member_id', 'BIGINT', '主键', '会员ID（平台账号ID）', 'pft_member.id'), ('member_name', 'STRING', '维度属性', '账号名称', 'pft_member.dname'),
     ('account', 'STRING', '维度属性', '登录账号', 'pft_member.account'), ('member_type_code', 'STRING', '状态类型', '账号类型：5-普通用户，其余见码表 member_dtype', 'pft_member.dtype'),
@@ -226,6 +226,18 @@ t('dim_sup_member_df', '会员（平台账号）维度', '1行=1个平台账号�
     ('province_name', 'STRING', '维度属性', '商户所在省', 'dim_opr_region_f'),
     ('city_code', 'STRING', '外键', '商户（公司）所在市编码', 'pft_member_extinfo.city'), ('city_name', 'STRING', '维度属性', '商户所在市', 'dim_opr_region_f'),
     ('corp_kind_type', 'INT', '状态类型', '公司类型：0-酒店 1-景区 2-旅行社 …', 'pft_member_extinfo.corp_kind'),
+    ('district_code', 'STRING', '外键', '商户所在区县编码', 'pft_member_extinfo.country'),
+    ('pay_account_id', 'BIGINT', '外键', '支付账户ID', 'pft_member.account_id'),
+    ('signer_id', 'BIGINT', '外键', '签约销售（员工平台账号ID）', 'pft_member.salesid'), ('servicer_id', 'BIGINT', '外键', '客服 / 客户成功经理（员工平台账号ID）', 'pft_member.kefuid'),
+    ('contract_model_type', 'INT', '状态类型', '合作模式：0-无 1-套餐 2-票务 …', 'pft_member_extinfo.contract_model'),
+    ('member_level', 'INT', '状态类型', '客户级别', 'pft_member_extinfo.types'), ('format_type', 'INT', '状态类型', '公司业态', 'pft_member_extinfo.format_type'),
+    ('contract_subject_type', 'INT', '状态类型', '合作主体：1-票付通 2-票易通', 'pft_member_extinfo.contract_subject'),
+    ('protocol_start_date', 'STRING', '时间', '协议开始日期（首次合作）', 'pft_member_extinfo.protocol_start'),
+    ('protocol_end_date', 'STRING', '时间', '协议结束日期', 'pft_member_extinfo.protocol_end'),
+    ('cooperation_content', 'STRING', '维度属性', '合作内容（中文，逗号分隔）', 'pft_member_extinfo.ext.cooperation_content'),
+    ('certi_status', 'INT', '状态类型', '资质认证状态：0-未认证 1-审核中 2-通过 …', 'pft_customer_certification.certi_status'),
+    ('certi_pass_time', 'STRING', '时间', '资质认证通过时间', 'pft_customer_certification.pass_time'),
+    ('product_type_list', 'STRING', '维度属性', '已开通的产品类型（中文，分号分隔）', 'pft_member_product_config'),
     ('test_flag', 'INT', '状态类型', '是否测试账号：用户分组 2 / 3', 'pft_member.group_id IN (2,3)')),
   ['dim_user_d_f', 'dim_cus_member_info_df', 'dim_user_datav_d_f', 'dim_thirdsystem_d_f', 'dim_user_thirdsystem_d_f', 'dwd_cus_qualification_auth_df', 'dwd_cus_user_base_bind_df', 'dim_sid_white_list_d_f'], part='')
 t('dim_cus_tourist_df', '游客维度', '1行=1位游客（证件号哈希）', 'dwd_ord_traveler_di、dwd_ord_order_di、ods_cus_tourist_info_df、ods_cus_tourist_auth_info_df、dim_opr_idcard_area_f、dim_opr_phone_area_f',
@@ -566,3 +578,7 @@ OTHER = [
 # 下游指标补齐（酒店 / 账户 / 零售 / 一卡通维度 / 交易手续费）：在所有表定义之后追加到对应 DWS / ADS
 import proc_metrics  # noqa: E402
 proc_metrics.register(_sys.modules[__name__])
+
+# 客户公司属性宽表（旧 dim_cus_company_d_f）按标准表重写，替换 ADS 定义
+import company_ads  # noqa: E402
+company_ads.register(_sys.modules[__name__])

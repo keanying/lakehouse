@@ -672,3 +672,52 @@ LEFT JOIN (SELECT *, ROW_NUMBER() OVER (PARTITION BY refund_code ORDER BY sync_u
 WHERE i.travel_date = '${bizdate}' AND h.refund_status <> 2                       -- 剔除退款失败""")},
      notes=['原表只到单头（件数、商品为空），改为商品行；银豹人数取单头就餐人数报文，思迅取单头人数，均只记在每单第一行，按行求和不重复',
             '思迅商品行没有实付，按单头 实付 / 应收 比例分摊；待确认：银豹就餐人数报文的键名（peopleNum）上线前核对'])
+
+# ---------------------------------------------------------------- CRM 客户公司（纷享销客客户）
+proc('dim_sup_company_df', 'CRM 客户公司维度', '1行=1个 CRM 客户公司（纷享销客客户，未删除）', 'ods_sup_crm_account_df、ods_opr_crm_home_area_df',
+     '签约客户主体：编号、名称、对应平台账号、分类 / 级别 / 合作属性、行业、景区类型与等级、所在地、负责人与归属区域团队、成交与跟进状态；'
+     '平台账号维度的客户属性宽表见 ads_sup_customer_company_df',
+     ['ods_sup_crm_account_df'], [
+         ('company_id', B, '主键', 'CRM 客户ID', 'id'), ('company_no', S, '业务主键', 'CRM 客户编号', 'account_no'),
+         ('company_name', S, '维度属性', '客户名称', 'name'),
+         ('platform_account', S, '维度属性', '平台账号 / ID / 手机（CRM 录入原文）', 'field_0w21l__c'),
+         ('member_id', B, '外键', '平台账号ID（平台账号原文为纯数字时），关联 dim_sup_member_df', "IF(field_0w21l__c RLIKE '^[0-9]{3,10}$', CAST(field_0w21l__c AS BIGINT), NULL)"),
+         ('account_type', S, '状态类型', '客户分类', 'account_type'), ('account_level', S, '状态类型', '客户类型（合作客户等级）', 'account_level'),
+         ('customer_attribute', S, '维度属性', '客户属性', 'field_41liw__c'), ('cooperation_attribute', S, '维度属性', '合作属性', 'field_mvq72__c'),
+         ('record_type', S, '状态类型', '业务类型', 'record_type'), ('account_source', S, '维度属性', '客户来源', 'account_source'),
+         ('industry_level1', S, '维度属性', '一级行业', 'industry_level1'), ('industry_level2', S, '维度属性', '二级行业', 'industry_level2'),
+         ('main_category', S, '维度属性', '主营类目', 'field_nz4yo__c'), ('scenic_type', S, '维度属性', '景区类型', 'field_4h84y__c'),
+         ('scenic_level', S, '维度属性', '景区等级', 'field_0ut89__c'), ('travel_agency_type', S, '维度属性', '旅行社类型', 'field_5q3iq__c'),
+         ('country_name', S, '维度属性', '国家', 'country__r'), ('province_code', S, '外键', '省编码', 'province'), ('province_name', S, '维度属性', '省', 'province__r'),
+         ('city_code', S, '外键', '市编码', 'city'), ('city_name', S, '维度属性', '市', 'city__r'), ('district_name', S, '维度属性', '区县', 'district__r'),
+         ('owner_name', S, '维度属性', '负责人', 'owner__r'), ('owner_department', S, '维度属性', '负责人主属部门', 'owner_department'),
+         ('home_area_group', S, '维度属性', '归属区域组（按负责人部门）', 'home_area_group'), ('lv1_team', S, '维度属性', '一级团队', 'lv1_team'),
+         ('lv2_team', S, '维度属性', '二级团队', 'lv2_team'), ('lv3_team', S, '维度属性', '三级团队', 'lv3_team'),
+         ('deal_status', S, '状态类型', '成交状态', 'deal_status'), ('life_status', S, '状态类型', '生命状态', 'life_status'), ('biz_status', S, '状态类型', '分配状态', 'biz_status'),
+         ('first_deal_date', S, '时间', '首签成单日期', 'field_tkx02__c'), ('last_deal_time', S, '时间', '最后一次成交时间', 'last_deal_closed_time'),
+         ('last_deal_amt', DEC, '度量', '最后一次成交金额（元）', 'CAST(last_deal_closed_amount AS DECIMAL(18,2))'),
+         ('last_followed_time', S, '时间', '最后跟进时间', 'last_followed_time'), ('high_seas_name', S, '维度属性', '所属公海', 'high_seas_name'),
+         ('credit_code', S, '维度属性', '统一社会信用代码', 'uniform_social_credit_code'),
+         ('create_time', S, '时间', '创建时间', 'create_time'), ('last_modified_time', S, '时间', '最后修改时间', 'last_modified_time'),
+     ], part='', legacy=['dim_crm_home_area_d_f', 'dws_cus_pft_crm_account_d_f'],
+     frm={'ods_sup_crm_account_df': q("""
+SELECT a.*, h.home_area_group, h.lv1_team, h.lv2_team, h.lv3_team
+FROM ods.ods_sup_crm_account_df a
+LEFT JOIN (SELECT department, MAX(home_area_group) AS home_area_group, MAX(lv1_team) AS lv1_team, MAX(lv2_team) AS lv2_team, MAX(lv3_team) AS lv3_team
+           FROM ods.ods_opr_crm_home_area_df WHERE travel_date = '${bizdate}' GROUP BY department) h ON h.department = a.owner_department   -- 部门 → 归属区域 / 团队
+WHERE a.travel_date = '${bizdate}' AND COALESCE(a.is_deleted, 0) = 0""")},
+     notes=['原表把平台账号级的客户属性宽表（套餐 / 登录 / 合作伙伴 / 产品 / 应用开通）挂在本维度，按粒度拆开：本表只放 CRM 客户公司属性，宽表移到 ads_sup_customer_company_df',
+            'CRM 表 174 列中自定义备用列（option1~ 等）与联系人电话 / 地址（个人信息）不进维度'])
+
+
+# ---------------------------------------------------------------- 账号标签（旧 SQL 硬编码的新媒体 / OTA 账号清单）
+_TAG = json.loads((pathlib.Path(__file__).with_name('account_tags.json')).read_text(encoding='utf-8'))
+_TV = ',\n'.join(f"       ({a}, '{b}', '{c}', '{d}')" for a, b, c, d in _TAG)
+proc('dim_trf_account_tag_f', '分销账号标签', '1行=1个平台账号×1个标签', '配置（旧 channel_aids SQL 硬编码的账号清单，迁入 dataworks/standard/account_tags.json）',
+     '按固定账号识别的渠道：新媒体（抖音 / 快手 / 抖店 …）与各 OTA 平台；订单买方或卖方是这些账号即打标签；新增账号改 json 后重跑',
+     ['account_tags'], [
+         ('member_id', B, '主键', '平台账号ID', 'member_id'), ('tag_group', S, '状态类型', '标签组：NEW_MEDIA-新媒体 / OTA', 'tag_group'),
+         ('tag_code', S, '主键', '标签编码', 'tag_code'), ('tag_name', S, '维度属性', '标签名称', 'tag_name'),
+     ], part='',
+     frm={'account_tags': "(\n        SELECT * FROM VALUES\n" + _TV + "\n        AS v(member_id, tag_group, tag_code, tag_name)\n    ) t"},
+     notes=[f'共 {len(_TAG)} 个账号；名称按旧字段缩写整理（dylk、ksbdsh、mtqq 等缩写含义待业务核对）'])

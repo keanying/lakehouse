@@ -84,6 +84,11 @@ PROD = {'mp': '门票', 'tp': '套票', 'yc': '演出', 'nk': '年卡', 'lyq': '
 
 
 def _channel(c):
+    m = re.match(r'^(new_media|ota)(?:_([a-z]+))?_(gmv|ticket_num|order_num)(?:_(kh|hz))?$', c)
+    if m and (m.group(1) == 'new_media' or m.group(2)):
+        met = {'gmv': 'order_sale_amt', 'ticket_num': 'order_ticket_qty', 'order_num': 'order_order_qty'}[m.group(3)]
+        code = m.group(1).upper() + ('_' + m.group(2).upper() if m.group(2) else '')
+        return met, {'marketing_type': code if m.group(2) else 'NEW_MEDIA_*（组内各账号标签合计）'}
     m = re.match(rf"^prod_({'|'.join(PROD)})_new_(gmv|ticket_num|order_num)$", c)
     if m:
         return {'gmv': 'order_sale_amt', 'ticket_num': 'order_ticket_qty', 'order_num': 'order_order_qty'}[m.group(2)], {'产品类型（票维度带出）': PROD[m.group(1)]}
@@ -196,7 +201,6 @@ def decode(col, where):
 GAP = [
     (r'mps_\w*report', r'discount|expense_fee|after_sale_expense|reprint|refund_fee_expense',
      '明细无来源：优惠金额 / 买方手续费 / 重打印只在报表库预计算表（r_report_dwm_common）里，需业务库补同步订单优惠与手续费明细'),
-    (r'channel_aids|cus_company', r'^(new_media|ota_)\w*', '按固定账号清单判定（旧 SQL 硬编码 6 个账号 / OTA 账号），需提供账号配置表后作为分销商维度标签'),
     (r'channel_aids|cus_company', r'^pft_\w+_num_kh$|concat_all|customer_mobile', '客户属性页专用拼接 / 计数（产品数、扫码、存储、短信申请）或敏感明文，需业务确认是否保留'),
     (r'landtravel', r'.', '景旅纵横认证（按证件类型的核销人数）与短信量：客户专项报表，需确认证件类型码表后在游客画像增加 证件类型 维度'),
     (r'attraction_visitor_stats', r'.', '景区客群统计（省内外 / 港澳台 / 老人儿童 / 晨练 / 复购）：AI 项目专用口径，需业务给出判定规则'),
@@ -242,6 +246,14 @@ def make_resolver(tables, fields):
         c = col.lower()
         if TIME.match(c):
             return '统计周期（时间表）', '时间列：查询时关联 dim_opr_period_f / dim_opr_date_f'
+        import company_ads
+        if c in company_ads.DROPPED:
+            return '技术列', '旧表预留列已去掉：' + company_ads.DROPPED[c]
+        if c in company_ads.ALIAS:
+            cands_ = [company_ads.ALIAS[c]]
+            for t in chain(std) + dims:
+                if cands_[0] in cols.get(t, ()):
+                    return '属性 / 明细字段', f'→ {t}.{cands_[0]}（旧列 {c} 改名）'
         if c in DERIVE:
             return '属性 / 明细字段', '派生：' + DERIVE[c]
         if TECH.match(c):
