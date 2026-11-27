@@ -1,5 +1,4 @@
 {ds}' AND cap_time< DATE_ADD('${ds}',INTERVAL 1 day) —— 只取当天新建记录，之后的状态变化漏采，已改为按 sync_update_time
---   · 别名数据源 BI_RDS_pft_open_cooperate 指向同一业务表：只保留 RDS_pft_open_cooperate，其余同步任务下线
 --   · 读端脱敏（明文不落数仓）：card_no：卡号 / 证件类：SHA256（仍可作关联键）
 --   · 写入：truncate 当日分区（幂等，可重跑）；ORC + SNAPPY；脏数据 0 容忍（errorLimit=0），有脏数据直接失败告警
 -- DataWorks 数据集成 · 脚本模式（JSON）：
@@ -13,7 +12,7 @@
       "category": "reader",
       "name": "Reader",
       "parameter": {
-        "datasource": "RDS_pft_open_cooperate",
+        "datasource": "BI_RDS_pft_open_cooperate",
         "column": [
           "id",
           "con_sys_bind",
@@ -45,7 +44,7 @@
         ],
         "connection": [
           {
-            "datasource": "RDS_pft_open_cooperate",
+            "datasource": "BI_RDS_pft_open_cooperate",
             "table": [
               "parking_ketuo_entry_record"
             ]

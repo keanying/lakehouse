@@ -163,8 +163,11 @@ def load(zip_path):
                 n['di'] = {'error': str(e)}
         nodes.append(n)
     ex = excluded()
-    drop = [n for n in nodes if any(n['path'] == x or n['path'].startswith(x + '/') for x in ex)]
-    keep = [n for n in nodes if n not in drop]
+    hit = lambda n, xs: any(n['path'] == x or n['path'].startswith(x + '/') for x in xs)
+    drop = [n for n in nodes if hit(n, ex)]
+    so = sync_only()
+    SYNC_ONLY[:] = [n for n in nodes if n not in drop and hit(n, so)]   # 纯同步：独立的库到库任务，不读取其它节点产出，直接移出模型
+    keep = [n for n in nodes if n not in drop and n not in SYNC_ONLY]
     # 只由被排除节点产出的表：其余节点对它的读取一并去掉（视为该表已下线）
     gone = {t for n in drop for t, _ in n['writes']} - {t for n in keep for t, _ in n['writes']}
     gone |= {t.split('.')[-1] for t in gone}
@@ -177,9 +180,21 @@ def load(zip_path):
     return keep
 
 
-def excluded():
-    """exclude.txt 里的路径前缀：不纳入梳理的旧节点"""
-    f = pathlib.Path(__file__).resolve().parent / 'exclude.txt'
+def _prefixes(fname):
+    f = pathlib.Path(__file__).resolve().parent / fname
     if not f.exists():
         return []
     return [l.strip().replace('\\', '/').strip('/') for l in f.read_text(encoding='utf-8').splitlines() if l.strip() and not l.strip().startswith('#')]
+
+
+def excluded():
+    """exclude.txt 里的路径前缀：下线 / 未上线 / 取消的旧节点，从 SRC 层起整体忽略"""
+    return _prefixes('exclude.txt')
+
+
+def sync_only():
+    """sync_only.txt 里的路径前缀：纯库到库同步任务，不参与数仓计算，不进标准化模型，只在旧节点清单里列出"""
+    return _prefixes('sync_only.txt')
+
+
+SYNC_ONLY = []   # load() 后存放纯同步节点（供页面「旧节点清单」单独列出）

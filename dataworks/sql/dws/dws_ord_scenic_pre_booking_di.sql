@@ -4,8 +4,6 @@
 -- 分区：travel_date（YYYYMMDD）
 -- 调度：每日，依赖上游 DWD 当日分区
 -- 上游：dwd_ord_order_di
--- 替代旧任务 1 个（上线对数一致后下线）：
---   · 业务工厂/客户数据大屏/大连文化中心/dws_datav_preplay_estimate_day_d_f（EMR_SPARK_SQL，cron 00 30 00 * * ?）
 -- 性能：
 --   · 同一来源的指标在一个子查询里预聚合（一次扫描），各来源 UNION ALL 后按粒度汇总，不做明细级 JOIN
 --   · 待确认（无来源）：traveler_qty

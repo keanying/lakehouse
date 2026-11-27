@@ -3,7 +3,7 @@
 -- 粒度：1行=1个 CRM 客户公司
 -- 分区：无分区
 -- 调度：每日，ODS 全部完成后；维表之间按上游顺序
--- 上游：ods_sup_crm_account_df、ods_sup_crm_custom_field_df、ods_opr_crm_home_area_df
+-- 上游：ods_sup_crm_account_df、ods_opr_crm_home_area_df
 -- 替代旧任务 3 个（上线对数一致后下线）：
 --   · 业务工厂/内部信息/财务部/客户属性cus_company/dim_cus_company_d_f（EMR_SPARK_SQL，cron 00 00 06 * * ?）
 --   · 业务工厂/内部信息/财务部/客户属性cus_company/crm_to_hive_dim_crm_home_area_d_f（DI，cron 00 00 06 * * ?）

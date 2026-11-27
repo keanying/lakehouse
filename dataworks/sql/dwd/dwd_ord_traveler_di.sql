@@ -4,13 +4,11 @@
 -- 分区：travel_date（YYYYMMDD）
 -- 调度：每日，依赖上游 ODS 当日分区与相关维表
 -- 上游：ods_ord_order_traveler_di、ods_ord_order_traveler_ext_di、dim_opr_idcard_area_f、dim_opr_phone_area_f
--- 替代旧任务 6 个（上线对数一致后下线）：
+-- 替代旧任务 4 个（上线对数一致后下线）：
 --   · 数据中台/DW/dwd_tourist_info_d_i（EMR_SPARK_SQL，cron 00 00 02 * * ?）
---   · 数据中台/数仓明细层(DWD)/dwd_预定单游客信息/dwd_order_tourist_info_d_f（EMR_SPARK_SQL，cron 00 26 00 * * ?）
 --   · 数据中台/数仓明细层(DWD)/dwd_预定单游客信息/dwd_order_tourist_info_d_i（EMR_SPARK_SQL，cron 00 30 01 * * ?）
 --   · 数据平台/DWD/dwd_ord_traveler_booking_details_di（SERVERLESS_SPARK_SQL，cron 00 35 01 * * ?）
 --   · 数据平台/DWS/dws_ord_traveler_booking_wide_di（SERVERLESS_SPARK_SQL，cron 00 00 12 * * ?）
---   · 数据平台/业务需求工作流/星享铁旅工作流/dwd_ord_order_tourist_shift_detail_di（SERVERLESS_SPARK_SQL，cron 00 00 00 * * ?）
 -- 业务规则 / 修正：
 --   · 替代 28 个透视列的游客画像中间表：画像维度（性别 / 年龄段 / 客源地）在明细上算一次
 -- 性能：

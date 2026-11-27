@@ -15,7 +15,6 @@
         "column": [
           "id",
           "gid",
-          "date",
           "week",
           "i0",
           "o0",
@@ -120,7 +119,6 @@
         "column": [
           "id",
           "gid",
-          "date",
           "week",
           "i0",
           "o0",

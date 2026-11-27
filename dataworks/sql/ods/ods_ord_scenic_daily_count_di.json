@@ -7,7 +7,7 @@
       "category": "reader",
       "name": "Reader",
       "parameter": {
-        "datasource": "RDS_pft_ai",
+        "datasource": "RDS_summary",
         "column": [
           "id",
           "sid",
@@ -20,7 +20,7 @@
         ],
         "connection": [
           {
-            "datasource": "RDS_pft_ai",
+            "datasource": "RDS_summary",
             "table": [
               "pft_dc_daycount_info"
             ]

@@ -4,7 +4,7 @@
 -- 分区：travel_date（YYYYMMDD）
 -- 调度：每日，依赖上游 DWS 当日分区；完成后回流 / 服务层读取
 -- 上游：dws_ord_scenic_traveler_profile_di
--- 替代旧任务 78 个（上线对数一致后下线）：
+-- 替代旧任务 66 个（上线对数一致后下线）：
 --   · 业务工厂/景区指标旧表/每日景区同行人数旧表工作流/ads_daily_fellow_group_d_i（EMR_SPARK_SQL，cron 00 00 00 * * ?）
 --   · 业务工厂/景区指标旧表/每日景区同行人数旧表工作流/ads_daily_scenic_fellow_group_d_i（EMR_SPARK_SQL，cron 00 00 00 * * ?）
 --   · 业务工厂/景区指标旧表/每日景区同行人数旧表工作流/ads_daily_scenic_fellow_group_remain_d_i（EMR_SPARK_SQL，cron 00 00 00 * * ?）
@@ -17,7 +17,7 @@
 --   · 业务工厂/景区指标旧表/每日景区同行人数旧表工作流/ads_daily_scenic_ticket_province_fellow_group_d_i（EMR_SPARK_SQL，cron 00 00 00 * * ?）
 --   · 业务工厂/景区指标旧表/每日景区预定画像旧表工作流/ads_daily_scenic_ticket_province_sex_age_d_i（EMR_SPARK_SQL，cron 00 00 00 * * ?）
 --   · 业务工厂/景区指标宽表/每日景区取票人画像工作流/ads_daily_scenic_ticket_taker_order_draw_d_i（EMR_SPARK_SQL，cron 00 00 00 * * ?）
---   · … 另 66 个
+--   · … 另 54 个
 -- 性能：
 --   · ADS 只存日粒度：周 / 月 / 年 / 节假日 / 自定义区间与同比环比在查询时关联 dim_opr_period_f（见「指标口径 · ADS 业务指标」）
 --   · 比率类不落比率值，只存分子分母；去重类存位图；快照类取日终值

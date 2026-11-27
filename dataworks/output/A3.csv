@@ -3,8 +3,6 @@ ads_all_dis_member_count_d_f,_d_i / _d_f,ads
 ads_booking_sum_d_f,_d_i / _d_f,ads
 ads_channel_commodity_repurchase_d_f,_d_i / _d_f,ads
 ads_channel_rank_d_f,_d_i / _d_f,ads
-ads_channel_rank_d_i,_d_i / _d_f,ads
-ads_company_order_month_summary_d_f,_d_i / _d_f,ads
 ads_cus_company_d_f,_d_i / _d_f,ads
 ads_cus_landtravel_d_f,_d_i / _d_f,ads
 ads_daily_account_trans_item_summary_d_i,_d_i / _d_f,ads
@@ -47,7 +45,6 @@ ads_daily_scenic_toi_d_i,_d_i / _d_f,ads
 ads_daily_scenic_tourist_location_d_i,_d_i / _d_f,ads
 ads_daily_scenic_tourist_sex_age_d_i,_d_i / _d_f,ads
 ads_daily_scenic_verify_draw_d_i,_d_i / _d_f,ads
-ads_daily_scenic_verify_draw_remain_d_i,_d_i / _d_f,ads
 ads_daily_scenic_verify_tourist_location_d_i,_d_i / _d_f,ads
 ads_daily_scenic_verify_tourist_location_remain_d_i,_d_i / _d_f,ads
 ads_daily_scenic_verify_tourist_province_sex_age_d_i,_d_i / _d_f,ads
@@ -67,11 +64,6 @@ ads_datav_device_ticket_verification_d_i,_d_i / _d_f,ads
 ads_digital_brain_target_merge_di,_di / _df,ads
 ads_distributor_add_count_d_f,_d_i / _d_f,ads
 ads_distributor_total_count_d_f,_d_i / _d_f,ads
-ads_enter_into_tourist_land_distribute_d_i,_d_i / _d_f,ads
-ads_everyday_land_booking_number_d_i,_d_i / _d_f,ads
-ads_everyday_land_enter_into_number_d_i,_d_i / _d_f,ads
-ads_marketing_department_supply_gmv_d_f,_d_i / _d_f,ads
-ads_module_open_rank_d_f,_d_i / _d_f,ads
 ads_monthly_fellow_group_d_i,_d_i / _d_f,ads
 ads_monthly_full_channel_d_i,_d_i / _d_f,ads
 ads_monthly_retail_sixun_product_d_i,_d_i / _d_f,ads
@@ -93,8 +85,6 @@ ads_monthly_scenic_ticket_taker_order_draw_d_i,_d_i / _d_f,ads
 ads_monthly_scenic_toi_d_i,_d_i / _d_f,ads
 ads_monthly_scenic_tourist_location_d_i,_d_i / _d_f,ads
 ads_monthly_scenic_tourist_sex_age_d_i,_d_i / _d_f,ads
-ads_monthly_scenic_verify_draw_d_i,_d_i / _d_f,ads
-ads_monthly_scenic_verify_draw_remain_d_i,_d_i / _d_f,ads
 ads_monthly_scenic_verify_tourist_location_d_i,_d_i / _d_f,ads
 ads_monthly_scenic_verify_tourist_location_remain_d_i,_d_i / _d_f,ads
 ads_monthly_scenic_verify_tourist_province_sex_age_d_i,_d_i / _d_f,ads
@@ -105,39 +95,16 @@ ads_monthly_supplier_distributor_stat_d_i,_d_i / _d_f,ads
 ads_monthly_ticket_refund_ratio_d_i,_d_i / _d_f,ads
 ads_monthly_ticket_verify_draw_d_i,_d_i / _d_f,ads
 ads_monthly_ticket_verify_draw_remain_d_i,_d_i / _d_f,ads
-ads_operate_lv1_num_d_f,_d_i / _d_f,ads
-ads_operate_pay_distri_num_d_f,_d_i / _d_f,ads
 ads_ord_order_booking_metric_di,_di / _df,ads
 ads_ord_trade_metrics_di,_di / _df,ads
 ads_order_draw_d_i,_d_i / _d_f,ads
 ads_order_draw_new_user_d_f,_d_i / _d_f,ads
-ads_order_holiday_analysis_10_ks_ddpsgmv,无后缀,ads
-ads_order_holiday_analysis_11_jqkj_ps,无后缀,ads
-ads_order_holiday_analysis_12_wsbt,无后缀,ads
-ads_order_holiday_analysis_13_dcyp,无后缀,ads
-ads_order_holiday_analysis_14_nld_tqts,无后缀,ads
-ads_order_holiday_analysis_1_ddpsgmv,无后缀,ads
-ads_order_holiday_analysis_2_mrkl,无后缀,ads
-ads_order_holiday_analysis_3_yt_ddpsgmv,无后缀,ads
-ads_order_holiday_analysis_4_qd_ddpsgmv,无后缀,ads
-ads_order_holiday_analysis_5_ota_ddpsgmv,无后缀,ads
-ads_order_holiday_analysis_6_age_ddpsgmv,无后缀,ads
-ads_order_holiday_analysis_7_perday_ddpsgmv,无后缀,ads
-ads_order_holiday_analysis_8_jb_ddpsgmv,无后缀,ads
-ads_order_holiday_analysis_9_perday_yt_ddpsgmv,无后缀,ads
-ads_order_play_d_f,_d_i / _d_f,ads
-ads_plat_distribution_d_f,_d_i / _d_f,ads
-ads_plat_map_fly_d_f,_d_i / _d_f,ads
-ads_plat_third_purchase_order_d_f,_d_i / _d_f,ads
-ads_plat_yesterday_order_hour_d_i,_d_i / _d_f,ads
 ads_prd_attraction_visitor_stats_di,_di / _df,ads
 ads_product_onshelf_offshelf_d_i,_d_i / _d_f,ads
 ads_res_center_assessment_province2022_d_f,_d_i / _d_f,ads
 ads_res_center_assessment_province2022_detail_d_f,_d_i / _d_f,ads
 ads_resource_center_cutchain_order_d_f,_d_i / _d_f,ads
 ads_resource_center_order_d_f,_d_i / _d_f,ads
-ads_resource_center_ticket_summary_d_f,_d_i / _d_f,ads
-ads_resource_purchase_list_d_f,_d_i / _d_f,ads
 ads_s_company_channel_instance_stat_1h_i_workflow,无后缀,ads
 ads_s_company_channel_instance_stat_d_f,_d_i / _d_f,ads
 ads_s_company_channel_stat_d_f,_d_i / _d_f,ads
@@ -171,13 +138,10 @@ ads_scenic_customer_insight_visit_preference_mo,无后缀,ads
 ads_scenic_customer_insight_wealth_consume_mo,无后缀,ads
 ads_scenic_customer_insight_work_live_mo,无后缀,ads
 ads_selling_channel_d_i,_d_i / _d_f,ads
-ads_source_area_sell_d_f,_d_i / _d_f,ads
 ads_sup_ota_ctrip_score_di,_di / _df,ads
 ads_sup_ota_ctrip_trade_di,_di / _df,ads
 ads_supplier_total_count_d_i,_d_i / _d_f,ads
 ads_toi_count_d_i,_d_i / _d_f,ads
-ads_tourist_count_d_f,_d_i / _d_f,ads
-ads_tourist_user_persona_d_i,_d_i / _d_f,ads
 ads_travel_age_gender_summary_d_f,_d_i / _d_f,ads
 ads_travel_product_summary_d_f,_d_i / _d_f,ads
 ads_travel_team_summary_d_f,_d_i / _d_f,ads
@@ -185,18 +149,6 @@ ads_travel_togerter_summary_d_f,_d_i / _d_f,ads
 ads_travel_tourists_source_summary_d_i,_d_i / _d_f,ads
 ads_trf_scenic_passenger_flow_di,_di / _df,ads
 ads_trf_tourist_in_out_qty,无后缀,ads
-ads_two_s_company_day_stat_d_i,_d_i / _d_f,ads
-ads_verify_holiday_analysis_10_ks_ddpsgmv,无后缀,ads
-ads_verify_holiday_analysis_11_jqkj_ps,无后缀,ads
-ads_verify_holiday_analysis_1_ddpsgmv,无后缀,ads
-ads_verify_holiday_analysis_2_mrkl,无后缀,ads
-ads_verify_holiday_analysis_3_yt_ddpsgmv,无后缀,ads
-ads_verify_holiday_analysis_4_qd_ddpsgmv,无后缀,ads
-ads_verify_holiday_analysis_5_ota_ddpsgmv,无后缀,ads
-ads_verify_holiday_analysis_6_age_ddpsgmv,无后缀,ads
-ads_verify_holiday_analysis_7_perday_ddpsgmv,无后缀,ads
-ads_verify_holiday_analysis_8_jb_ddpsgmv,无后缀,ads
-ads_verify_holiday_analysis_9_perday_yt_ddpsgmv,无后缀,ads
 ads_yearly_fellow_group_d_i,_d_i / _d_f,ads
 ads_yearly_full_channel_d_i,_d_i / _d_f,ads
 ads_yearly_retail_sixun_product_d_i,_d_i / _d_f,ads
@@ -218,8 +170,6 @@ ads_yearly_scenic_ticket_taker_order_draw_d_i,_d_i / _d_f,ads
 ads_yearly_scenic_toi_d_i,_d_i / _d_f,ads
 ads_yearly_scenic_tourist_location_d_i,_d_i / _d_f,ads
 ads_yearly_scenic_tourist_sex_age_d_i,_d_i / _d_f,ads
-ads_yearly_scenic_verify_draw_d_i,_d_i / _d_f,ads
-ads_yearly_scenic_verify_draw_remain_d_i,_d_i / _d_f,ads
 ads_yearly_scenic_verify_tourist_location_d_i,_d_i / _d_f,ads
 ads_yearly_scenic_verify_tourist_location_remain_d_i,_d_i / _d_f,ads
 ads_yearly_scenic_verify_tourist_province_sex_age_d_i,_d_i / _d_f,ads
@@ -236,9 +186,6 @@ cache_landtravel_tourist_verify,无后缀,cache
 cache_landtravel_user_info,无后缀,cache
 cache_landtravel_user_verify,无后缀,cache
 cache_landtravel_user_verify_info,无后缀,cache
-cache_tmp_holiday_newdates,无后缀,cache
-cache_tmp_order_holiday,无后缀,cache
-cache_tmp_verify_holiday,无后缀,cache
 dim_attr_scenic_info_df,_di / _df,dim
 dim_attr_ticket_info_df,_di / _df,dim
 dim_bloc_company_d_f,_d_i / _d_f,dim
@@ -252,24 +199,18 @@ dim_common_phone_prefix_area_df,_di / _df,dim
 dim_common_region_area_df,_di / _df,dim
 dim_common_supplier_scenic_ticket_f,_di / _df,dim
 dim_company_report_date_d_f,_d_i / _d_f,dim
-dim_contract_d_f,_d_i / _d_f,dim
-dim_contract_id_d_f,_d_i / _d_f,dim
 dim_crm_home_area_d_f,_d_i / _d_f,dim
 dim_cus_company_d_f,_d_i / _d_f,dim
 dim_cus_core_attributes_df,_di / _df,dim
 dim_cus_member_info_df,_di / _df,dim
 dim_cus_user_customer_info_df,_di / _df,dim
-dim_dataoutput_config_d_i,_d_i / _d_f,dim
 dim_date_isoweek_o_f,_d_i / _d_f,dim
 dim_distributor_group_d_f,_d_i / _d_f,dim
 dim_idcard_city_d_f,_d_i / _d_f,dim
 dim_idcard_city_fixed_d_f,_d_i / _d_f,dim
-dim_input_group_gate_d_f,_d_i / _d_f,dim
 dim_land_d_f,_d_i / _d_f,dim
 dim_land_topic_d_f,_d_i / _d_f,dim
-dim_marketing_test_analyze_d_f,_d_i / _d_f,dim
 dim_mkt_module_combo_config_df,_di / _df,dim
-dim_oa_department_d_f,_d_i / _d_f,dim
 dim_order_d_i,_d_i / _d_f,dim
 dim_order_d_i_dev,无后缀,dim
 dim_order_status_o_f,_d_i / _d_f,dim
@@ -303,11 +244,9 @@ dim_user_module_d_f,_d_i / _d_f,dim
 dim_user_relationship_d_f,_d_i / _d_f,dim
 dim_user_thirdsystem_d_f,_d_i / _d_f,dim
 dwd_all_dis_orders_d_f,_d_i / _d_f,dwd
-dwd_company_cooperation_other_d_f,_d_i / _d_f,dwd
 dwd_company_login_d_f,_d_i / _d_f,dwd
 dwd_cus_qualification_auth_df,_di / _df,dwd
 dwd_cus_user_base_bind_df,_di / _df,dwd
-dwd_minutely_inout_detail_d_i,_d_i / _d_f,dwd
 dwd_mkt_module_combo_open_df,_di / _df,dwd
 dwd_mkt_oa_customer_reception_detail_df,_di / _df,dwd
 dwd_opr_dashboard_user_auth_df,_di / _df,dwd
@@ -317,7 +256,6 @@ dwd_ord_order_details_di,_di / _df,dwd
 dwd_ord_order_distribute_detail_di,_di / _df,dwd
 dwd_ord_order_distribute_summary_di,_di / _df,dwd
 dwd_ord_order_item_wide_di,_di / _df,dwd
-dwd_ord_order_tourist_shift_detail_di,_di / _df,dwd
 dwd_ord_package_sub_order_details_di,_di / _df,dwd
 dwd_ord_split_order_details_di,_di / _df,dwd
 dwd_ord_traveler_booking_details_di,_di / _df,dwd
@@ -331,32 +269,18 @@ dwd_order_tourist_info_d_i,_d_i / _d_f,dwd
 dwd_order_track_d_i,_d_i / _d_f,dwd
 dwd_order_track_split_d_i,_d_i / _d_f,dwd
 dwd_order_verify_d_i,_d_i / _d_f,dwd
-dwd_pft_trade_journal_d_f,_d_i / _d_f,dwd
-dwd_project_bill_d_f,_d_i / _d_f,dwd
-dwd_project_by_post_d_f,_d_i / _d_f,dwd
-dwd_project_call_back_d_f,_d_i / _d_f,dwd
-dwd_project_check_d_f,_d_i / _d_f,dwd
 dwd_r_report_dwm_common_di,_di / _df,dwd
 dwd_resource_center_order_d_f,_d_i / _d_f,dwd
 dwd_sales_tr_marketing_order_d_f,_d_i / _d_f,dwd
 dwd_service_business_d_f,_d_i / _d_f,dwd
 dwd_split_d_i,_d_i / _d_f,dwd
-dwd_staff_basic_d_f,_d_i / _d_f,dwd
 dwd_tourist_info_d_i,_d_i / _d_f,dwd
 dwd_tourist_verify_d_i,_d_i / _d_f,dwd
 dwd_tourist_verify_d_i_temp,无后缀,dwd
 dwd_trf_tourist_in_out_details_di,_di / _df,dwd
 dwd_user_module_d_f,_d_i / _d_f,dwd
 dwd_user_package_d_f,_d_i / _d_f,dwd
-dwd_user_resource_center_pv_d_f,_d_i / _d_f,dwd
-dws_company_distributor_order_d_f,_d_i / _d_f,dws
-dws_company_package_d_f,_d_i / _d_f,dws
 dws_company_package_it_d_f,_d_i / _d_f,dws
-dws_contract_bill_d_f,_d_i / _d_f,dws
-dws_contract_by_post_d_f,_d_i / _d_f,dws
-dws_contract_call_back_d_f,_d_i / _d_f,dws
-dws_contract_check_d_f,_d_i / _d_f,dws
-dws_contract_d_f,_d_i / _d_f,dws
 dws_cus_company_login_d_f,_d_i / _d_f,dws
 dws_cus_company_partner_d_f,_d_i / _d_f,dws
 dws_cus_company_prod_d_f,_d_i / _d_f,dws
@@ -377,12 +301,10 @@ dws_daily_report_ticket_summary_d_i,_d_i / _d_f,dws
 dws_daily_report_ticket_summary_hour_d_i,_d_i / _d_f,dws
 dws_daily_report_ticket_summary_remain_d_i,_d_i / _d_f,dws
 dws_daily_terminal_pass_summary_d_i,_d_i / _d_f,dws
-dws_datav_preplay_estimate_day_d_f,_d_i / _d_f,dws
 dws_distribution_aggregation_d_i,_d_i / _d_f,dws
 dws_hourly_report_full_summary_d_i,_d_i / _d_f,dws
 dws_hourly_report_terminal_pass_full_d_i,_d_i / _d_f,dws
 dws_hourly_terminal_pass_summary_d_i,_d_i / _d_f,dws
-dws_micromessage_page_view_d_f,_d_i / _d_f,dws
 dws_monthly_report_annual_card_ticket_summary_d_i,_d_i / _d_f,dws
 dws_monthly_report_annual_card_ticket_verify_summary_d_i,_d_i / _d_f,dws
 dws_monthly_report_branch_terminal_summary_d_i,_d_i / _d_f,dws
@@ -405,7 +327,6 @@ dws_ord_supplier_overview_di,_di / _df,dws
 dws_ord_tourist_overview_di,_di / _df,dws
 dws_ord_traveler_booking_wide_di,_di / _df,dws
 dws_ord_traveler_verify_log_wide_di,_di / _df,dws
-dws_order_info_holiday_analysis_d_f,_d_i / _d_f,dws
 dws_prd_xisland_retail_summary_di,_di / _df,dws
 dws_prd_xisland_retail_summary_mo,无后缀,dws
 dws_prd_xisland_retail_summary_yr,无后缀,dws
@@ -415,7 +336,6 @@ dws_res_resource_center_land_attr_detail_d_f,_d_i / _d_f,dws
 dws_resource_center_land_summary_d_f,_d_i / _d_f,dws
 dws_resource_center_user_d_f,_d_i / _d_f,dws
 dws_scenic_inout_cycle_summary_d_i,_d_i / _d_f,dws
-dws_scenic_inout_hour_summary_d_i,_d_i / _d_f,dws
 dws_scenic_inout_week_summary_d_i,_d_i / _d_f,dws
 dws_scenic_inout_week_summary_last_d_f,_d_i / _d_f,dws
 dws_scenic_park_day_d_i,_d_i / _d_f,dws
@@ -433,8 +353,6 @@ dws_tps_aioc_summary_yr,无后缀,dws
 dws_tps_sup_trf_tourist_di,_di / _df,dws
 dws_tps_sup_trf_tourist_min,无后缀,dws
 dws_trf_tourist_in_out_1d_qty_di,_di / _df,dws
-dws_user_report_order_month_d_f,_d_i / _d_f,dws
-dws_verify_info_holiday_analysis_d_f,_d_i / _d_f,dws
 dws_yearly_report_annual_card_ticket_summary_d_i,_d_i / _d_f,dws
 dws_yearly_report_annual_card_ticket_verify_summary_d_i,_d_i / _d_f,dws
 dws_yearly_report_branch_terminal_summary_d_i,_d_i / _d_f,dws
@@ -469,7 +387,6 @@ ods_city_phone_fixed_d_f,_d_i / _d_f,ods
 ods_company_report_date_d_f,_d_i / _d_f,ods
 ods_con_pft_crm_sales_order,无后缀,ods
 ods_country_region_d_f,_d_i / _d_f,ods
-ods_culture_tourism_business_opportunity_input_d_f,_d_i / _d_f,ods
 ods_culture_tourism_task_input_d_f,_d_i / _d_f,ods
 ods_cus_excel_task_d_f,_d_i / _d_f,ods
 ods_cus_identity_info_d_f,_d_i / _d_f,ods
@@ -490,8 +407,6 @@ ods_cus_tourist_info_d_f,_d_i / _d_f,ods
 ods_cus_user_auth_info_d_f,_d_i / _d_f,ods
 ods_cus_user_info_d_f,_d_i / _d_f,ods
 ods_datav_auth_d_f,_d_i / _d_f,ods
-ods_datav_preplay_describe_day_d_f,_d_i / _d_f,ods
-ods_datav_tourist_frequency_day_d_f,_d_i / _d_f,ods
 ods_dim_user_layering_d_f,_d_i / _d_f,ods
 ods_distribute_system_type_d_f,_d_i / _d_f,ods
 ods_ecs_pft001_pft_module_used_ext_df,_di / _df,ods
@@ -501,8 +416,6 @@ ods_hotel_lvyun_hotel_master_df,_di / _df,ods
 ods_idcard_city_d_f,_d_i / _d_f,ods
 ods_identity_area_code_d_f,_d_i / _d_f,ods
 ods_land_d_f,_d_i / _d_f,ods
-ods_marketing_test_d_f,_d_i / _d_f,ods
-ods_marketing_test_score_d_f,_d_i / _d_f,ods
 ods_member_d_f,_d_i / _d_f,ods
 ods_member_extinfo_d_f,_d_i / _d_f,ods
 ods_myuu_deposite_config_d_f,_d_i / _d_f,ods
@@ -549,58 +462,6 @@ ods_myuu_uu_ss_order_di,_di / _df,ods
 ods_myuu_uu_ss_order_team_df,_di / _df,ods
 ods_myuu_uu_ss_order_team_link_df,_di / _df,ods
 ods_myuu_uu_ss_order_ti,_di / _df,ods
-ods_oa_cus_fielddata_d_f,_d_i / _d_f,ods
-ods_oa_formatable_main_194_d_f,_d_i / _d_f,ods
-ods_oa_formtable_main_111_d_f,_d_i / _d_f,ods
-ods_oa_formtable_main_111_dt1_d_f,_d_i / _d_f,ods
-ods_oa_formtable_main_115_d_f,_d_i / _d_f,ods
-ods_oa_formtable_main_134_d_f,_d_i / _d_f,ods
-ods_oa_formtable_main_136_d_f,_d_i / _d_f,ods
-ods_oa_formtable_main_170_d_f,_d_i / _d_f,ods
-ods_oa_formtable_main_176_d_f,_d_i / _d_f,ods
-ods_oa_formtable_main_176_dt2_d_f,_d_i / _d_f,ods
-ods_oa_formtable_main_211_d_f,_d_i / _d_f,ods
-ods_oa_formtable_main_212_d_f,_d_i / _d_f,ods
-ods_oa_formtable_main_213_d_f,_d_i / _d_f,ods
-ods_oa_formtable_main_213_dt1_d_f,_d_i / _d_f,ods
-ods_oa_formtable_main_233_d_f,_d_i / _d_f,ods
-ods_oa_formtable_main_236_d_f,_d_i / _d_f,ods
-ods_oa_formtable_main_258_dt1_d_f,_d_i / _d_f,ods
-ods_oa_formtable_main_265_d_f,_d_i / _d_f,ods
-ods_oa_formtable_main_268_d_f,_d_i / _d_f,ods
-ods_oa_formtable_main_268_dt2_d_f,_d_i / _d_f,ods
-ods_oa_formtable_main_268_dt3_d_f,_d_i / _d_f,ods
-ods_oa_formtable_main_268_dt4_d_f,_d_i / _d_f,ods
-ods_oa_formtable_main_268_dt5_d_f,_d_i / _d_f,ods
-ods_oa_formtable_main_274_d_f,_d_i / _d_f,ods
-ods_oa_formtable_main_277_d_f,_d_i / _d_f,ods
-ods_oa_formtable_main_37_d_f,_d_i / _d_f,ods
-ods_oa_formtable_main_48_d_f,_d_i / _d_f,ods
-ods_oa_formtable_main_53_d_f,_d_i / _d_f,ods
-ods_oa_formtable_main_93_d_f,_d_i / _d_f,ods
-ods_oa_formtable_main_93_dt1_d_f,_d_i / _d_f,ods
-ods_oa_hrmcity_d_f,_d_i / _d_f,ods
-ods_oa_hrmdepartment_d_f,_d_i / _d_f,ods
-ods_oa_hrmdepartmentdefined_d_f,_d_i / _d_f,ods
-ods_oa_hrmeducationlevel_d_f,_d_i / _d_f,ods
-ods_oa_hrmjobtitles_d_f,_d_i / _d_f,ods
-ods_oa_hrmprovince_d_f,_d_i / _d_f,ods
-ods_oa_hrmresource_d_f,_d_i / _d_f,ods
-ods_oa_kq_flow_overtime_d_f,_d_i / _d_f,ods
-ods_oa_kq_flow_split_leave_d_f,_d_i / _d_f,ods
-ods_oa_kq_format_detail_d_f,_d_i / _d_f,ods
-ods_oa_kq_group_d_f,_d_i / _d_f,ods
-ods_oa_kq_holidayset_d_f,_d_i / _d_f,ods
-ods_oa_kq_leaverules_d_f,_d_i / _d_f,ods
-ods_oa_kq_shiftresttimesections_d_f,_d_i / _d_f,ods
-ods_oa_uf_cpxxbd_d_f,_d_i / _d_f,ods
-ods_oa_uf_httzbd_d_f,_d_i / _d_f,ods
-ods_oa_uf_jxkhd_d_f,_d_i / _d_f,ods
-ods_oa_uf_xctzbd_d_f,_d_i / _d_f,ods
-ods_oa_uf_xkhjjdtz_d_f,_d_i / _d_f,ods
-ods_oa_uf_yybht_d_f,_d_i / _d_f,ods
-ods_oa_uf_zwht_d_f,_d_i / _d_f,ods
-ods_open_monitoring_d_i,_d_i / _d_f,ods
 ods_order_201801_pft_order_tourist_track_history_di,_di / _df,ods
 ods_order_201801_pft_order_track_history_di,_di / _df,ods
 ods_order_201801_uu_ss_order_di,_di / _df,ods
@@ -711,9 +572,6 @@ ods_pft_card_order_refund_journal_di,_di / _df,ods
 ods_pft_common_dict_d_f,_d_i / _d_f,ods
 ods_pft_con_sys_d_f,_d_i / _d_f,ods
 ods_pft_con_sys_member_d_f,_d_i / _d_f,ods
-ods_pft_dc_daycount_info_d_i,_d_i / _d_f,ods
-ods_pft_dc_daycount_two_d_i,_d_i / _d_f,ods
-ods_pft_dc_daycount_two_full_temp,无后缀,ods
 ods_pft_device_inout_journal_d_i,_d_i / _d_f,ods
 ods_pft_distribute_order_d_f,_d_i / _d_f,ods
 ods_pft_evolute_group_d_f,_d_i / _d_f,ods
@@ -753,7 +611,6 @@ ods_pft_resource_user_function_d_f,_d_i / _d_f,ods
 ods_pft_special_ticket_d_f,_d_i / _d_f,ods
 ods_pft_tb_bind_d_f,_d_i / _d_f,ods
 ods_pft_trade_journal_d_i,_d_i / _d_f,ods
-ods_project_contract_d_f,_d_i / _d_f,ods
 ods_quarter_first_date_d_f,_d_i / _d_f,ods
 ods_region_area_d_f,_d_i / _d_f,ods
 ods_res_pft_resource_land_attr_d_f,_d_i / _d_f,ods
@@ -777,7 +634,6 @@ ods_sales_pft_seckill_log_d_f,_d_i / _d_f,ods
 ods_sbs_account_d_f,_d_i / _d_f,ods
 ods_sbs_region_tourist_track_d_i,_d_i / _d_f,ods
 ods_scenic_inout_hour_summary_d_i,_d_i / _d_f,ods
-ods_scenic_inout_summary_group_d_f,_d_i / _d_f,ods
 ods_summary_pft_dc_daycount_info_di,_di / _df,ods
 ods_team_order_d_f,_d_i / _d_f,ods
 ods_terminal_branch_summary_d_i,_d_i / _d_f,ods
@@ -810,28 +666,9 @@ s_order_split_update_d_i,_d_i / _d_f,s
 s_order_track_d_i,_d_i / _d_f,s
 s_order_update_d_i,_d_i / _d_f,s
 s_order_user_info_d_i,_d_i / _d_f,s
-s_parking_daoer5_entry_record_o_f,_d_i / _d_f,s
-s_parking_daoer5_exit_record_o_f,_d_i / _d_f,s
-s_parking_daoer_entry_record_o_f,_d_i / _d_f,s
-s_parking_daoer_exit_record_o_f,_d_i / _d_f,s
-s_parking_ketuo_entry_record_o_f,_d_i / _d_f,s
-s_parking_ketuo_exit_record_o_f,_d_i / _d_f,s
-s_parking_zhihui_entry_record_o_f,_d_i / _d_f,s
-s_parking_zhihui_exit_record_o_f,_d_i / _d_f,s
 s_pft_con_sys_d_f,_d_i / _d_f,s
 s_pft_device_inout_journal_d_i,_d_i / _d_f,s
-s_pft_report_annual_card_checked_o_f,_d_i / _d_f,s
-s_pft_report_annual_card_order_o_f,_d_i / _d_f,s
-s_pft_report_checked_two_hour_o_f,_d_i / _d_f,s
-s_pft_report_checked_two_o_f,_d_i / _d_f,s
-s_pft_report_order_two_hour_o_f,_d_i / _d_f,s
-s_pft_report_order_two_o_f,_d_i / _d_f,s
-s_pft_report_terminal_pass_o_f,_d_i / _d_f,s
-s_retail_sixun_order_o_f,_d_i / _d_f,s
-s_retail_sixun_order_sale_detail_o_f,_d_i / _d_f,s
 s_retail_yinbao_ticket_item_d_i,_d_i / _d_f,s
-s_scenic_inout_hour_summary_o_f,_d_i / _d_f,s
-s_terminal_branch_summary_o_f,_d_i / _d_f,s
 s_tourist_info_d_i,_d_i / _d_f,s
 s_tourist_info_d_i_temp,无后缀,s
 s_tourist_info_extend_d_i,_d_i / _d_f,s
@@ -839,7 +676,6 @@ s_tourist_info_extend_d_i_temp,无后缀,s
 s_tourist_track_d_i,_d_i / _d_f,s
 s_tourist_track_d_i_temp,无后缀,s
 s_uu_ss_order_1h_i_workflow,无后缀,s
-src_order_aids_split_di,_di / _df,src
 src_pft_annual_affiliates_card_df,_di / _df,src
 src_pft_annual_aliface_map_df,_di / _df,src
 src_pft_annual_async_order_di,_di / _df,src
@@ -863,12 +699,6 @@ src_pft_annual_desensitization_config_df,_di / _df,src
 src_pft_annual_manage_record_di,_di / _df,src
 src_pft_annual_ticket_relation_df,_di / _df,src
 src_pft_annual_wx_config_df,_di / _df,src
-src_pft_order_tourist_track_di,_di / _df,src
-src_uu_order_addon_di,_di / _df,src
-src_uu_order_tourist_info_di,_di / _df,src
-src_uu_ss_order_di,_di / _df,src
 temp_begin_make_copy,无后缀,temp
-tmp_contract_d_f,_d_i / _d_f,tmp
-tmp_mid_dim_dataoutput_config,无后缀,tmp
 tmp_src_ord_scenic_ticket_modify_hrs_f,_di / _df,tmp
 tmp_src_trf_scenic_access_record_hrs_f,_di / _df,tmp

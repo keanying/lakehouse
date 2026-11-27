@@ -15,3 +15,57 @@
 数据平台/ADS/ads_数字大脑指标流程/ads_digital_brain_target_merge_radar_di
 # 舆情结果回流导出（手动任务）
 业务工厂/手动任务/全网舆论导出
+
+# ---- 2026-11-27 客户确认：下线 / 未上线 / 需要取消，从 ODS（SRC）层起整体忽略 ----
+# 客户写「ODS-OA」，实际路径如下
+业务工厂/内部信息/ODS-OA
+业务工厂/内部信息/财务部/节假日数据2
+业务工厂/内部信息/公司/公司大屏/公司大屏工作流
+业务工厂/内部信息/市场（平台事业部）/公司BI/公司BI工作流
+业务工厂/内部信息/微商城/微商城页面访问汇总工作流
+业务工厂/内部信息/运营/运营汇总工作流
+业务工厂/内部信息/资源中心/资源中心汇总工作流
+业务工厂/内部信息/DIM/dim_contract_d_f
+业务工厂/内部信息/DIM/dim_marketing_test_analyze_d_f_workflow
+业务工厂/内部信息/DIM/dim_contract_id_d_f
+业务工厂/内部信息/DIM/dim_oa_department_d_f
+业务工厂/内部信息/DWD/dwd_project_bill_d_f
+业务工厂/内部信息/DWD/dwd_project_by_post_d_f
+业务工厂/内部信息/DWD/dwd_project_call_back_d_f
+业务工厂/内部信息/DWD/dwd_staff_basic_d_f
+业务工厂/内部信息/DWS/dws_contract_d_f_workflow
+业务工厂/票务数据/出入园/出入园数据校验工作流
+业务工厂/商户数据中心/ADS/ads_data_center_report_order_summary_o_f
+业务工厂/商户数据中心/ADS/ads_s_company_distributor_stat_o_i
+业务工厂/商户数据中心/ADS/ads_two_s_company_day_stat_d_i_f
+业务工厂/数据开放服务/基础数据/全渠道统计/ads_daily_full_channel_d_i
+业务工厂/数据开放服务/旧有接口/ads_channel_rank_d_i
+业务工厂/私有化部署/m_private_dim_distribute_channel_type_o_f
+业务工厂/私有化部署/m_private_dim_distribute_ota_o_f
+业务工厂/私有化部署/m_private_dim_idcard_city_fixed_d_f
+业务工厂/私有化部署/m_private_dim_phone_city_fixed_d_f
+业务工厂/私有化部署/m_private_dim_phone_global_d_f
+业务工厂/私有化部署/m_private_ods_order_d_i
+业务工厂/私有化部署/m_private_pft_member
+# 客户写「业务工厂/test」，导出包里没有；仅有的 test 节点在数据平台 ODS 下，一并忽略
+业务工厂/test
+数据平台/ODS/业务流程/test
+数据平台/ODS/脚本流程/test
+业务工厂/客户数据大屏/大连文化中心/dws_datav_preplay_estimate_day_d_f
+业务工厂/客户数据大屏/大连文化中心/m_ods_datav_tourist_frequency_day_d_f
+业务工厂/客户数据大屏/大连文化中心/ods_datav_preplay_describe_day_d_i
+业务工厂/客户数据大屏/大连文化中心/ods_datav_tourist_frequency_day_d_f
+业务工厂/开放监控看板/ods_open_monitoring_d_i_workflow
+业务工厂/景区指标宽表/每日景区核销画像工作流
+业务工厂/经营数据/预定单表/dwd_order_forck_o_f
+# 以下三个导出包里没有（可能已删除），保留以防后续导出包出现
+业务工厂/瀚海GBI/GBI汇总工作流
+业务工厂/多维数据分析
+数据中台/数据维度(DIM)/dim
+业务工厂/财务平衡/财务平衡初始化脚本
+数据中台/数仓明细层(DWD)/dwd_预定单游客信息/dwd_order_tourist_info_d_f
+# 客户写「其他/废弃dim_city_fixed_d_f」，实际路径如下
+数据中台/数据维度(DIM)/dim_其他/废弃dim_city_fixed_d_f
+数据平台/业务需求工作流/星享铁旅工作流
+业务工厂/手动任务
+业务工厂/数据备份服务

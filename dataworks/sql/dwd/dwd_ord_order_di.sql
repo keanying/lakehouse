@@ -4,12 +4,11 @@
 -- 分区：travel_date（YYYYMMDD）
 -- 调度：每日，依赖上游 ODS 当日分区与相关维表
 -- 上游：ods_ord_order_di、ods_ord_order_addon_di、ods_ord_order_apply_di、ods_ord_order_ticket_taker_di、dim_prd_ticket_df、dim_prd_scenic_df、dim_sup_member_df
--- 替代旧任务 26 个（上线对数一致后下线）：
+-- 替代旧任务 25 个（上线对数一致后下线）：
 --   · 数据中台/DW/dwd_order_d_i（EMR_SPARK_SQL，cron 00 00 03 * * ?）
 --   · 数据平台/DWD/dwd_ord_order_details_di（SERVERLESS_SPARK_SQL，cron 00 11 01 * * ?）
 --   · 数据平台/平台湖仓工作流/经营数据/dwd_ord_order_detail_di（SERVERLESS_SPARK_SQL，cron 00 00 00 * * ?）
 --   · 业务工厂/经营数据/预定单表/dwd_order_forck_d_i（EMR_SPARK_SQL，cron 00 00 01 * * ?）
---   · 业务工厂/经营数据/预定单表/dwd_order_forck_o_f（EMR_SPARK_SQL，cron 00 04 00 * * ?）
 --   · 数据平台/平台湖仓工作流/经营数据/dwd_ord_order_item_wide_di（SERVERLESS_SPARK_SQL，cron 00 00 00 * * ?）
 --   · 数据中台/DW/dim_order_d_i（EMR_SPARK_SQL，cron 00 00 01 * * ?）
 --   · 数据中台/DW/dim_order_d_i_dev（SERVERLESS_SPARK_SQL，cron 00 30 12 * * ?）
@@ -17,7 +16,8 @@
 --   · 数据平台/DWD/dwd_ord_group_sub_order_details_di（SERVERLESS_SPARK_SQL，cron 00 00 01 * * ?）
 --   · 数据平台/DWD/dwd_ord_package_sub_order_details_di（SERVERLESS_SPARK_SQL，cron 00 20 01 * * ?）
 --   · 数据平台/DWS/dws_ord_order_detail_wide_di（SERVERLESS_SPARK_SQL，cron 00 30 06 * * ?）
---   · … 另 14 个
+--   · 数据平台/平台湖仓工作流/商户数据中心/dwd_order_boss_cockpit_instance_workflow（EMR_SPARK_SQL，cron 00 00 00 * * ?）
+--   · … 另 13 个
 -- 业务规则 / 修正：
 --   · 替代 dwd_order_d_i、dwd_order_split_d_i、dim_order_d_i 等 17 张：旧系统同一张订单在 8 个任务里各算一遍
 --   · 旧同步按 ordertime 只取当日下单，下单后的支付 / 取消 / 验证变化漏采；改为按 update_time 采变更

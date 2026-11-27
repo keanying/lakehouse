@@ -4,7 +4,7 @@
 -- 分区：travel_date（YYYYMMDD）
 -- 调度：每日，依赖上游 DWS 当日分区；完成后回流 / 服务层读取
 -- 上游：dws_ord_scenic_ticket_trade_di、dws_sup_member_di
--- 替代旧任务 32 个（上线对数一致后下线）：
+-- 替代旧任务 29 个（上线对数一致后下线）：
 --   · 数据平台/平台湖仓工作流/商户数据中心/ads_s_company_channel_instance_stat_1h_i_workflow（EMR_SPARK_SQL，cron 00 00 00 * * ?）
 --   · 业务工厂/商户数据中心/ADS/ads_s_company_channel_instance_stat_d_f（EMR_SPARK_SQL，cron 00 30 02 * * ?）
 --   · 业务工厂/商户数据中心/ADS/ads_s_company_channel_stat_d_f（EMR_SPARK_SQL，cron 00 30 02 * * ?）
@@ -13,11 +13,11 @@
 --   · 业务工厂/商户数据中心/ADS/ads_s_company_distributor_instance_stat_d_f（EMR_SPARK_SQL，cron 00 27 00 * * ?）
 --   · 业务工厂/商户数据中心/ADS/ads_s_company_distributor_stat_d_f（EMR_SPARK_SQL，cron 00 30 02 * * ?）
 --   · 业务工厂/商户数据中心/ADS/ads_s_company_distributor_stat_d_i（EMR_SPARK_SQL，cron 00 21 00 * * ?）
---   · 业务工厂/商户数据中心/ADS/ads_s_company_distributor_stat_o_i（EMR_SPARK_SQL，cron 00 18 00 * * ?）
 --   · 数据平台/平台湖仓工作流/商户数据中心/ads_s_company_order_instance_stat_1h_i_workflow（EMR_SPARK_SQL，cron 00 00 00 * * ?）
 --   · 业务工厂/商户数据中心/ADS/ads_s_company_order_instance_stat_d_f（EMR_SPARK_SQL，cron 00 40 02 * * ?）
 --   · 业务工厂/商户数据中心/ADS/ads_s_company_order_stat_d_f（EMR_SPARK_SQL，cron 00 30 02 * * ?）
---   · … 另 20 个
+--   · 数据平台/平台湖仓工作流/商户数据中心/ads_s_company_product_instance_stat_1h_i_workflow（EMR_SPARK_SQL，cron 00 00 00 * * ?）
+--   · … 另 17 个
 -- 性能：
 --   · ADS 只存日粒度：周 / 月 / 年 / 节假日 / 自定义区间与同比环比在查询时关联 dim_opr_period_f（见「指标口径 · ADS 业务指标」）
 --   · 比率类不落比率值，只存分子分母；去重类存位图；快照类取日终值

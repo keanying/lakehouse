@@ -589,9 +589,10 @@ function catDrawer(m){
 /* ---------- 旧系统对照 ---------- */
 const LS={};
 function vLegacy(v,a){
-  const T=[['issues','现状问题',LEGACY.findings.length],['map','旧表 → 标准表',LEGACY.mapping.rows.length],...(LEGACY.cover?[['cover','导出模型覆盖',LEGACY.cover.rows.length],['unify','口径统一',LEGACY.unify.rows.length]]:[]),['nodes','旧节点清单',LEGACY.nodes.rows.length]];
+  const T=[['issues','现状问题',LEGACY.findings.length],['map','旧表 → 标准表',LEGACY.mapping.rows.length],...(LEGACY.cover?[['cover','导出模型覆盖',LEGACY.cover.rows.length],['unify','口径统一',LEGACY.unify.rows.length]]:[]),['nodes','旧节点清单',LEGACY.nodes.rows.length],...(LEGACY.extra||[]).map(x=>[x.k,x.label,x.rows.length])];
+  const EX=Object.fromEntries((LEGACY.extra||[]).map(x=>[x.k,x]));
   const tab=T.some(x=>x[0]===a)?a:'issues';
-  v.innerHTML=`<div class="bar" style="margin-bottom:10px"><div class="chips" style="align-items:center">${T.map(([k,l,n])=>`<button class="chip ${tab===k?'on':''}" data-k="${k}" style="height:30px;padding:0 14px">${l}<i>${n.toLocaleString?n.toLocaleString():n}</i></button>`).join('')}${qi(LEGACY.tips[tab])}</div><span class="grow"></span>${tab==='issues'?`<a class="btn" href="${esc(LEGACY.reportHref)}" style="display:inline-flex;align-items:center;text-decoration:none">问题清单（Markdown）</a>`:''}</div><div id="lh" style="${tab==='issues'?'':'flex:1;min-height:0;display:flex;flex-direction:column'}"></div>`;
+  v.innerHTML=`<div class="bar" style="margin-bottom:10px"><div class="chips" style="align-items:center">${T.map(([k,l,n])=>`<button class="chip ${tab===k?'on':''}" data-k="${k}" style="height:30px;padding:0 14px">${l}<i>${n.toLocaleString?n.toLocaleString():n}</i></button>`).join('')}${qi(EX[tab]?EX[tab].tip:LEGACY.tips[tab])}</div><span class="grow"></span>${tab==='issues'?`<a class="btn" href="${esc(LEGACY.reportHref)}" style="display:inline-flex;align-items:center;text-decoration:none">问题清单（Markdown）</a>`:''}</div><div id="lh" style="${tab==='issues'?'':'flex:1;min-height:0;display:flex;flex-direction:column'}"></div>`;
   v.querySelector('.chips').onclick=e=>{const b=e.target.closest('.chip');if(b)go('#/legacy/'+b.dataset.k)};
   const h=$('#lh');LS[tab]??={};
   if(tab==='issues'){
@@ -604,13 +605,13 @@ function vLegacy(v,a){
       grid($('#fdg'),{cols:f.cols,rows:f.rows,pageSize:100,csvName:f.id,searchPh:'筛选…'})};
     return;
   }
-  const D=LEGACY[{map:'mapping',nodes:'nodes',cover:'cover',unify:'unify'}[tab]];const c=D.cols;
+  const D=EX[tab]||LEGACY[{map:'mapping',nodes:'nodes',cover:'cover',unify:'unify'}[tab]];const c=D.cols;
   const AP={'合并':'b','改名':'g','回流改造':'o','移出数仓':'r','下线':'r','项目专用':'','保留':'g','已覆盖':'g','已覆盖（时间表派生）':'g','补全':'o','维度':'b','与标准一致':'g'};
-  grid(h,{state:LS[tab],cols:c,rows:D.rows,wide:true,filters:D.filters,searchPh:{map:'搜索旧表名 / 标准表…',cover:'搜索导出表 / 字段 / 标准指标…',unify:'搜索指标 / 旧口径…',nodes:'搜索节点路径 / 读写表…'}[tab],csvName:tab==='map'?'旧表映射':'旧节点清单',pageSize:200,
+  grid(h,{state:LS[tab],cols:c,rows:D.rows,wide:true,filters:D.filters,searchPh:EX[tab]?EX[tab].ph:{map:'搜索旧表名 / 标准表…',cover:'搜索导出表 / 字段 / 标准指标…',unify:'搜索指标 / 旧口径…',nodes:'搜索节点路径 / 读写表…'}[tab],csvName:EX[tab]?EX[tab].label:tab==='map'?'旧表映射':'旧节点清单',pageSize:200,
     extra:`<div class="sub" style="margin:-2px 0 8px">${esc(D.note)}</div>`,
-    cell:(i,v,q)=>(c[i]==='标准表'||c[i]==='标准 ADS')&&v?tlink(v,q):['处理','覆盖情况'].includes(c[i])?`<span class="pill ${AP[v]??''}">${esc(v)}</span>`:/表|路径/.test(c[i])?`<span class="c-id">${hl(esc(v),q)}</span>`:hl(esc(v),q),
+    cell:(i,v,q)=>(c[i]==='标准表'||c[i]==='标准 ADS'||(EX[tab]&&(EX[tab].links||[]).includes(c[i])))&&v&&TBM[v]?tlink(v,q):EX[tab]&&EX[tab].pills&&EX[tab].pills[c[i]]?`<span class="pill ${(Object.entries(EX[tab].pills[c[i]]).find(([k])=>String(v).startsWith(k))||[0,''])[1]}">${esc(v)}</span>`:['处理','覆盖情况'].includes(c[i])?`<span class="pill ${AP[v]??''}">${esc(v)}</span>`:/表|路径/.test(c[i])?`<span class="c-id">${hl(esc(v),q)}</span>`:hl(esc(v),q),
     onRow:r=>{if(tab==='cover'||tab==='unify'){drawer(r[1]+(tab==='cover'?'（'+r[0]+'）':''),tab==='cover'?(r[4]||r[5]):r[2],kvHtml(c.map((n,i)=>[n,esc(r[i])])));return}
-      const k=c.indexOf('标准表');if(k>=0&&TBM[r[k]])go('#/tables/'+r[k])}});
+      const k=EX[tab]&&EX[tab].links?c.findIndex(n=>EX[tab].links.includes(n)&&TBM[r[c.indexOf(n)]]):c.indexOf('标准表');if(k>=0&&TBM[r[k]])go('#/tables/'+r[k])}});
 }
 
 

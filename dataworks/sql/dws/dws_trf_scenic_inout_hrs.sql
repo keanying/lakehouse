@@ -4,9 +4,8 @@
 -- 分区：travel_date（YYYYMMDD）
 -- 调度：每日，依赖上游 DWD 当日分区
 -- 上游：dwd_trf_scenic_inout_di
--- 替代旧任务 18 个（上线对数一致后下线）：
+-- 替代旧任务 17 个（上线对数一致后下线）：
 --   · 业务工厂/票务数据/出入园/出入园周月数据汇总工作流/dws_scenic_inout_cycle_summary_d_i（EMR_SPARK_SQL，cron 00 20 00 * * ?）
---   · 业务工厂/票务数据/出入园/出入园数据校验工作流/dws_scenic_inout_hour_summary_d_i（EMR_SPARK_SQL，cron 00 23 00 * * ?）
 --   · 业务工厂/票务数据/出入园/出入园周月数据汇总工作流/dws_scenic_inout_week_summary_d_i（EMR_SPARK_SQL，cron 00 20 00 * * ?）
 --   · 业务工厂/票务数据/出入园/出入园周月数据汇总工作流/dws_scenic_inout_week_summary_last_d_f（EMR_SPARK_SQL，cron 00 20 00 * * ?）
 --   · 业务工厂/票务数据/终端过闸/终端过闸汇总工作流/dws_daily_terminal_pass_summary_d_i（EMR_SPARK_SQL，cron 00 15 00 * * ?）
@@ -17,7 +16,8 @@
 --   · 业务工厂/票务数据/终端过闸/终端过闸汇总工作流_小时维度/dws_hourly_report_terminal_pass_full_d_i（EMR_SPARK_SQL，cron 00 21 00 * * ?）
 --   · 业务工厂/票务数据/终端过闸/分终端汇总工作流/dws_daily_report_branch_terminal_summary_d_i（EMR_SPARK_SQL，cron 00 05 00 * * ?）
 --   · 业务工厂/票务数据/终端过闸/分终端汇总工作流/dws_daily_report_ticket_branch_terminal_summary_d_i（EMR_SPARK_SQL，cron 00 05 00 * * ?）
---   · … 另 6 个
+--   · 业务工厂/票务数据/终端过闸/分终端汇总工作流/dws_monthly_report_branch_terminal_summary_d_i（EMR_SPARK_SQL，cron 00 05 00 * * ?）
+--   · … 另 5 个
 -- 性能：
 --   · 同一来源的指标在一个子查询里预聚合（一次扫描），各来源 UNION ALL 后按粒度汇总，不做明细级 JOIN
 --   · 来源：inout = dwd.dwd_trf_scenic_inout_di（闸机进出流水，闸机组取自 dim_trf_gate_f）

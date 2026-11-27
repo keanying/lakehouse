@@ -1,0 +1,6 @@
+# 纯数据同步任务（路径前缀，一行一个，# 开头为注释）
+# 客户确认 2026-11-27：这部分全部是库到库的同步（OA / CRM / PolarDB → Oracle、Oracle → MySQL 等），不参与 DIM / DWD / DWS / ADS 计算。
+# 处理：不进标准化数仓（不生成 SRC / ODS 及以上），在「旧系统对照 · 旧节点清单」里单独标「纯同步」，迁移时原样保留。
+业务工厂/内部信息/财务部/amb相关表同步任务
+业务工厂/内部信息/财务部/oa_to_oracle_kq_detail_flow_all_d_f
+业务工厂/内部信息/财务部/oracle_to_mysql_it_dim_ogn_oa_staff_info_d_f

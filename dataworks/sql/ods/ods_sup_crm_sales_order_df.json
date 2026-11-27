@@ -49,6 +49,7 @@
           "lock_status",
           "create_time",
           "submit_time",
+          "resource",
           "relevant_team__r",
           "field_Yp7i2__c",
           "field_d0en6__c",
@@ -215,8 +216,7 @@
           "field_8nDkS__c",
           "is_participated_in_activit__c",
           "field_3f8du__c",
-          "field_4L5hl__c",
-          "resource"
+          "field_4L5hl__c"
         ],
         "connection": [
           {
@@ -281,6 +281,7 @@
           "lock_status",
           "create_time",
           "submit_time",
+          "resource",
           "relevant_team__r",
           "field_yp7i2__c",
           "field_d0en6__c",
@@ -447,8 +448,7 @@
           "field_8ndks__c",
           "is_participated_in_activit__c",
           "field_3f8du__c",
-          "field_4l5hl__c",
-          "resource"
+          "field_4l5hl__c"
         ],
         "fileType": "orc",
         "compress": "SNAPPY"

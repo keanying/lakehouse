@@ -4,8 +4,6 @@
 -- 分区：travel_date（YYYYMMDD）
 -- 调度：每日，依赖上游 DWD 当日分区
 -- 上游：dwd_ord_order_di、dwd_ord_verify_di
--- 替代旧任务 1 个（上线对数一致后下线）：
---   · 业务工厂/内部信息/公司/公司大屏/公司大屏工作流/ads_plat_yesterday_order_hour_d_i（EMR_SPARK_SQL，cron 00 00 00 * * ?）
 -- 性能：
 --   · 同一来源的指标在一个子查询里预聚合（一次扫描），各来源 UNION ALL 后按粒度汇总，不做明细级 JOIN
 --   · 来源：ord = dwd.dwd_ord_order_di（预订：下单日分区 = bizdate，已支付（含现场支付、含之后取消））；trk = dwd.dwd_ord_order_track_di（订单操作：操作日分区 = bizdate）；vfy = dwd.dwd_ord_verify_di（核销：验证日分区 = bizdate）

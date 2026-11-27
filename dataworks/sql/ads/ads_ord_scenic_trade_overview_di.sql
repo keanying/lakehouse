@@ -4,7 +4,7 @@
 -- 分区：travel_date（YYYYMMDD）
 -- 调度：每日，依赖上游 DWS 当日分区；完成后回流 / 服务层读取
 -- 上游：dws_ord_scenic_ticket_trade_di
--- 替代旧任务 23 个（上线对数一致后下线）：
+-- 替代旧任务 17 个（上线对数一致后下线）：
 --   · 业务工厂/景区指标宽表/每日景区其他工作流/ads_daily_scenic_summary_d_i（SERVERLESS_SPARK_SQL，cron 00 30 03 * * ?）
 --   · 业务工厂/景区指标宽表/每日景区其他工作流/ads_daily_scenic_estimate_d_f（EMR_SPARK_SQL，cron 00 00 00 * * ?）
 --   · 业务工厂/景区指标宽表/每日景区其他工作流/ads_daily_ticket_refund_ratio_d_i（EMR_SPARK_SQL，cron 00 00 00 * * ?）
@@ -17,7 +17,7 @@
 --   · 数据中台/应用数据层(ADS)/大数据分析/数据罗盘/ads_booking_sum_d_f（EMR_SPARK_SQL，cron 00 30 02 * * ?）
 --   · 数据平台/ADS/ads_ord_order_booking_metric_di（SERVERLESS_SPARK_SQL，cron 00 29 04 * * ?）
 --   · 数据平台/ADS/ads_ord_trade_metrics_di（SERVERLESS_SPARK_SQL，cron 00 30 04 * * ?）
---   · … 另 11 个
+--   · … 另 5 个
 -- 性能：
 --   · ADS 只存日粒度：周 / 月 / 年 / 节假日 / 自定义区间与同比环比在查询时关联 dim_opr_period_f（见「指标口径 · ADS 业务指标」）
 --   · 比率类不落比率值，只存分子分母；去重类存位图；快照类取日终值

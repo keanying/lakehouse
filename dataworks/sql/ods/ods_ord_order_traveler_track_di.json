@@ -1,9 +1,3 @@
-{bizdate}, '%Y%m%d'), INTERVAL 31 DAY)) AND —— 只取当天新建记录，之后的状态变化漏采，已改为按 update_time
---   · 历史库 / 归档 15 个（history_201801.pft_order_tourist_track、history_201802.pft_order_tourist_track、history_201901.pft_order_tourist_track、history_201902.pft_order_tourist_track …）：只在首次初始化时一次性补数，日任务不再读
---   · 列裁剪：旧任务读 21 列，标准只同步字典里的 20 列
---   · 写入：truncate 当日分区（幂等，可重跑）；ORC + SNAPPY；脏数据 0 容忍（errorLimit=0），有脏数据直接失败告警
--- DataWorks 数据集成 · 脚本模式（JSON）：
--- ================================================================================================
 {
   "type": "job",
   "version": "2.0",
