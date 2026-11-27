@@ -10,18 +10,6 @@ inventory_pool_chg AS (                                                         
          pool_status, pool_type, sku_id, tenant_id, total_quantity, update_time
   FROM ods.ods_inv_inventory_pool_di
   WHERE travel_date = '${bizdate}'                                                -- 只取当日分区
-),
-inventory_unit_rn AS (                                                            -- 「UNIT池资源（座位/房间/舱位）」当日增量，同一主键按 binlog 时间倒序编号
-  SELECT id, order_no, pool_no, binlog_op_type,
-         ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn      -- 去重序号（1 = 最新）
-  FROM ods.ods_inv_inventory_unit_di
-  WHERE travel_date = '${bizdate}'                                                -- 只取当日分区
-),
-inventory_unit_latest AS (                                                        -- 「UNIT池资源（座位/房间/舱位）」每个主键只保留最新一条，剔除已删除记录
-  SELECT id, order_no, pool_no
-  FROM inventory_unit_rn
-  WHERE rn = 1
-    AND binlog_op_type <> 'DELETE'                                                -- 剔除源库已删除的记录
 )
 INSERT OVERWRITE TABLE dwd.dwd_inv_pool_change_di PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
 SELECT
@@ -51,7 +39,7 @@ SELECT
           0) = 0 THEN 'CONFIRM'
       ELSE 'ADJUST'
   END AS change_type,                                                             -- 变动类型
-  CAST(NULL AS STRING) AS order_no,                                               -- 引起变动的子单号｜口径：源端缺口：库存池变更没有记录引起变动的订单（数量型库存池无法回溯），已登记待确认事项
+  u.order_no AS order_no,                                                         -- 引起变动的子单号｜口径：UNIT 池（座位 / 房间）：同一事务内资源个体被锁定的子单号（与池变更 binlog 时间一致）；COUNTING 池源表不记录订单，为空
   GET_JSON_OBJECT(inventory_pool_chg.dimension_key, '$.date')  AS play_date,      -- 库存日期
   GET_JSON_OBJECT(inventory_pool_chg.dimension_key, '$.roomType') AS room_type_code,  -- 房型编码（酒店）
   GET_JSON_OBJECT(inventory_pool_chg.dimension_key, '$.showTime') AS show_time,   -- 场次时间（演出）
@@ -66,5 +54,6 @@ SELECT
   inventory_pool_chg.binlog_time                               AS change_time,    -- 变动时间
   CURRENT_TIMESTAMP()                                          AS etl_time        -- ETL 加载时间
 FROM inventory_pool_chg
-
-  ;
+LEFT JOIN (SELECT pool_no, binlog_time, MAX(order_no) AS order_no FROM ods.ods_inv_inventory_unit_di  -- 关联「UNIT池资源（座位/房间/舱位）」，取 引起变动的子单号
+           WHERE travel_date = '${bizdate}' AND order_no <> '' GROUP BY pool_no, binlog_time) u  -- 只取当日分区，并按条件过滤｜UNIT 池资源个体：同一事务锁定 / 释放的子单号
+  ON u.pool_no = inventory_pool_chg.pool_no AND u.binlog_time = inventory_pool_chg.binlog_time  -- 按 pool_no、binlog_time 关联｜按池号 + 事务时间对齐，一次变更一行不放大  -- 按 pool_no 关联;

@@ -3,6 +3,7 @@
 -- 来源：dws_opr_risk_rule_hit_di, dws_opr_audit_action_di, dws_ord_tenant_sku_verify_di
 -- 生成方式：Spark SQL / Hive；字段 14 个：直接翻译 11 · 规则翻译 3 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总
+-- 补 0 / 补空列：多来源 UNION ALL 时，某来源不产出的指标补 0 或空，外层按粒度 SUM 后即为各来源之和，不影响结果
 
 WITH
 src_risk_rule_hit AS (                            -- 来源「风控规则命中日汇总」按粒度键预聚合
@@ -15,39 +16,39 @@ src_risk_rule_hit AS (                            -- 来源「风控规则命中
     SUM(risk_hit_qty) AS risk_block_denominator_qty,  -- 风控拦截率分母（日）
     SUM(blacklist_add_qty) AS blacklist_add_qty,  -- 新增黑名单数（日）
     SUM(ban_qty) AS ban_qty,                      -- 封禁数（日）
-    NULL AS night_action_qty,                     -- 凌晨操作次数（日）：本来源无，补空对齐 UNION ALL
-    NULL AS duplicate_verify_qty                  -- 重复核销次数（日）：本来源无，补空对齐 UNION ALL
+    NULL AS night_action_qty,                     -- 凌晨操作次数（日）：此来源不产出，补空
+    NULL AS duplicate_verify_qty                  -- 重复核销次数（日）：此来源不产出，补空
   FROM dws.dws_opr_risk_rule_hit_di s             -- 来源表「风控规则命中日汇总」
   WHERE s.travel_date = '${bizdate}'              -- 只取当日分区
   GROUP BY rule_id, action_type                   -- 按粒度键汇总
 ),
 src_audit_action AS (                             -- 来源「操作审计日汇总」按粒度键预聚合
   SELECT
-    CAST(NULL AS BIGINT) AS rule_id,              -- 风控规则ID：本来源无，补空对齐 UNION ALL
+    CAST(NULL AS BIGINT) AS rule_id,              -- 风控规则ID：此来源不产出，补空
     action_type AS action_type,                   -- 处置动作
-    NULL AS risk_hit_qty,                         -- 风控命中次数（日）：本来源无，补空对齐 UNION ALL
-    NULL AS risk_block_qty,                       -- 风控拦截次数（日）：本来源无，补空对齐 UNION ALL
-    NULL AS risk_block_numerator_qty,             -- 风控拦截率分子（日）：本来源无，补空对齐 UNION ALL
-    NULL AS risk_block_denominator_qty,           -- 风控拦截率分母（日）：本来源无，补空对齐 UNION ALL
-    NULL AS blacklist_add_qty,                    -- 新增黑名单数（日）：本来源无，补空对齐 UNION ALL
-    NULL AS ban_qty,                              -- 封禁数（日）：本来源无，补空对齐 UNION ALL
+    NULL AS risk_hit_qty,                         -- 风控命中次数（日）：此来源不产出，补空
+    NULL AS risk_block_qty,                       -- 风控拦截次数（日）：此来源不产出，补空
+    NULL AS risk_block_numerator_qty,             -- 风控拦截率分子（日）：此来源不产出，补空
+    NULL AS risk_block_denominator_qty,           -- 风控拦截率分母（日）：此来源不产出，补空
+    NULL AS blacklist_add_qty,                    -- 新增黑名单数（日）：此来源不产出，补空
+    NULL AS ban_qty,                              -- 封禁数（日）：此来源不产出，补空
     SUM(night_action_qty) AS night_action_qty,    -- 凌晨操作次数（日）
-    NULL AS duplicate_verify_qty                  -- 重复核销次数（日）：本来源无，补空对齐 UNION ALL
+    NULL AS duplicate_verify_qty                  -- 重复核销次数（日）：此来源不产出，补空
   FROM dws.dws_opr_audit_action_di s              -- 来源表「操作审计日汇总」
   WHERE s.travel_date = '${bizdate}'              -- 只取当日分区
   GROUP BY action_type                            -- 按粒度键汇总
 ),
 src_tenant_sku_verify AS (                        -- 来源「商户×SKU×核销点 核销日汇总」按粒度键预聚合
   SELECT
-    CAST(NULL AS BIGINT) AS rule_id,              -- 风控规则ID：本来源无，补空对齐 UNION ALL
-    CAST(NULL AS STRING) AS action_type,          -- 处置动作：本来源无，补空对齐 UNION ALL
-    NULL AS risk_hit_qty,                         -- 风控命中次数（日）：本来源无，补空对齐 UNION ALL
-    NULL AS risk_block_qty,                       -- 风控拦截次数（日）：本来源无，补空对齐 UNION ALL
-    NULL AS risk_block_numerator_qty,             -- 风控拦截率分子（日）：本来源无，补空对齐 UNION ALL
-    NULL AS risk_block_denominator_qty,           -- 风控拦截率分母（日）：本来源无，补空对齐 UNION ALL
-    NULL AS blacklist_add_qty,                    -- 新增黑名单数（日）：本来源无，补空对齐 UNION ALL
-    NULL AS ban_qty,                              -- 封禁数（日）：本来源无，补空对齐 UNION ALL
-    NULL AS night_action_qty,                     -- 凌晨操作次数（日）：本来源无，补空对齐 UNION ALL
+    CAST(NULL AS BIGINT) AS rule_id,              -- 风控规则ID：此来源不产出，补空
+    CAST(NULL AS STRING) AS action_type,          -- 处置动作：此来源不产出，补空
+    NULL AS risk_hit_qty,                         -- 风控命中次数（日）：此来源不产出，补空
+    NULL AS risk_block_qty,                       -- 风控拦截次数（日）：此来源不产出，补空
+    NULL AS risk_block_numerator_qty,             -- 风控拦截率分子（日）：此来源不产出，补空
+    NULL AS risk_block_denominator_qty,           -- 风控拦截率分母（日）：此来源不产出，补空
+    NULL AS blacklist_add_qty,                    -- 新增黑名单数（日）：此来源不产出，补空
+    NULL AS ban_qty,                              -- 封禁数（日）：此来源不产出，补空
+    NULL AS night_action_qty,                     -- 凌晨操作次数（日）：此来源不产出，补空
     SUM(duplicate_verify_qty) AS duplicate_verify_qty  -- 重复核销次数（日）
   FROM dws.dws_ord_tenant_sku_verify_di s         -- 来源表「商户×SKU×核销点 核销日汇总」
   WHERE s.travel_date = '${bizdate}'              -- 只取当日分区

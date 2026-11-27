@@ -29,7 +29,7 @@ SELECT
           0) = 0 THEN 'CONFIRM'
       ELSE 'ADJUST'
   END AS change_type,                                                             -- 变动类型
-  CAST(NULL AS STRING) AS order_no,                                               -- 引起变动的子单号｜口径：源端缺口：同离线
+  CAST(NULL AS STRING) AS order_no,                                               -- 引起变动的子单号｜口径：实时链路只算库存量，不回溯订单（一单锁多个座位会放大行数）；订单归属看离线 dwd_inv_pool_change_di（T+1）
   GET_JSON_OBJECT(a.dimension_key, '$.date')                   AS play_date,      -- 库存日期
   GET_JSON_OBJECT(a.dimension_key, '$.roomType')               AS room_type_code,  -- 房型编码（酒店）
   GET_JSON_OBJECT(a.dimension_key, '$.showTime')               AS show_time,      -- 场次时间（演出）

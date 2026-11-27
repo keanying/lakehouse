@@ -3,6 +3,7 @@
 -- 来源：dws_ord_tenant_refund_di, dws_sup_tenant_trade_di
 -- 生成方式：Spark SQL / Hive；字段 27 个：直接翻译 18 · 规则翻译 9 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总
+-- 补 0 / 补空列：多来源 UNION ALL 时，某来源不产出的指标补 0 或空，外层按粒度 SUM 后即为各来源之和，不影响结果
 
 WITH
 src_tenant_refund AS (                                            -- 来源「商户×SKU 退款日汇总」按粒度键预聚合
@@ -17,13 +18,13 @@ src_tenant_refund AS (                                            -- 来源「�
     SUM(auto_approve_refund_qty) AS auto_approve_refund_qty,      -- 超时自动通过退款单数（日）
     SUM(verified_refund_ticket_qty) AS verified_refund_ticket_qty,  -- 核销后退款票数（日）
     SUM(refund_ticket_qty) AS refund_numerator_qty,               -- 退票率分子（日）
-    NULL AS refund_denominator_qty,                               -- 退票率分母（日）：本来源无，补空对齐 UNION ALL
+    NULL AS refund_denominator_qty,                               -- 退票率分母（日）：此来源不产出，补空
     SUM(refund_amt) AS refund_amt_numerator_amt,                  -- 退款金额率分子（日）
-    NULL AS refund_amt_denominator_amt,                           -- 退款金额率分母（日）：本来源无，补空对齐 UNION ALL
-    NULL AS cancel_numerator_qty,                                 -- 取消率分子（日）：本来源无，补空对齐 UNION ALL
-    NULL AS cancel_denominator_qty,                               -- 取消率分母（日）：本来源无，补空对齐 UNION ALL
-    NULL AS timeout_cancel_numerator_qty,                         -- 超时取消率分子（日）：本来源无，补空对齐 UNION ALL
-    NULL AS timeout_cancel_denominator_qty,                       -- 超时取消率分母（日）：本来源无，补空对齐 UNION ALL
+    NULL AS refund_amt_denominator_amt,                           -- 退款金额率分母（日）：此来源不产出，补空
+    NULL AS cancel_numerator_qty,                                 -- 取消率分子（日）：此来源不产出，补空
+    NULL AS cancel_denominator_qty,                               -- 取消率分母（日）：此来源不产出，补空
+    NULL AS timeout_cancel_numerator_qty,                         -- 超时取消率分子（日）：此来源不产出，补空
+    NULL AS timeout_cancel_denominator_qty,                       -- 超时取消率分母（日）：此来源不产出，补空
     SUM(CASE WHEN initiator_type = 'VISITOR' THEN refund_ticket_qty END) AS visitor_refund_ticket_qty,  -- 游客发起退款票数（日）
     SUM(CASE WHEN initiator_type = 'MERCHANT' THEN refund_ticket_qty END) AS merchant_refund_ticket_qty,  -- 商户发起退款票数（日）
     SUM(CASE WHEN initiator_type = 'OTA' THEN refund_ticket_qty END) AS ota_refund_ticket_qty,  -- OTA发起退款票数（日）｜OTA发起退款票数｜口径：退款发起方 = OTA
@@ -39,30 +40,30 @@ src_tenant_refund AS (                                            -- 来源「�
 src_tenant_trade AS (                                             -- 来源「商户经营日汇总」按粒度键预聚合
   SELECT
     seller_tenant_id AS seller_tenant_id,                         -- 卖家租户ID
-    CAST(NULL AS STRING) AS refund_reason_desc,                   -- 退款原因：本来源无，补空对齐 UNION ALL
-    NULL AS refund_apply_qty,                                     -- 退款申请单数（日）：本来源无，补空对齐 UNION ALL
-    NULL AS refund_success_qty,                                   -- 退款完成单数（日）：本来源无，补空对齐 UNION ALL
-    NULL AS refund_ticket_qty,                                    -- 退款票数（日）：本来源无，补空对齐 UNION ALL
-    NULL AS refund_amt,                                           -- 退款金额（日）：本来源无，补空对齐 UNION ALL
-    NULL AS refund_reject_qty,                                    -- 退款驳回单数（日）：本来源无，补空对齐 UNION ALL
-    NULL AS auto_approve_refund_qty,                              -- 超时自动通过退款单数（日）：本来源无，补空对齐 UNION ALL
-    NULL AS verified_refund_ticket_qty,                           -- 核销后退款票数（日）：本来源无，补空对齐 UNION ALL
-    NULL AS refund_numerator_qty,                                 -- 退票率分子（日）：本来源无，补空对齐 UNION ALL
+    CAST(NULL AS STRING) AS refund_reason_desc,                   -- 退款原因：此来源不产出，补空
+    NULL AS refund_apply_qty,                                     -- 退款申请单数（日）：此来源不产出，补空
+    NULL AS refund_success_qty,                                   -- 退款完成单数（日）：此来源不产出，补空
+    NULL AS refund_ticket_qty,                                    -- 退款票数（日）：此来源不产出，补空
+    NULL AS refund_amt,                                           -- 退款金额（日）：此来源不产出，补空
+    NULL AS refund_reject_qty,                                    -- 退款驳回单数（日）：此来源不产出，补空
+    NULL AS auto_approve_refund_qty,                              -- 超时自动通过退款单数（日）：此来源不产出，补空
+    NULL AS verified_refund_ticket_qty,                           -- 核销后退款票数（日）：此来源不产出，补空
+    NULL AS refund_numerator_qty,                                 -- 退票率分子（日）：此来源不产出，补空
     SUM(pay_ticket_qty) AS refund_denominator_qty,                -- 退票率分母（日）
-    NULL AS refund_amt_numerator_amt,                             -- 退款金额率分子（日）：本来源无，补空对齐 UNION ALL
+    NULL AS refund_amt_numerator_amt,                             -- 退款金额率分子（日）：此来源不产出，补空
     SUM(pay_amt) AS refund_amt_denominator_amt,                   -- 退款金额率分母（日）
     SUM(order_qty) AS cancel_numerator_qty,                       -- 取消率分子（日）
     SUM(order_qty) AS cancel_denominator_qty,                     -- 取消率分母（日）
     SUM(order_qty) AS timeout_cancel_numerator_qty,               -- 超时取消率分子（日）
     SUM(order_qty) AS timeout_cancel_denominator_qty,             -- 超时取消率分母（日）
-    NULL AS visitor_refund_ticket_qty,                            -- 游客发起退款票数（日）：本来源无，补空对齐 UNION ALL
-    NULL AS merchant_refund_ticket_qty,                           -- 商户发起退款票数（日）：本来源无，补空对齐 UNION ALL
-    NULL AS ota_refund_ticket_qty,                                -- OTA发起退款票数（日）：本来源无，补空对齐 UNION ALL
-    NULL AS system_refund_ticket_qty,                             -- 系统发起退款票数（日）：本来源无，补空对齐 UNION ALL
-    NULL AS visitor_refund_amt,                                   -- 游客发起退款金额（日）：本来源无，补空对齐 UNION ALL
-    NULL AS merchant_refund_amt,                                  -- 商户发起退款金额（日）：本来源无，补空对齐 UNION ALL
-    NULL AS ota_refund_amt,                                       -- OTA发起退款金额（日）：本来源无，补空对齐 UNION ALL
-    NULL AS system_refund_amt                                     -- 系统发起退款金额（日）：本来源无，补空对齐 UNION ALL
+    NULL AS visitor_refund_ticket_qty,                            -- 游客发起退款票数（日）：此来源不产出，补空
+    NULL AS merchant_refund_ticket_qty,                           -- 商户发起退款票数（日）：此来源不产出，补空
+    NULL AS ota_refund_ticket_qty,                                -- OTA发起退款票数（日）：此来源不产出，补空
+    NULL AS system_refund_ticket_qty,                             -- 系统发起退款票数（日）：此来源不产出，补空
+    NULL AS visitor_refund_amt,                                   -- 游客发起退款金额（日）：此来源不产出，补空
+    NULL AS merchant_refund_amt,                                  -- 商户发起退款金额（日）：此来源不产出，补空
+    NULL AS ota_refund_amt,                                       -- OTA发起退款金额（日）：此来源不产出，补空
+    NULL AS system_refund_amt                                     -- 系统发起退款金额（日）：此来源不产出，补空
   FROM dws.dws_sup_tenant_trade_di s                              -- 来源表「商户经营日汇总」
   WHERE s.travel_date = '${bizdate}'                              -- 只取当日分区
   GROUP BY seller_tenant_id                                       -- 按粒度键汇总

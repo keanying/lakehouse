@@ -8,6 +8,7 @@
 -- 性能：
 --   · 日汇总、快照各扫一个分区，UNION ALL 后按维度汇总
 -- ================================================================================================
+-- 补 0 / 补空列：多来源 UNION ALL 时，某来源不产出的指标补 0 或空，外层按粒度 SUM 后即为各来源之和，不影响结果
 
 WITH p AS (                        -- 期间值：按报表展开
     SELECT merchant_tenant_id,     -- 本方商户租户ID
@@ -94,7 +95,7 @@ u AS (
            out_amt,                -- 本期退 / 本期退回
            trans_amt,              -- 转实收 / 转实付
            confirm_amt,            -- 履约收入 / 成本结算
-           CAST(0 AS DECIMAL(18,2)) AS close_amt,  -- 期末预收 / 期末预付（日终时点值）：本来源无，补空对齐 UNION ALL
+           CAST(0 AS DECIMAL(18,2)) AS close_amt,  -- 期末预收 / 期末预付（日终时点值）：此来源不产出，补0
            net_ticket_qty,         -- 净票数（预收 / 预付）
            confirm_ticket_qty FROM p
     UNION ALL

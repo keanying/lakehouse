@@ -3,6 +3,7 @@
 -- 来源：dws_opr_risk_rule_hit_rt, dws_ord_verify_point_flow_rt
 -- 生成方式：StarRocks 异步物化视图（每分钟刷新）；字段 14 个：直接翻译 6 · 规则翻译 8 · 待确认 0
 -- 多来源：各来源按粒度键预聚合后 UNION ALL 合并，再按公式计算
+-- 补 0 / 补空列：多来源 UNION ALL 时，某来源不产出的指标补 0 或空，外层按粒度 SUM 后即为各来源之和，不影响结果
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS ads.ads_opr_risk_alert_rt  -- 异步物化视图，StarRocks 定时刷新
 REFRESH ASYNC EVERY (INTERVAL 1 MINUTE)
@@ -18,10 +19,10 @@ src_risk_rule_hit AS (                                            -- 来源「�
     SUM(s.risk_hit_qty) AS risk_hit_qty_1,                        -- 风控命中次数（第 1 个来源的部分值，外层相加）
     SUM(CASE WHEN s.window_start_time >= NOW() - INTERVAL 5 MINUTE THEN s.risk_block_qty END) AS risk_block_qty,  -- 风控拦截次数
     SUM(s.risk_block_qty) AS risk_block_qty_1,                    -- 风控拦截次数（第 1 个来源的部分值，外层相加）
-    NULL AS duplicate_verify_qty,                                 -- 重复核销次数：本来源无，补空对齐 UNION ALL
-    NULL AS duplicate_verify_qty_1,                               -- duplicate_verify_qty_1：本来源无，补空对齐 UNION ALL
-    NULL AS offline_conflict_qty,                                 -- 离线核销冲突次数：本来源无，补空对齐 UNION ALL
-    NULL AS offline_conflict_qty_1                                -- offline_conflict_qty_1：本来源无，补空对齐 UNION ALL
+    NULL AS duplicate_verify_qty,                                 -- 重复核销次数：此来源不产出，补空
+    NULL AS duplicate_verify_qty_1,                               -- duplicate_verify_qty_1：此来源不产出，补空
+    NULL AS offline_conflict_qty,                                 -- 离线核销冲突次数：此来源不产出，补空
+    NULL AS offline_conflict_qty_1                                -- offline_conflict_qty_1：此来源不产出，补空
   FROM dws.dws_opr_risk_rule_hit_rt s                             -- 来源表「风控规则 分钟级命中」
   WHERE s.travel_date = DATE_FORMAT(CURDATE(), '%Y%m%d')          -- 只取今日数据
   GROUP BY s.travel_date, s.window_start_time, s.window_end_time, s.rule_id  -- 按粒度键汇总
@@ -31,11 +32,11 @@ src_verify_point_flow AS (                                        -- 来源「�
     s.travel_date AS travel_date,                                 -- 数据日期
     s.window_start_time AS window_start_time,                     -- 窗口开始时间
     s.window_end_time AS window_end_time,                         -- 窗口结束时间
-    CAST(NULL AS BIGINT) AS rule_id,                              -- 风控规则ID：本来源无，补空对齐 UNION ALL
-    NULL AS risk_hit_qty,                                         -- 风控命中次数：本来源无，补空对齐 UNION ALL
-    NULL AS risk_hit_qty_1,                                       -- risk_hit_qty_1：本来源无，补空对齐 UNION ALL
-    NULL AS risk_block_qty,                                       -- 风控拦截次数：本来源无，补空对齐 UNION ALL
-    NULL AS risk_block_qty_1,                                     -- risk_block_qty_1：本来源无，补空对齐 UNION ALL
+    CAST(NULL AS BIGINT) AS rule_id,                              -- 风控规则ID：此来源不产出，补空
+    NULL AS risk_hit_qty,                                         -- 风控命中次数：此来源不产出，补空
+    NULL AS risk_hit_qty_1,                                       -- risk_hit_qty_1：此来源不产出，补空
+    NULL AS risk_block_qty,                                       -- 风控拦截次数：此来源不产出，补空
+    NULL AS risk_block_qty_1,                                     -- risk_block_qty_1：此来源不产出，补空
     SUM(CASE WHEN s.window_start_time >= NOW() - INTERVAL 5 MINUTE THEN s.duplicate_verify_qty END) AS duplicate_verify_qty,  -- 重复核销次数
     SUM(s.duplicate_verify_qty) AS duplicate_verify_qty_1,        -- 重复核销次数（第 1 个来源的部分值，外层相加）
     SUM(CASE WHEN s.window_start_time >= NOW() - INTERVAL 5 MINUTE THEN s.offline_conflict_qty END) AS offline_conflict_qty,  -- 离线核销冲突次数

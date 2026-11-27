@@ -3,6 +3,7 @@
 -- 来源：dwd_fin_fund_flow_di, dwd_fin_withdraw_di
 -- 生成方式：Spark SQL / Hive；字段 10 个：直接翻译 2 · 规则翻译 8 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总
+-- 补 0 / 补空列：多来源 UNION ALL 时，某来源不产出的指标补 0 或空，外层按粒度 SUM 后即为各来源之和，不影响结果
 
 WITH
 src_fund_flow AS (                                                   -- 来源「资金流水明细」按粒度键预聚合
@@ -13,9 +14,9 @@ src_fund_flow AS (                                                   -- 来源�
     SUM(CASE WHEN change_amt>0 THEN change_amt END) AS fund_in_amt,  -- 资金流入
     SUM(CASE WHEN change_amt<0 THEN -change_amt END) AS fund_out_amt,  -- 资金流出
     SUM(CASE WHEN flow_type='FEE' THEN -change_amt END) AS fee_amt,  -- 手续费金额
-    NULL AS withdraw_apply_amt,                                      -- 提现申请金额：本来源无，补空对齐 UNION ALL
-    NULL AS withdraw_success_amt,                                    -- 提现成功金额：本来源无，补空对齐 UNION ALL
-    NULL AS withdraw_fail_qty                                        -- 提现失败笔数：本来源无，补空对齐 UNION ALL
+    NULL AS withdraw_apply_amt,                                      -- 提现申请金额：此来源不产出，补空
+    NULL AS withdraw_success_amt,                                    -- 提现成功金额：此来源不产出，补空
+    NULL AS withdraw_fail_qty                                        -- 提现失败笔数：此来源不产出，补空
   FROM dwd.dwd_fin_fund_flow_di s                                    -- 来源表「资金流水明细」
   WHERE s.travel_date = '${bizdate}'                                 -- 只取当日分区
   GROUP BY account_no, flow_type                                     -- 按粒度键汇总
@@ -23,11 +24,11 @@ src_fund_flow AS (                                                   -- 来源�
 src_withdraw AS (                                                    -- 来源「提现明细」按粒度键预聚合
   SELECT
     account_no AS account_no,                                        -- 账户编号
-    CAST(NULL AS STRING) AS flow_type,                               -- 流水类型：本来源无，补空对齐 UNION ALL
-    NULL AS fund_flow_qty,                                           -- 资金流水笔数：本来源无，补空对齐 UNION ALL
-    NULL AS fund_in_amt,                                             -- 资金流入：本来源无，补空对齐 UNION ALL
-    NULL AS fund_out_amt,                                            -- 资金流出：本来源无，补空对齐 UNION ALL
-    NULL AS fee_amt,                                                 -- 手续费金额：本来源无，补空对齐 UNION ALL
+    CAST(NULL AS STRING) AS flow_type,                               -- 流水类型：此来源不产出，补空
+    NULL AS fund_flow_qty,                                           -- 资金流水笔数：此来源不产出，补空
+    NULL AS fund_in_amt,                                             -- 资金流入：此来源不产出，补空
+    NULL AS fund_out_amt,                                            -- 资金流出：此来源不产出，补空
+    NULL AS fee_amt,                                                 -- 手续费金额：此来源不产出，补空
     SUM(withdraw_amt) AS withdraw_apply_amt,                         -- 提现申请金额
     SUM(CASE WHEN withdraw_status = 'COMPLETED' THEN withdraw_amt END) AS withdraw_success_amt,  -- 提现成功金额
     COUNT(CASE WHEN withdraw_status IN ('FAILED', 'REJECTED') THEN withdraw_no END) AS withdraw_fail_qty  -- 提现失败笔数｜口径：提现失败或被驳回

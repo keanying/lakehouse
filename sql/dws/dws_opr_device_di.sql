@@ -3,6 +3,7 @@
 -- 来源：dwd_opr_device_status_log_di, dwd_ord_verify_di
 -- 生成方式：Spark SQL / Hive；字段 7 个：直接翻译 2 · 规则翻译 5 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总
+-- 补 0 / 补空列：多来源 UNION ALL 时，某来源不产出的指标补 0 或空，外层按粒度 SUM 后即为各来源之和，不影响结果
 
 WITH
 src_device_status_log AS (                          -- 来源「设备状态变更明细」按粒度键预聚合
@@ -11,9 +12,9 @@ src_device_status_log AS (                          -- 来源「设备状态变�
     device_id AS device_id,                         -- 设备ID
     SUM(CASE WHEN before_status = 'ACTIVE' THEN status_minute_qty END) AS online_minute_qty,  -- 设备在线时长｜口径：状态日志每条记前一状态持续分钟数，前一状态为有效（在线）的累加；当前未结束的区间次日补记
     COUNT(CASE WHEN after_status='OFFLINE' THEN 1 END) AS offline_times_qty,  -- 设备离线次数
-    NULL AS verify_entitlement_qty,                 -- 核销权益次数：本来源无，补空对齐 UNION ALL
-    NULL AS device_total_qty,                       -- 设备数：本来源无，补空对齐 UNION ALL
-    NULL AS offline_verify_qty                      -- 离线核销次数：本来源无，补空对齐 UNION ALL
+    NULL AS verify_entitlement_qty,                 -- 核销权益次数：此来源不产出，补空
+    NULL AS device_total_qty,                       -- 设备数：此来源不产出，补空
+    NULL AS offline_verify_qty                      -- 离线核销次数：此来源不产出，补空
   FROM dwd.dwd_opr_device_status_log_di s           -- 来源表「设备状态变更明细」
   WHERE s.travel_date = '${bizdate}'                -- 只取当日分区
   GROUP BY tenant_id, device_id                     -- 按粒度键汇总
@@ -22,10 +23,10 @@ src_verify AS (                                     -- 来源「核销明细（�
   SELECT
     tenant_id AS tenant_id,                         -- 租户ID
     device_id AS device_id,                         -- 设备ID
-    NULL AS online_minute_qty,                      -- 设备在线时长：本来源无，补空对齐 UNION ALL
-    NULL AS offline_times_qty,                      -- 设备离线次数：本来源无，补空对齐 UNION ALL
+    NULL AS online_minute_qty,                      -- 设备在线时长：此来源不产出，补空
+    NULL AS offline_times_qty,                      -- 设备离线次数：此来源不产出，补空
     COUNT(CASE WHEN verify_result_type='SUCCESS' THEN verify_no END) AS verify_entitlement_qty,  -- 核销权益次数
-    NULL AS device_total_qty,                       -- 设备数：本来源无，补空对齐 UNION ALL
+    NULL AS device_total_qty,                       -- 设备数：此来源不产出，补空
     COUNT(CASE WHEN verify_type='OFFLINE' and verify_result_type = 'SUCCESS' THEN verify_no END) AS offline_verify_qty  -- 离线核销次数
   FROM dwd.dwd_ord_verify_di s                      -- 来源表「核销明细（权益级）」
   WHERE s.travel_date = '${bizdate}'                -- 只取当日分区
@@ -35,11 +36,11 @@ src_device AS (                                     -- 来源「设备维度」�
   SELECT
     tenant_id AS tenant_id,                         -- 租户ID
     device_id AS device_id,                         -- 设备ID
-    NULL AS online_minute_qty,                      -- 设备在线时长：本来源无，补空对齐 UNION ALL
-    NULL AS offline_times_qty,                      -- 设备离线次数：本来源无，补空对齐 UNION ALL
-    NULL AS verify_entitlement_qty,                 -- 核销权益次数：本来源无，补空对齐 UNION ALL
+    NULL AS online_minute_qty,                      -- 设备在线时长：此来源不产出，补空
+    NULL AS offline_times_qty,                      -- 设备离线次数：此来源不产出，补空
+    NULL AS verify_entitlement_qty,                 -- 核销权益次数：此来源不产出，补空
     COUNT(device_id) AS device_total_qty,           -- 设备数
-    NULL AS offline_verify_qty                      -- 离线核销次数：本来源无，补空对齐 UNION ALL
+    NULL AS offline_verify_qty                      -- 离线核销次数：此来源不产出，补空
   FROM dim.dim_opr_device_df s                      -- 来源表「设备维度」
   WHERE s.travel_date = '${bizdate}'                -- 只取当日分区
   GROUP BY tenant_id, device_id                     -- 按粒度键汇总

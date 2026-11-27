@@ -3,6 +3,7 @@
 -- 来源：dwd_fin_payment_di, dwd_fin_refund_payment_di, dwd_fin_invoice_di
 -- 生成方式：Spark SQL / Hive；字段 19 个：直接翻译 4 · 规则翻译 15 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总
+-- 补 0 / 补空列：多来源 UNION ALL 时，某来源不产出的指标补 0 或空，外层按粒度 SUM 后即为各来源之和，不影响结果
 
 WITH
 src_payment AS (                                           -- 来源「支付明细」按粒度键预聚合
@@ -14,12 +15,12 @@ src_payment AS (                                           -- 来源「支付明
     COUNT(CASE WHEN pay_status='PAID' THEN payment_no END) AS pay_record_qty,  -- 支付笔数
     SUM(CASE WHEN pay_direction_type='INBOUND' and pay_status = 'PAID' THEN pay_amt END) AS inbound_pay_amt,  -- 收款金额
     SUM(CASE WHEN pay_direction_type='OUTBOUND' and pay_status = 'PAID' THEN pay_amt END) AS outbound_pay_amt,  -- 采购付款金额
-    NULL AS refund_payment_amt,                            -- 退款资金金额：本来源无，补空对齐 UNION ALL
+    NULL AS refund_payment_amt,                            -- 退款资金金额：此来源不产出，补空
     COUNT(CASE WHEN pay_method_type='ZERO_FEE' THEN payment_no END) AS zero_fee_order_qty,  -- 0元单数
     SUM(CASE WHEN pay_method_type='CREDIT' and pay_status = 'PAID' THEN pay_amt END) AS credit_pay_amt,  -- 授信支付金额
-    NULL AS invoice_amt,                                   -- 开票金额：本来源无，补空对齐 UNION ALL
-    NULL AS invoice_order_qty,                             -- 开票订单数：本来源无，补空对齐 UNION ALL
-    NULL AS pay_order_group_qty                            -- 支付聚合单数：本来源无，补空对齐 UNION ALL
+    NULL AS invoice_amt,                                   -- 开票金额：此来源不产出，补空
+    NULL AS invoice_order_qty,                             -- 开票订单数：此来源不产出，补空
+    NULL AS pay_order_group_qty                            -- 支付聚合单数：此来源不产出，补空
   FROM dwd.dwd_fin_payment_di s                            -- 来源表「支付明细」
   WHERE s.travel_date = '${bizdate}'                       -- 只取当日分区
   GROUP BY tenant_id, pay_direction_type, pay_method_type, receive_channel_type  -- 按粒度键汇总
@@ -29,16 +30,16 @@ src_refund_payment AS (                                    -- 来源「退款资
     tenant_id AS tenant_id,                                -- 租户ID
     pay_direction_type AS pay_direction_type,              -- 资金方向
     pay_method_type AS pay_method_type,                    -- 支付方式
-    CAST(NULL AS STRING) AS receive_channel_type,          -- 收款渠道：本来源无，补空对齐 UNION ALL
-    NULL AS pay_record_qty,                                -- 支付笔数：本来源无，补空对齐 UNION ALL
-    NULL AS inbound_pay_amt,                               -- 收款金额：本来源无，补空对齐 UNION ALL
-    NULL AS outbound_pay_amt,                              -- 采购付款金额：本来源无，补空对齐 UNION ALL
+    CAST(NULL AS STRING) AS receive_channel_type,          -- 收款渠道：此来源不产出，补空
+    NULL AS pay_record_qty,                                -- 支付笔数：此来源不产出，补空
+    NULL AS inbound_pay_amt,                               -- 收款金额：此来源不产出，补空
+    NULL AS outbound_pay_amt,                              -- 采购付款金额：此来源不产出，补空
     SUM(CASE WHEN refund_detail_status = 'SUCCESS' THEN refund_amt END) AS refund_payment_amt,  -- 退款资金金额｜口径：退款明细成功
-    NULL AS zero_fee_order_qty,                            -- 0元单数：本来源无，补空对齐 UNION ALL
-    NULL AS credit_pay_amt,                                -- 授信支付金额：本来源无，补空对齐 UNION ALL
-    NULL AS invoice_amt,                                   -- 开票金额：本来源无，补空对齐 UNION ALL
-    NULL AS invoice_order_qty,                             -- 开票订单数：本来源无，补空对齐 UNION ALL
-    NULL AS pay_order_group_qty                            -- 支付聚合单数：本来源无，补空对齐 UNION ALL
+    NULL AS zero_fee_order_qty,                            -- 0元单数：此来源不产出，补空
+    NULL AS credit_pay_amt,                                -- 授信支付金额：此来源不产出，补空
+    NULL AS invoice_amt,                                   -- 开票金额：此来源不产出，补空
+    NULL AS invoice_order_qty,                             -- 开票订单数：此来源不产出，补空
+    NULL AS pay_order_group_qty                            -- 支付聚合单数：此来源不产出，补空
   FROM dwd.dwd_fin_refund_payment_di s                     -- 来源表「退款资金明细」
   WHERE s.travel_date = '${bizdate}'                       -- 只取当日分区
   GROUP BY tenant_id, pay_direction_type, pay_method_type  -- 按粒度键汇总
@@ -46,19 +47,19 @@ src_refund_payment AS (                                    -- 来源「退款资
 src_invoice AS (                                           -- 来源「发票明细」按粒度键预聚合
   SELECT
     tenant_id AS tenant_id,                                -- 租户ID
-    CAST(NULL AS STRING) AS pay_direction_type,            -- 资金方向：本来源无，补空对齐 UNION ALL
-    CAST(NULL AS STRING) AS pay_method_type,               -- 支付方式：本来源无，补空对齐 UNION ALL
-    CAST(NULL AS STRING) AS receive_channel_type,          -- 收款渠道：本来源无，补空对齐 UNION ALL
-    NULL AS pay_record_qty,                                -- 支付笔数：本来源无，补空对齐 UNION ALL
-    NULL AS inbound_pay_amt,                               -- 收款金额：本来源无，补空对齐 UNION ALL
-    NULL AS outbound_pay_amt,                              -- 采购付款金额：本来源无，补空对齐 UNION ALL
-    NULL AS refund_payment_amt,                            -- 退款资金金额：本来源无，补空对齐 UNION ALL
-    NULL AS zero_fee_order_qty,                            -- 0元单数：本来源无，补空对齐 UNION ALL
-    NULL AS credit_pay_amt,                                -- 授信支付金额：本来源无，补空对齐 UNION ALL
+    CAST(NULL AS STRING) AS pay_direction_type,            -- 资金方向：此来源不产出，补空
+    CAST(NULL AS STRING) AS pay_method_type,               -- 支付方式：此来源不产出，补空
+    CAST(NULL AS STRING) AS receive_channel_type,          -- 收款渠道：此来源不产出，补空
+    NULL AS pay_record_qty,                                -- 支付笔数：此来源不产出，补空
+    NULL AS inbound_pay_amt,                               -- 收款金额：此来源不产出，补空
+    NULL AS outbound_pay_amt,                              -- 采购付款金额：此来源不产出，补空
+    NULL AS refund_payment_amt,                            -- 退款资金金额：此来源不产出，补空
+    NULL AS zero_fee_order_qty,                            -- 0元单数：此来源不产出，补空
+    NULL AS credit_pay_amt,                                -- 授信支付金额：此来源不产出，补空
     SUM(CASE WHEN invoice_status = 'INVOICED' THEN invoice_amt END) AS invoice_amt,  -- 开票金额
     COUNT(DISTINCT CASE WHEN invoice_status = 'INVOICED'   -- 开票订单数｜口径：已开票、商户给游客开票
         AND invoice_subject_type = 'MERCHANT_TO_VISITOR' THEN order_group_no END) AS invoice_order_qty,  -- 开票订单数
-    NULL AS pay_order_group_qty                            -- 支付聚合单数：本来源无，补空对齐 UNION ALL
+    NULL AS pay_order_group_qty                            -- 支付聚合单数：此来源不产出，补空
   FROM dwd.dwd_fin_invoice_di s                            -- 来源表「发票明细」
   WHERE s.travel_date = '${bizdate}'                       -- 只取当日分区
   GROUP BY tenant_id                                       -- 按粒度键汇总
@@ -66,17 +67,17 @@ src_invoice AS (                                           -- 来源「发票明
 src_order_group AS (                                       -- 来源「聚合单明细」按粒度键预聚合
   SELECT
     tenant_id AS tenant_id,                                -- 租户ID
-    CAST(NULL AS STRING) AS pay_direction_type,            -- 资金方向：本来源无，补空对齐 UNION ALL
-    CAST(NULL AS STRING) AS pay_method_type,               -- 支付方式：本来源无，补空对齐 UNION ALL
+    CAST(NULL AS STRING) AS pay_direction_type,            -- 资金方向：此来源不产出，补空
+    CAST(NULL AS STRING) AS pay_method_type,               -- 支付方式：此来源不产出，补空
     channel_type AS receive_channel_type,                  -- 收款渠道
-    NULL AS pay_record_qty,                                -- 支付笔数：本来源无，补空对齐 UNION ALL
-    NULL AS inbound_pay_amt,                               -- 收款金额：本来源无，补空对齐 UNION ALL
-    NULL AS outbound_pay_amt,                              -- 采购付款金额：本来源无，补空对齐 UNION ALL
-    NULL AS refund_payment_amt,                            -- 退款资金金额：本来源无，补空对齐 UNION ALL
-    NULL AS zero_fee_order_qty,                            -- 0元单数：本来源无，补空对齐 UNION ALL
-    NULL AS credit_pay_amt,                                -- 授信支付金额：本来源无，补空对齐 UNION ALL
-    NULL AS invoice_amt,                                   -- 开票金额：本来源无，补空对齐 UNION ALL
-    NULL AS invoice_order_qty,                             -- 开票订单数：本来源无，补空对齐 UNION ALL
+    NULL AS pay_record_qty,                                -- 支付笔数：此来源不产出，补空
+    NULL AS inbound_pay_amt,                               -- 收款金额：此来源不产出，补空
+    NULL AS outbound_pay_amt,                              -- 采购付款金额：此来源不产出，补空
+    NULL AS refund_payment_amt,                            -- 退款资金金额：此来源不产出，补空
+    NULL AS zero_fee_order_qty,                            -- 0元单数：此来源不产出，补空
+    NULL AS credit_pay_amt,                                -- 授信支付金额：此来源不产出，补空
+    NULL AS invoice_amt,                                   -- 开票金额：此来源不产出，补空
+    NULL AS invoice_order_qty,                             -- 开票订单数：此来源不产出，补空
     COUNT(DISTINCT CASE WHEN pay_status='PAID' THEN order_group_no END) AS pay_order_group_qty  -- 支付聚合单数
   FROM dwd.dwd_ord_order_group_di s                        -- 来源表「聚合单明细」
   WHERE s.travel_date = '${bizdate}'                       -- 只取当日分区

@@ -14,7 +14,7 @@ SELECT
   a.device_type                                                AS device_type,    -- 设备类型
   a.device_group_id                                            AS device_group_id,  -- 设备分组ID
   a.poi_id                                                     AS poi_id,         -- 所属 POI ID
-  CAST(NULL AS STRING) AS before_status,                                          -- 变更前状态｜口径：口径说明：CDC 流只带变更后镜像，变更前状态由离线日表补齐（设备在线时长等指标取离线）
+  LAG(a.device_status) OVER (PARTITION BY a.id ORDER BY a.update_time) AS before_status,  -- 变更前状态｜口径：同一设备上一条状态（与状态持续时长同一窗口）；设备首条记录为空
   a.device_status AS after_status,                                                -- 变更后状态｜口径：CDC 变更后状态
   a.last_heartbeat                                             AS last_heartbeat_time,  -- 最后心跳时间
   (UNIX_TIMESTAMP(a.update_time) - UNIX_TIMESTAMP(LAG(a.update_time) OVER (PARTITION BY a.id ORDER BY a.update_time))) / 60 AS status_minute_qty,  -- 前一状态持续时长（分钟）

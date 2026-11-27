@@ -3,6 +3,7 @@
 -- 来源：dwd_ord_ticket_person_di, dwd_ord_verify_di, dwd_ord_ticket_di
 -- 生成方式：Spark SQL / Hive；字段 19 个：直接翻译 6 · 规则翻译 13 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总
+-- 补 0 / 补空列：多来源 UNION ALL 时，某来源不产出的指标补 0 或空，外层按粒度 SUM 后即为各来源之和，不影响结果
 
 WITH
 src_ticket_person AS (                            -- 来源「票游客明细」按粒度键预聚合
@@ -14,10 +15,10 @@ src_ticket_person AS (                            -- 来源「票游客明细」
     age_band_code AS age_band_code,               -- 年龄段
     gender_type AS gender_type,                   -- 性别
     COUNT(ticket_no||person_id) AS tourist_qty,   -- 游客人数
-    NULL AS verify_person_qty,                    -- 核销人次（入园人次）：本来源无，补空对齐 UNION ALL
+    NULL AS verify_person_qty,                    -- 核销人次（入园人次）：此来源不产出，补空
     COUNT(CASE WHEN global_customer_id>0 THEN 1 END) AS person_linked_qty,  -- 已关联会员的游客数
     COUNT(CASE WHEN person_qty>0 THEN ticket_no END) AS realname_ticket_qty,  -- 实名票数
-    NULL AS issue_ticket_qty                      -- 出票张数：本来源无，补空对齐 UNION ALL
+    NULL AS issue_ticket_qty                      -- 出票张数：此来源不产出，补空
   FROM dwd.dwd_ord_ticket_person_di s             -- 来源表「票游客明细」
   WHERE s.travel_date = '${bizdate}'              -- 只取当日分区
   GROUP BY seller_tenant_id, sku_id, origin_province_code, origin_city_code, age_band_code, gender_type  -- 按粒度键汇总
@@ -26,15 +27,15 @@ src_verify AS (                                   -- 来源「核销明细（权
   SELECT
     seller_tenant_id AS seller_tenant_id,         -- 卖家租户ID
     sku_id AS sku_id,                             -- SKU ID
-    CAST(NULL AS STRING) AS origin_province_code,  -- 客源省份编码：本来源无，补空对齐 UNION ALL
-    CAST(NULL AS STRING) AS origin_city_code,     -- 客源城市编码：本来源无，补空对齐 UNION ALL
-    CAST(NULL AS STRING) AS age_band_code,        -- 年龄段：本来源无，补空对齐 UNION ALL
-    CAST(NULL AS STRING) AS gender_type,          -- 性别：本来源无，补空对齐 UNION ALL
-    NULL AS tourist_qty,                          -- 游客人数：本来源无，补空对齐 UNION ALL
+    CAST(NULL AS STRING) AS origin_province_code,  -- 客源省份编码：此来源不产出，补空
+    CAST(NULL AS STRING) AS origin_city_code,     -- 客源城市编码：此来源不产出，补空
+    CAST(NULL AS STRING) AS age_band_code,        -- 年龄段：此来源不产出，补空
+    CAST(NULL AS STRING) AS gender_type,          -- 性别：此来源不产出，补空
+    NULL AS tourist_qty,                          -- 游客人数：此来源不产出，补空
     COUNT(CASE WHEN verify_result_type = 'SUCCESS' THEN verify_no END) AS verify_person_qty,  -- 核销人次（入园人次）
-    NULL AS person_linked_qty,                    -- 已关联会员的游客数：本来源无，补空对齐 UNION ALL
-    NULL AS realname_ticket_qty,                  -- 实名票数：本来源无，补空对齐 UNION ALL
-    NULL AS issue_ticket_qty                      -- 出票张数：本来源无，补空对齐 UNION ALL
+    NULL AS person_linked_qty,                    -- 已关联会员的游客数：此来源不产出，补空
+    NULL AS realname_ticket_qty,                  -- 实名票数：此来源不产出，补空
+    NULL AS issue_ticket_qty                      -- 出票张数：此来源不产出，补空
   FROM dwd.dwd_ord_verify_di s                    -- 来源表「核销明细（权益级）」
   WHERE s.travel_date = '${bizdate}'              -- 只取当日分区
   GROUP BY seller_tenant_id, sku_id               -- 按粒度键汇总
@@ -43,14 +44,14 @@ src_ticket AS (                                   -- 来源「票明细（出票
   SELECT
     seller_tenant_id AS seller_tenant_id,         -- 卖家租户ID
     sku_id AS sku_id,                             -- SKU ID
-    CAST(NULL AS STRING) AS origin_province_code,  -- 客源省份编码：本来源无，补空对齐 UNION ALL
-    CAST(NULL AS STRING) AS origin_city_code,     -- 客源城市编码：本来源无，补空对齐 UNION ALL
-    CAST(NULL AS STRING) AS age_band_code,        -- 年龄段：本来源无，补空对齐 UNION ALL
-    CAST(NULL AS STRING) AS gender_type,          -- 性别：本来源无，补空对齐 UNION ALL
-    NULL AS tourist_qty,                          -- 游客人数：本来源无，补空对齐 UNION ALL
-    NULL AS verify_person_qty,                    -- 核销人次（入园人次）：本来源无，补空对齐 UNION ALL
-    NULL AS person_linked_qty,                    -- 已关联会员的游客数：本来源无，补空对齐 UNION ALL
-    NULL AS realname_ticket_qty,                  -- 实名票数：本来源无，补空对齐 UNION ALL
+    CAST(NULL AS STRING) AS origin_province_code,  -- 客源省份编码：此来源不产出，补空
+    CAST(NULL AS STRING) AS origin_city_code,     -- 客源城市编码：此来源不产出，补空
+    CAST(NULL AS STRING) AS age_band_code,        -- 年龄段：此来源不产出，补空
+    CAST(NULL AS STRING) AS gender_type,          -- 性别：此来源不产出，补空
+    NULL AS tourist_qty,                          -- 游客人数：此来源不产出，补空
+    NULL AS verify_person_qty,                    -- 核销人次（入园人次）：此来源不产出，补空
+    NULL AS person_linked_qty,                    -- 已关联会员的游客数：此来源不产出，补空
+    NULL AS realname_ticket_qty,                  -- 实名票数：此来源不产出，补空
     COUNT(ticket_no) AS issue_ticket_qty          -- 出票张数
   FROM dwd.dwd_ord_ticket_di s                    -- 来源表「票明细（出票）」
   WHERE s.travel_date = '${bizdate}'              -- 只取当日分区

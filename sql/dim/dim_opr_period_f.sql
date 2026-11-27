@@ -1,6 +1,7 @@
 -- dim.dim_opr_period_f  统计周期时间表
 -- 每个截止日 T × 每种统计周期一行：本期 / 环比基期 / 同比基期区间。截止日取日期维表的全部日期，日期维表扩范围后重跑即可。
 -- 依赖 dim_opr_date_f（日期）与 dim_opr_holiday_period_f（节假日放假区间）；每类周期一个 WITH 逻辑块，最后合并
+-- 置空列：多个源表 UNION ALL 归一时，某源表没有的字段置空（各源表字段对照见各分支）
 WITH
 anchor_day AS (                                                          -- 全部截止日 T，并预先算好周/月/季/半年/年的首日
   SELECT TO_DATE(date_code)                                                      AS t,  -- 日期
@@ -16,7 +17,7 @@ period_rolling AS (                                                      -- 当�
   SELECT d.t,
          p.code AS period_type_code,                                     -- 统计周期编码
          p.name AS period_name,                                          -- 统计周期名称
-         CAST(NULL AS STRING) AS holiday_period_code,                    -- 节假日区间编码（HOL 时有值）：本来源无，补空对齐 UNION ALL
+         CAST(NULL AS STRING) AS holiday_period_code,                    -- 节假日区间编码（HOL 时有值）：此源表无此字段，置空
          DATE_SUB(d.t, p.n - 1) AS s,                                    -- 区间开始日期
          d.t AS e,                                                       -- 区间结束日期
          DATE_SUB(d.t, 2 * p.n - 1) AS ps,                               -- 上期开始日期
@@ -49,7 +50,7 @@ period_to_date AS (                                                      -- 本�
   SELECT t,
          td_code AS period_type_code,                                    -- 统计周期编码
          td_name AS period_name,                                         -- 统计周期名称
-         CAST(NULL AS STRING) AS holiday_period_code,                    -- 节假日区间编码（HOL 时有值）：本来源无，补空对齐 UNION ALL
+         CAST(NULL AS STRING) AS holiday_period_code,                    -- 节假日区间编码（HOL 时有值）：此源表无此字段，置空
          s, t AS e,                                                      -- 区间结束日期
          IF(td_code = 'YTD', ADD_MONTHS(s, -12), ADD_MONTHS(s, -k)) AS ps,  -- 上期开始日期
          IF(
@@ -65,7 +66,7 @@ period_full AS (                                                         -- 上�
   SELECT t,
          full_code AS period_type_code,                                  -- 统计周期编码
          full_name AS period_name,                                       -- 统计周期名称
-         CAST(NULL AS STRING) AS holiday_period_code,                    -- 节假日区间编码（HOL 时有值）：本来源无，补空对齐 UNION ALL
+         CAST(NULL AS STRING) AS holiday_period_code,                    -- 节假日区间编码（HOL 时有值）：此源表无此字段，置空
          ADD_MONTHS(s, -k) AS s,                                         -- 区间开始日期
          DATE_SUB(s, 1) AS e,                                            -- 区间结束日期
          ADD_MONTHS(s, -2 * k) AS ps,                                    -- 上期开始日期
@@ -78,7 +79,7 @@ period_week AS (                                                         -- 本�
   SELECT t,
          'WTD' AS period_type_code,                                      -- 统计周期编码
          '本周' AS period_name,                                            -- 统计周期名称
-         CAST(NULL AS STRING) AS holiday_period_code,                    -- 节假日区间编码（HOL 时有值）：本来源无，补空对齐 UNION ALL
+         CAST(NULL AS STRING) AS holiday_period_code,                    -- 节假日区间编码（HOL 时有值）：此源表无此字段，置空
          week_start AS s,                                                -- 区间开始日期
          t AS e,                                                         -- 区间结束日期
          DATE_SUB(week_start, 7) AS ps,                                  -- 上期开始日期

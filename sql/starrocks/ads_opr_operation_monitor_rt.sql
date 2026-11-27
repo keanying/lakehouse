@@ -3,6 +3,7 @@
 -- 来源：dws_opr_device_rt, dws_opr_notify_rt, dws_opr_complaint_rt, dws_opr_code_pool_rt
 -- 生成方式：StarRocks 异步物化视图（每分钟刷新）；字段 15 个：直接翻译 4 · 规则翻译 11 · 待确认 0
 -- 多来源：各来源按粒度键预聚合后 UNION ALL 合并，再按公式计算
+-- 补 0 / 补空列：多来源 UNION ALL 时，某来源不产出的指标补 0 或空，外层按粒度 SUM 后即为各来源之和，不影响结果
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS ads.ads_opr_operation_monitor_rt  -- 异步物化视图，StarRocks 定时刷新
 REFRESH ASYNC EVERY (INTERVAL 1 MINUTE)
@@ -13,14 +14,14 @@ src_device AS (                                       -- 来源「设备实时�
     s.travel_date AS travel_date,                     -- 数据日期
     s.tenant_id AS tenant_id,                         -- 租户ID
     SUM(s.offline_times_qty) AS offline_times_qty,    -- 设备离线次数
-    NULL AS notify_send_qty,                          -- 通知发送数：本来源无，补空对齐 UNION ALL
-    NULL AS notify_fail_qty,                          -- 通知失败数：本来源无，补空对齐 UNION ALL
-    NULL AS notify_success_qty,                       -- 通知成功数：本来源无，补空对齐 UNION ALL
-    NULL AS complaint_qty,                            -- 投诉数：本来源无，补空对齐 UNION ALL
-    NULL AS complaint_overdue_qty,                    -- 投诉超SLA数：本来源无，补空对齐 UNION ALL
+    NULL AS notify_send_qty,                          -- 通知发送数：此来源不产出，补空
+    NULL AS notify_fail_qty,                          -- 通知失败数：此来源不产出，补空
+    NULL AS notify_success_qty,                       -- 通知成功数：此来源不产出，补空
+    NULL AS complaint_qty,                            -- 投诉数：此来源不产出，补空
+    NULL AS complaint_overdue_qty,                    -- 投诉超SLA数：此来源不产出，补空
     SUM(s.device_total_qty) AS device_total_qty,      -- 设备数
-    NULL AS code_capacity_qty,                        -- 码池容量：本来源无，补空对齐 UNION ALL
-    NULL AS code_allocated_qty                        -- 已分配码数：本来源无，补空对齐 UNION ALL
+    NULL AS code_capacity_qty,                        -- 码池容量：此来源不产出，补空
+    NULL AS code_allocated_qty                        -- 已分配码数：此来源不产出，补空
   FROM dws.dws_opr_device_rt s                        -- 来源表「设备实时状态」
   WHERE s.travel_date = DATE_FORMAT(CURDATE(), '%Y%m%d')  -- 只取今日数据
   GROUP BY s.travel_date, s.tenant_id                 -- 按粒度键汇总
@@ -29,15 +30,15 @@ src_notify AS (                                       -- 来源「通知实时�
   SELECT
     s.travel_date AS travel_date,                     -- 数据日期
     s.tenant_id AS tenant_id,                         -- 租户ID
-    NULL AS offline_times_qty,                        -- 设备离线次数：本来源无，补空对齐 UNION ALL
+    NULL AS offline_times_qty,                        -- 设备离线次数：此来源不产出，补空
     SUM(s.notify_send_qty) AS notify_send_qty,        -- 通知发送数
     SUM(s.notify_fail_qty) AS notify_fail_qty,        -- 通知失败数
     SUM(s.notify_success_qty) AS notify_success_qty,  -- 通知成功数
-    NULL AS complaint_qty,                            -- 投诉数：本来源无，补空对齐 UNION ALL
-    NULL AS complaint_overdue_qty,                    -- 投诉超SLA数：本来源无，补空对齐 UNION ALL
-    NULL AS device_total_qty,                         -- 设备数：本来源无，补空对齐 UNION ALL
-    NULL AS code_capacity_qty,                        -- 码池容量：本来源无，补空对齐 UNION ALL
-    NULL AS code_allocated_qty                        -- 已分配码数：本来源无，补空对齐 UNION ALL
+    NULL AS complaint_qty,                            -- 投诉数：此来源不产出，补空
+    NULL AS complaint_overdue_qty,                    -- 投诉超SLA数：此来源不产出，补空
+    NULL AS device_total_qty,                         -- 设备数：此来源不产出，补空
+    NULL AS code_capacity_qty,                        -- 码池容量：此来源不产出，补空
+    NULL AS code_allocated_qty                        -- 已分配码数：此来源不产出，补空
   FROM dws.dws_opr_notify_rt s                        -- 来源表「通知实时发送」
   WHERE s.travel_date = DATE_FORMAT(CURDATE(), '%Y%m%d')  -- 只取今日数据
   GROUP BY s.travel_date, s.tenant_id                 -- 按粒度键汇总
@@ -46,15 +47,15 @@ src_complaint AS (                                    -- 来源「投诉实时�
   SELECT
     s.travel_date AS travel_date,                     -- 数据日期
     s.tenant_id AS tenant_id,                         -- 租户ID
-    NULL AS offline_times_qty,                        -- 设备离线次数：本来源无，补空对齐 UNION ALL
-    NULL AS notify_send_qty,                          -- 通知发送数：本来源无，补空对齐 UNION ALL
-    NULL AS notify_fail_qty,                          -- 通知失败数：本来源无，补空对齐 UNION ALL
-    NULL AS notify_success_qty,                       -- 通知成功数：本来源无，补空对齐 UNION ALL
+    NULL AS offline_times_qty,                        -- 设备离线次数：此来源不产出，补空
+    NULL AS notify_send_qty,                          -- 通知发送数：此来源不产出，补空
+    NULL AS notify_fail_qty,                          -- 通知失败数：此来源不产出，补空
+    NULL AS notify_success_qty,                       -- 通知成功数：此来源不产出，补空
     SUM(s.complaint_qty) AS complaint_qty,            -- 投诉数
     SUM(s.complaint_overdue_qty) AS complaint_overdue_qty,  -- 投诉超SLA数
-    NULL AS device_total_qty,                         -- 设备数：本来源无，补空对齐 UNION ALL
-    NULL AS code_capacity_qty,                        -- 码池容量：本来源无，补空对齐 UNION ALL
-    NULL AS code_allocated_qty                        -- 已分配码数：本来源无，补空对齐 UNION ALL
+    NULL AS device_total_qty,                         -- 设备数：此来源不产出，补空
+    NULL AS code_capacity_qty,                        -- 码池容量：此来源不产出，补空
+    NULL AS code_allocated_qty                        -- 已分配码数：此来源不产出，补空
   FROM dws.dws_opr_complaint_rt s                     -- 来源表「投诉实时处理」
   WHERE s.travel_date = DATE_FORMAT(CURDATE(), '%Y%m%d')  -- 只取今日数据
   GROUP BY s.travel_date, s.tenant_id                 -- 按粒度键汇总
@@ -63,13 +64,13 @@ src_code_pool AS (                                    -- 来源「码池实时�
   SELECT
     s.travel_date AS travel_date,                     -- 数据日期
     s.tenant_id AS tenant_id,                         -- 租户ID
-    NULL AS offline_times_qty,                        -- 设备离线次数：本来源无，补空对齐 UNION ALL
-    NULL AS notify_send_qty,                          -- 通知发送数：本来源无，补空对齐 UNION ALL
-    NULL AS notify_fail_qty,                          -- 通知失败数：本来源无，补空对齐 UNION ALL
-    NULL AS notify_success_qty,                       -- 通知成功数：本来源无，补空对齐 UNION ALL
-    NULL AS complaint_qty,                            -- 投诉数：本来源无，补空对齐 UNION ALL
-    NULL AS complaint_overdue_qty,                    -- 投诉超SLA数：本来源无，补空对齐 UNION ALL
-    NULL AS device_total_qty,                         -- 设备数：本来源无，补空对齐 UNION ALL
+    NULL AS offline_times_qty,                        -- 设备离线次数：此来源不产出，补空
+    NULL AS notify_send_qty,                          -- 通知发送数：此来源不产出，补空
+    NULL AS notify_fail_qty,                          -- 通知失败数：此来源不产出，补空
+    NULL AS notify_success_qty,                       -- 通知成功数：此来源不产出，补空
+    NULL AS complaint_qty,                            -- 投诉数：此来源不产出，补空
+    NULL AS complaint_overdue_qty,                    -- 投诉超SLA数：此来源不产出，补空
+    NULL AS device_total_qty,                         -- 设备数：此来源不产出，补空
     SUM(s.code_capacity_qty) AS code_capacity_qty,    -- 码池容量
     SUM(s.code_allocated_qty) AS code_allocated_qty   -- 已分配码数
   FROM dws.dws_opr_code_pool_rt s                     -- 来源表「码池实时余量」

@@ -3,6 +3,7 @@
 -- 来源：dwd_opr_risk_event_di, dwd_opr_blacklist_log_di, dwd_opr_account_ban_di
 -- 生成方式：Spark SQL / Hive；字段 10 个：直接翻译 3 · 规则翻译 7 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总
+-- 补 0 / 补空列：多来源 UNION ALL 时，某来源不产出的指标补 0 或空，外层按粒度 SUM 后即为各来源之和，不影响结果
 
 WITH
 src_risk_event AS (                          -- 来源「风控事件明细」按粒度键预聚合
@@ -12,8 +13,8 @@ src_risk_event AS (                          -- 来源「风控事件明细」�
     dimension_type AS dimension_type,        -- 规则维度
     COUNT(event_no) AS risk_hit_qty,         -- 风控命中次数
     COUNT(CASE WHEN action_type='BLOCK' THEN event_no END) AS risk_block_qty,  -- 风控拦截次数
-    NULL AS blacklist_add_qty,               -- 新增黑名单数：本来源无，补空对齐 UNION ALL
-    NULL AS ban_qty                          -- 封禁数：本来源无，补空对齐 UNION ALL
+    NULL AS blacklist_add_qty,               -- 新增黑名单数：此来源不产出，补空
+    NULL AS ban_qty                          -- 封禁数：此来源不产出，补空
   FROM dwd.dwd_opr_risk_event_di s           -- 来源表「风控事件明细」
   WHERE s.travel_date = '${bizdate}'         -- 只取当日分区
   GROUP BY rule_id, action_type, dimension_type  -- 按粒度键汇总
@@ -21,12 +22,12 @@ src_risk_event AS (                          -- 来源「风控事件明细」�
 src_blacklist_log AS (                       -- 来源「黑名单变更明细」按粒度键预聚合
   SELECT
     rule_id AS rule_id,                      -- 风控规则ID
-    CAST(NULL AS STRING) AS action_type,     -- 处置动作：本来源无，补空对齐 UNION ALL
+    CAST(NULL AS STRING) AS action_type,     -- 处置动作：此来源不产出，补空
     dimension_type AS dimension_type,        -- 规则维度
-    NULL AS risk_hit_qty,                    -- 风控命中次数：本来源无，补空对齐 UNION ALL
-    NULL AS risk_block_qty,                  -- 风控拦截次数：本来源无，补空对齐 UNION ALL
+    NULL AS risk_hit_qty,                    -- 风控命中次数：此来源不产出，补空
+    NULL AS risk_block_qty,                  -- 风控拦截次数：此来源不产出，补空
     COUNT(CASE WHEN change_type = 'ADD' THEN blacklist_no END) AS blacklist_add_qty,  -- 新增黑名单数｜口径：黑名单变更类型为新增
-    NULL AS ban_qty                          -- 封禁数：本来源无，补空对齐 UNION ALL
+    NULL AS ban_qty                          -- 封禁数：此来源不产出，补空
   FROM dwd.dwd_opr_blacklist_log_di s        -- 来源表「黑名单变更明细」
   WHERE s.travel_date = '${bizdate}'         -- 只取当日分区
   GROUP BY rule_id, dimension_type           -- 按粒度键汇总
@@ -34,11 +35,11 @@ src_blacklist_log AS (                       -- 来源「黑名单变更明细�
 src_account_ban AS (                         -- 来源「账号封禁明细」按粒度键预聚合
   SELECT
     rule_id AS rule_id,                      -- 风控规则ID
-    CAST(NULL AS STRING) AS action_type,     -- 处置动作：本来源无，补空对齐 UNION ALL
-    CAST(NULL AS STRING) AS dimension_type,  -- 规则维度：本来源无，补空对齐 UNION ALL
-    NULL AS risk_hit_qty,                    -- 风控命中次数：本来源无，补空对齐 UNION ALL
-    NULL AS risk_block_qty,                  -- 风控拦截次数：本来源无，补空对齐 UNION ALL
-    NULL AS blacklist_add_qty,               -- 新增黑名单数：本来源无，补空对齐 UNION ALL
+    CAST(NULL AS STRING) AS action_type,     -- 处置动作：此来源不产出，补空
+    CAST(NULL AS STRING) AS dimension_type,  -- 规则维度：此来源不产出，补空
+    NULL AS risk_hit_qty,                    -- 风控命中次数：此来源不产出，补空
+    NULL AS risk_block_qty,                  -- 风控拦截次数：此来源不产出，补空
+    NULL AS blacklist_add_qty,               -- 新增黑名单数：此来源不产出，补空
     COUNT(ban_no) AS ban_qty                 -- 封禁数
   FROM dwd.dwd_opr_account_ban_di s          -- 来源表「账号封禁明细」
   WHERE s.travel_date = '${bizdate}'         -- 只取当日分区

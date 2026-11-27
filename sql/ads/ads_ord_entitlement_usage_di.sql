@@ -3,6 +3,7 @@
 -- 来源：dws_ord_tenant_entitlement_di, dws_ord_tenant_ticket_stock_df
 -- 生成方式：Spark SQL / Hive；字段 34 个：直接翻译 16 · 规则翻译 18 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总
+-- 补 0 / 补空列：多来源 UNION ALL 时，某来源不产出的指标补 0 或空，外层按粒度 SUM 后即为各来源之和，不影响结果
 
 WITH
 src_tenant_entitlement AS (                                                       -- 来源「商户×权益类型 权益使用日汇总」按粒度键预聚合
@@ -32,11 +33,11 @@ src_tenant_entitlement AS (                                                     
     SUM(pending_activate_ticket_qty) AS activate_denominator_qty,                 -- 激活率分母（日）
     SUM(activate_delay_day_qty) AS avg_activate_delay_day_numerator_qty,          -- 平均激活延迟天数分子（日）
     SUM(activate_ticket_qty) AS avg_activate_delay_day_denominator_qty,           -- 平均激活延迟天数分母（日）
-    NULL AS expire_ticket_qty,                                                    -- 过期票数（日）：本来源无，补空对齐 UNION ALL
-    NULL AS expire_numerator_qty,                                                 -- 过期率分子（日）：本来源无，补空对齐 UNION ALL
-    NULL AS expire_denominator_qty,                                               -- 过期率分母（日）：本来源无，补空对齐 UNION ALL
-    NULL AS unverified_ticket_qty,                                                -- 未核销在途票数（日快照）：本来源无，补空对齐 UNION ALL
-    NULL AS unverified_amt,                                                       -- 未核销在途金额（预收）（日快照）：本来源无，补空对齐 UNION ALL
+    NULL AS expire_ticket_qty,                                                    -- 过期票数（日）：此来源不产出，补空
+    NULL AS expire_numerator_qty,                                                 -- 过期率分子（日）：此来源不产出，补空
+    NULL AS expire_denominator_qty,                                               -- 过期率分母（日）：此来源不产出，补空
+    NULL AS unverified_ticket_qty,                                                -- 未核销在途票数（日快照）：此来源不产出，补空
+    NULL AS unverified_amt,                                                       -- 未核销在途金额（预收）（日快照）：此来源不产出，补空
     SUM(pending_activate_ticket_qty) AS pending_activate_ticket_qty,              -- 待激活票数（日快照）
     SUM(quota_total_amt) AS quota_total_amt                                       -- 额度型权益总额度（日快照）
   FROM dws.dws_ord_tenant_entitlement_di s                                        -- 来源表「商户×权益类型 权益使用日汇总」
@@ -47,36 +48,36 @@ src_tenant_ticket_stock AS (                                                    
   SELECT
     seller_tenant_id AS seller_tenant_id,                                         -- 卖家租户ID
     sku_id AS sku_id,                                                             -- SKU ID
-    NULL AS fixed_entitlement_used_qty,                                           -- 固定型权益已用次数（日）：本来源无，补空对齐 UNION ALL
-    NULL AS selectable_entitlement_used_qty,                                      -- 选择型权益已用次数（日）：本来源无，补空对齐 UNION ALL
-    NULL AS counted_entitlement_used_qty,                                         -- 计次型权益已用次数（日）：本来源无，补空对齐 UNION ALL
-    NULL AS timed_entitlement_used_qty,                                           -- 计时型权益已用次数（日）：本来源无，补空对齐 UNION ALL
-    NULL AS unlimited_entitlement_used_qty,                                       -- 不限次型权益已用次数（日）：本来源无，补空对齐 UNION ALL
-    NULL AS quota_entitlement_used_qty,                                           -- 额度型权益已用次数（日）：本来源无，补空对齐 UNION ALL
-    NULL AS fixed_entitlement_usage_numerator_qty,                                -- 固定型权益使用率分子（日）：本来源无，补空对齐 UNION ALL
-    NULL AS fixed_entitlement_usage_denominator_qty,                              -- 固定型权益使用率分母（日）：本来源无，补空对齐 UNION ALL
-    NULL AS selectable_entitlement_usage_numerator_qty,                           -- 选择型权益使用率分子（日）：本来源无，补空对齐 UNION ALL
-    NULL AS selectable_entitlement_usage_denominator_qty,                         -- 选择型权益使用率分母（日）：本来源无，补空对齐 UNION ALL
-    NULL AS counted_entitlement_usage_numerator_qty,                              -- 计次型权益使用率分子（日）：本来源无，补空对齐 UNION ALL
-    NULL AS counted_entitlement_usage_denominator_qty,                            -- 计次型权益使用率分母（日）：本来源无，补空对齐 UNION ALL
-    NULL AS timed_entitlement_usage_numerator_qty,                                -- 计时型权益使用率分子（日）：本来源无，补空对齐 UNION ALL
-    NULL AS timed_entitlement_usage_denominator_qty,                              -- 计时型权益使用率分母（日）：本来源无，补空对齐 UNION ALL
-    NULL AS unlimited_entitlement_usage_numerator_qty,                            -- 不限次型权益使用率分子（日）：本来源无，补空对齐 UNION ALL
-    NULL AS unlimited_entitlement_usage_denominator_qty,                          -- 不限次型权益使用率分母（日）：本来源无，补空对齐 UNION ALL
-    NULL AS quota_entitlement_usage_numerator_qty,                                -- 额度型权益使用率分子（日）：本来源无，补空对齐 UNION ALL
-    NULL AS quota_entitlement_usage_denominator_qty,                              -- 额度型权益使用率分母（日）：本来源无，补空对齐 UNION ALL
-    NULL AS activate_ticket_qty,                                                  -- 激活票数（日）：本来源无，补空对齐 UNION ALL
-    NULL AS activate_numerator_qty,                                               -- 激活率分子（日）：本来源无，补空对齐 UNION ALL
-    NULL AS activate_denominator_qty,                                             -- 激活率分母（日）：本来源无，补空对齐 UNION ALL
-    NULL AS avg_activate_delay_day_numerator_qty,                                 -- 平均激活延迟天数分子（日）：本来源无，补空对齐 UNION ALL
-    NULL AS avg_activate_delay_day_denominator_qty,                               -- 平均激活延迟天数分母（日）：本来源无，补空对齐 UNION ALL
+    NULL AS fixed_entitlement_used_qty,                                           -- 固定型权益已用次数（日）：此来源不产出，补空
+    NULL AS selectable_entitlement_used_qty,                                      -- 选择型权益已用次数（日）：此来源不产出，补空
+    NULL AS counted_entitlement_used_qty,                                         -- 计次型权益已用次数（日）：此来源不产出，补空
+    NULL AS timed_entitlement_used_qty,                                           -- 计时型权益已用次数（日）：此来源不产出，补空
+    NULL AS unlimited_entitlement_used_qty,                                       -- 不限次型权益已用次数（日）：此来源不产出，补空
+    NULL AS quota_entitlement_used_qty,                                           -- 额度型权益已用次数（日）：此来源不产出，补空
+    NULL AS fixed_entitlement_usage_numerator_qty,                                -- 固定型权益使用率分子（日）：此来源不产出，补空
+    NULL AS fixed_entitlement_usage_denominator_qty,                              -- 固定型权益使用率分母（日）：此来源不产出，补空
+    NULL AS selectable_entitlement_usage_numerator_qty,                           -- 选择型权益使用率分子（日）：此来源不产出，补空
+    NULL AS selectable_entitlement_usage_denominator_qty,                         -- 选择型权益使用率分母（日）：此来源不产出，补空
+    NULL AS counted_entitlement_usage_numerator_qty,                              -- 计次型权益使用率分子（日）：此来源不产出，补空
+    NULL AS counted_entitlement_usage_denominator_qty,                            -- 计次型权益使用率分母（日）：此来源不产出，补空
+    NULL AS timed_entitlement_usage_numerator_qty,                                -- 计时型权益使用率分子（日）：此来源不产出，补空
+    NULL AS timed_entitlement_usage_denominator_qty,                              -- 计时型权益使用率分母（日）：此来源不产出，补空
+    NULL AS unlimited_entitlement_usage_numerator_qty,                            -- 不限次型权益使用率分子（日）：此来源不产出，补空
+    NULL AS unlimited_entitlement_usage_denominator_qty,                          -- 不限次型权益使用率分母（日）：此来源不产出，补空
+    NULL AS quota_entitlement_usage_numerator_qty,                                -- 额度型权益使用率分子（日）：此来源不产出，补空
+    NULL AS quota_entitlement_usage_denominator_qty,                              -- 额度型权益使用率分母（日）：此来源不产出，补空
+    NULL AS activate_ticket_qty,                                                  -- 激活票数（日）：此来源不产出，补空
+    NULL AS activate_numerator_qty,                                               -- 激活率分子（日）：此来源不产出，补空
+    NULL AS activate_denominator_qty,                                             -- 激活率分母（日）：此来源不产出，补空
+    NULL AS avg_activate_delay_day_numerator_qty,                                 -- 平均激活延迟天数分子（日）：此来源不产出，补空
+    NULL AS avg_activate_delay_day_denominator_qty,                               -- 平均激活延迟天数分母（日）：此来源不产出，补空
     SUM(expire_ticket_qty) AS expire_ticket_qty,                                  -- 过期票数（日）
     SUM(expire_ticket_qty) AS expire_numerator_qty,                               -- 过期率分子（日）
     SUM(issue_ticket_qty) AS expire_denominator_qty,                              -- 过期率分母（日）
     SUM(unverified_ticket_qty) AS unverified_ticket_qty,                          -- 未核销在途票数（日快照）
     SUM(unverified_amt) AS unverified_amt,                                        -- 未核销在途金额（预收）（日快照）
-    NULL AS pending_activate_ticket_qty,                                          -- 待激活票数（日快照）：本来源无，补空对齐 UNION ALL
-    NULL AS quota_total_amt                                                       -- 额度型权益总额度（日快照）：本来源无，补空对齐 UNION ALL
+    NULL AS pending_activate_ticket_qty,                                          -- 待激活票数（日快照）：此来源不产出，补空
+    NULL AS quota_total_amt                                                       -- 额度型权益总额度（日快照）：此来源不产出，补空
   FROM dws.dws_ord_tenant_ticket_stock_df s                                       -- 来源表「商户×SKU 票状态存量快照」
   WHERE s.travel_date = '${bizdate}'                                              -- 只取当日分区
   GROUP BY seller_tenant_id, sku_id                                               -- 按粒度键汇总

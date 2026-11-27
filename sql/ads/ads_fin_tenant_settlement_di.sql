@@ -3,6 +3,7 @@
 -- 来源：dws_fin_account_frozen_di, dws_fin_account_flow_di, dws_fin_tenant_pay_method_di
 -- 生成方式：Spark SQL / Hive；字段 22 个：直接翻译 17 · 规则翻译 5 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总
+-- 补 0 / 补空列：多来源 UNION ALL 时，某来源不产出的指标补 0 或空，外层按粒度 SUM 后即为各来源之和，不影响结果
 
 WITH
 src_tenant_pay_method AS (                            -- 来源「商户×支付方式 收付款日汇总」按粒度键预聚合
@@ -11,17 +12,17 @@ src_tenant_pay_method AS (                            -- 来源「商户×支付
     SUM(inbound_pay_amt) AS inbound_pay_amt,          -- 收款金额（日）
     SUM(outbound_pay_amt) AS outbound_pay_amt,        -- 采购付款金额（日）
     SUM(refund_payment_amt) AS refund_payment_amt,    -- 退款资金金额（日）
-    NULL AS freeze_amt,                               -- 冻结金额（日）：本来源无，补空对齐 UNION ALL
-    NULL AS unfreeze_verify_amt,                      -- 核销解冻金额（日）：本来源无，补空对齐 UNION ALL
-    NULL AS unfreeze_refund_amt,                      -- 退款释放金额（日）：本来源无，补空对齐 UNION ALL
-    NULL AS fee_amt,                                  -- 手续费金额（日）：本来源无，补空对齐 UNION ALL
-    NULL AS profit_freeze_amt,                        -- 利润冻结冻结金额（日）：本来源无，补空对齐 UNION ALL
-    NULL AS settlement_freeze_amt,                    -- 采购款冻结冻结金额（日）：本来源无，补空对齐 UNION ALL
-    NULL AS full_freeze_amt,                          -- 全款冻结冻结金额（日）：本来源无，补空对齐 UNION ALL
-    NULL AS external_freeze_amt,                      -- 外部渠道冻结金额（日）：本来源无，补空对齐 UNION ALL
-    NULL AS external_freeze_numerator_amt,            -- 外部冻结占比分子（日）：本来源无，补空对齐 UNION ALL
-    NULL AS external_freeze_denominator_amt,          -- 外部冻结占比分母（日）：本来源无，补空对齐 UNION ALL
-    NULL AS expire_release_amt,                       -- 过期兜底释放金额（日）：本来源无，补空对齐 UNION ALL
+    NULL AS freeze_amt,                               -- 冻结金额（日）：此来源不产出，补空
+    NULL AS unfreeze_verify_amt,                      -- 核销解冻金额（日）：此来源不产出，补空
+    NULL AS unfreeze_refund_amt,                      -- 退款释放金额（日）：此来源不产出，补空
+    NULL AS fee_amt,                                  -- 手续费金额（日）：此来源不产出，补空
+    NULL AS profit_freeze_amt,                        -- 利润冻结冻结金额（日）：此来源不产出，补空
+    NULL AS settlement_freeze_amt,                    -- 采购款冻结冻结金额（日）：此来源不产出，补空
+    NULL AS full_freeze_amt,                          -- 全款冻结冻结金额（日）：此来源不产出，补空
+    NULL AS external_freeze_amt,                      -- 外部渠道冻结金额（日）：此来源不产出，补空
+    NULL AS external_freeze_numerator_amt,            -- 外部冻结占比分子（日）：此来源不产出，补空
+    NULL AS external_freeze_denominator_amt,          -- 外部冻结占比分母（日）：此来源不产出，补空
+    NULL AS expire_release_amt,                       -- 过期兜底释放金额（日）：此来源不产出，补空
     SUM(invoice_amt) AS invoice_amt,                  -- 开票金额（日）
     SUM(invoice_order_qty) AS invoice_order_qty,      -- 开票订单数（日）
     SUM(invoice_order_qty) AS invoice_numerator_qty,  -- 开票率分子（日）
@@ -32,14 +33,14 @@ src_tenant_pay_method AS (                            -- 来源「商户×支付
 ),
 src_account_frozen AS (                               -- 来源「账户×冻结类型 冻结日汇总」按粒度键预聚合
   SELECT
-    CAST(NULL AS BIGINT) AS tenant_id,                -- 租户ID：本来源无，补空对齐 UNION ALL
-    NULL AS inbound_pay_amt,                          -- 收款金额（日）：本来源无，补空对齐 UNION ALL
-    NULL AS outbound_pay_amt,                         -- 采购付款金额（日）：本来源无，补空对齐 UNION ALL
-    NULL AS refund_payment_amt,                       -- 退款资金金额（日）：本来源无，补空对齐 UNION ALL
+    CAST(NULL AS BIGINT) AS tenant_id,                -- 租户ID：此来源不产出，补空
+    NULL AS inbound_pay_amt,                          -- 收款金额（日）：此来源不产出，补空
+    NULL AS outbound_pay_amt,                         -- 采购付款金额（日）：此来源不产出，补空
+    NULL AS refund_payment_amt,                       -- 退款资金金额（日）：此来源不产出，补空
     SUM(freeze_amt) AS freeze_amt,                    -- 冻结金额（日）
     SUM(unfreeze_verify_amt) AS unfreeze_verify_amt,  -- 核销解冻金额（日）
     SUM(unfreeze_refund_amt) AS unfreeze_refund_amt,  -- 退款释放金额（日）
-    NULL AS fee_amt,                                  -- 手续费金额（日）：本来源无，补空对齐 UNION ALL
+    NULL AS fee_amt,                                  -- 手续费金额（日）：此来源不产出，补空
     SUM(CASE WHEN freeze_type = 'PROFIT' THEN freeze_amt END) AS profit_freeze_amt,  -- 利润冻结冻结金额（日）
     SUM(CASE WHEN freeze_type = 'SETTLEMENT' THEN freeze_amt END) AS settlement_freeze_amt,  -- 采购款冻结冻结金额（日）
     SUM(CASE WHEN freeze_type = 'FULL' THEN freeze_amt END) AS full_freeze_amt,  -- 全款冻结冻结金额（日）
@@ -47,34 +48,34 @@ src_account_frozen AS (                               -- 来源「账户×冻结
     SUM(external_freeze_amt) AS external_freeze_numerator_amt,  -- 外部冻结占比分子（日）
     SUM(freeze_amt) AS external_freeze_denominator_amt,  -- 外部冻结占比分母（日）
     SUM(expire_release_amt) AS expire_release_amt,    -- 过期兜底释放金额（日）
-    NULL AS invoice_amt,                              -- 开票金额（日）：本来源无，补空对齐 UNION ALL
-    NULL AS invoice_order_qty,                        -- 开票订单数（日）：本来源无，补空对齐 UNION ALL
-    NULL AS invoice_numerator_qty,                    -- 开票率分子（日）：本来源无，补空对齐 UNION ALL
-    NULL AS invoice_denominator_qty                   -- 开票率分母（日）：本来源无，补空对齐 UNION ALL
+    NULL AS invoice_amt,                              -- 开票金额（日）：此来源不产出，补空
+    NULL AS invoice_order_qty,                        -- 开票订单数（日）：此来源不产出，补空
+    NULL AS invoice_numerator_qty,                    -- 开票率分子（日）：此来源不产出，补空
+    NULL AS invoice_denominator_qty                   -- 开票率分母（日）：此来源不产出，补空
   FROM dws.dws_fin_account_frozen_di s                -- 来源表「账户×冻结类型 冻结日汇总」
   WHERE s.travel_date = '${bizdate}'                  -- 只取当日分区
 ),
 src_account_flow AS (                                 -- 来源「账户×流水类型 资金日汇总」按粒度键预聚合
   SELECT
-    CAST(NULL AS BIGINT) AS tenant_id,                -- 租户ID：本来源无，补空对齐 UNION ALL
-    NULL AS inbound_pay_amt,                          -- 收款金额（日）：本来源无，补空对齐 UNION ALL
-    NULL AS outbound_pay_amt,                         -- 采购付款金额（日）：本来源无，补空对齐 UNION ALL
-    NULL AS refund_payment_amt,                       -- 退款资金金额（日）：本来源无，补空对齐 UNION ALL
-    NULL AS freeze_amt,                               -- 冻结金额（日）：本来源无，补空对齐 UNION ALL
-    NULL AS unfreeze_verify_amt,                      -- 核销解冻金额（日）：本来源无，补空对齐 UNION ALL
-    NULL AS unfreeze_refund_amt,                      -- 退款释放金额（日）：本来源无，补空对齐 UNION ALL
+    CAST(NULL AS BIGINT) AS tenant_id,                -- 租户ID：此来源不产出，补空
+    NULL AS inbound_pay_amt,                          -- 收款金额（日）：此来源不产出，补空
+    NULL AS outbound_pay_amt,                         -- 采购付款金额（日）：此来源不产出，补空
+    NULL AS refund_payment_amt,                       -- 退款资金金额（日）：此来源不产出，补空
+    NULL AS freeze_amt,                               -- 冻结金额（日）：此来源不产出，补空
+    NULL AS unfreeze_verify_amt,                      -- 核销解冻金额（日）：此来源不产出，补空
+    NULL AS unfreeze_refund_amt,                      -- 退款释放金额（日）：此来源不产出，补空
     SUM(fee_amt) AS fee_amt,                          -- 手续费金额（日）
-    NULL AS profit_freeze_amt,                        -- 利润冻结冻结金额（日）：本来源无，补空对齐 UNION ALL
-    NULL AS settlement_freeze_amt,                    -- 采购款冻结冻结金额（日）：本来源无，补空对齐 UNION ALL
-    NULL AS full_freeze_amt,                          -- 全款冻结冻结金额（日）：本来源无，补空对齐 UNION ALL
-    NULL AS external_freeze_amt,                      -- 外部渠道冻结金额（日）：本来源无，补空对齐 UNION ALL
-    NULL AS external_freeze_numerator_amt,            -- 外部冻结占比分子（日）：本来源无，补空对齐 UNION ALL
-    NULL AS external_freeze_denominator_amt,          -- 外部冻结占比分母（日）：本来源无，补空对齐 UNION ALL
-    NULL AS expire_release_amt,                       -- 过期兜底释放金额（日）：本来源无，补空对齐 UNION ALL
-    NULL AS invoice_amt,                              -- 开票金额（日）：本来源无，补空对齐 UNION ALL
-    NULL AS invoice_order_qty,                        -- 开票订单数（日）：本来源无，补空对齐 UNION ALL
-    NULL AS invoice_numerator_qty,                    -- 开票率分子（日）：本来源无，补空对齐 UNION ALL
-    NULL AS invoice_denominator_qty                   -- 开票率分母（日）：本来源无，补空对齐 UNION ALL
+    NULL AS profit_freeze_amt,                        -- 利润冻结冻结金额（日）：此来源不产出，补空
+    NULL AS settlement_freeze_amt,                    -- 采购款冻结冻结金额（日）：此来源不产出，补空
+    NULL AS full_freeze_amt,                          -- 全款冻结冻结金额（日）：此来源不产出，补空
+    NULL AS external_freeze_amt,                      -- 外部渠道冻结金额（日）：此来源不产出，补空
+    NULL AS external_freeze_numerator_amt,            -- 外部冻结占比分子（日）：此来源不产出，补空
+    NULL AS external_freeze_denominator_amt,          -- 外部冻结占比分母（日）：此来源不产出，补空
+    NULL AS expire_release_amt,                       -- 过期兜底释放金额（日）：此来源不产出，补空
+    NULL AS invoice_amt,                              -- 开票金额（日）：此来源不产出，补空
+    NULL AS invoice_order_qty,                        -- 开票订单数（日）：此来源不产出，补空
+    NULL AS invoice_numerator_qty,                    -- 开票率分子（日）：此来源不产出，补空
+    NULL AS invoice_denominator_qty                   -- 开票率分母（日）：此来源不产出，补空
   FROM dws.dws_fin_account_flow_di s                  -- 来源表「账户×流水类型 资金日汇总」
   WHERE s.travel_date = '${bizdate}'                  -- 只取当日分区
 ),

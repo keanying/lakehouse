@@ -533,13 +533,13 @@ LINE.update({
                         .replace('fd', '(inventory_pool_chg.frozen_quantity - LAG(inventory_pool_chg.frozen_quantity) OVER (PARTITION BY inventory_pool_chg.id ORDER BY inventory_pool_chg.binlog_time))')
                         .replace('ad', '(inventory_pool_chg.available_quantity - LAG(inventory_pool_chg.available_quantity) OVER (PARTITION BY inventory_pool_chg.id ORDER BY inventory_pool_chg.binlog_time))'),
                         '冻结增、可售减 = 预扣；冻结减、可售增 = 回滚；冻结减、可售不变 = 确认（转已售）；其余 = 人工调整'),
-        'order_no': ('CAST(NULL AS STRING)', '源端缺口：库存池变更没有记录引起变动的订单（数量型库存池无法回溯），已登记待确认事项')},
+        'order_no': ('u.order_no', 'UNIT 池（座位 / 房间）：同一事务内资源个体被锁定的子单号（与池变更 binlog 时间一致）；COUNTING 池源表不记录订单，为空')},
     'dwd_inv_pool_change_rt': {
         'change_type': ("CASE WHEN fd > 0 AND ad < 0 THEN 'PRE_DEDUCT' WHEN fd < 0 AND ad > 0 THEN 'ROLLBACK' WHEN fd < 0 AND COALESCE(ad, 0) = 0 THEN 'CONFIRM' ELSE 'ADJUST' END"
                         .replace('fd', '(a.frozen_quantity - LAG(a.frozen_quantity) OVER (PARTITION BY a.id ORDER BY a.binlog_time))')
                         .replace('ad', '(a.available_quantity - LAG(a.available_quantity) OVER (PARTITION BY a.id ORDER BY a.binlog_time))'),
                         '同离线：按冻结 / 可售变化方向判定'),
-        'order_no': ('CAST(NULL AS STRING)', '源端缺口：同离线')},
+        'order_no': ('CAST(NULL AS STRING)', '实时链路只算库存量，不回溯订单（一单锁多个座位会放大行数）；订单归属看离线 dwd_inv_pool_change_di（T+1）')},
     'dwd_opr_approval_di': {
         'finish_time': ("CASE WHEN approval_instance_latest.instance_status IN ('APPROVED', 'REJECTED', 'CANCELLED') THEN approval_instance_latest.update_time END",
                         '状态为终态（通过 / 拒绝 / 取消）时的最后更新时间'),
@@ -556,7 +556,7 @@ LINE.update({
         'create_time_hour_no': ('HOUR(a.create_time)', '投诉提交时间取小时'),
         'sla_timeout_type': ("CASE WHEN COALESCE(CASE WHEN a.complaint_status IN ('RESOLVED', 'CLOSED') THEN a.binlog_time END, CURRENT_TIMESTAMP) > a.sla_deadline THEN 1 ELSE 0 END", '同离线')},
     'dwd_opr_device_status_log_rt': {
-        'before_status': ('CAST(NULL AS STRING)', '口径说明：CDC 流只带变更后镜像，变更前状态由离线日表补齐（设备在线时长等指标取离线）'),
+        'before_status': ('LAG(a.device_status) OVER (PARTITION BY a.id ORDER BY a.update_time)', '同一设备上一条状态（与状态持续时长同一窗口）；设备首条记录为空'),
         'after_status': ('a.device_status', 'CDC 变更后状态')},
     'dwd_ord_order_group_di': {
         'first_pay_time': ('payment_record_latest.first_pay_time', '近 400 天支付记录中，收款（INBOUND）且已支付的最早支付时间'),
@@ -644,7 +644,11 @@ SUB.update({
         ('package_subscription_dtl AS (', "WHERE travel_date = '${bizdate}'", f'WHERE {WIN400}\n  GROUP BY subscription_no'),
         ('', 'LEFT JOIN package_subscription_dtl', 'LEFT JOIN purchase_flow ON purchase_flow.flow_no = resource_batch_chg.purchase_no\nLEFT JOIN batch_prev ON batch_prev.prev_id = resource_batch_chg.id\nLEFT JOIN package_subscription_dtl'),
         ('', 'ON package_subscription_dtl.subscription_id = resource_batch_chg.id', 'ON package_subscription_dtl.subscription_no = purchase_flow.related_no   -- 口径说明：资源包购买流水的关联单号 = 订购单号')],
-    'dwd_inv_pool_change_di': [('', 'LEFT JOIN inventory_unit_latest', ''), ('', 'ON inventory_unit_latest.pool_no = inventory_pool_chg.pool_no', '')],
+    'dwd_inv_pool_change_di': [('', 'LEFT JOIN inventory_unit_latest',
+                                "LEFT JOIN (SELECT pool_no, binlog_time, MAX(order_no) AS order_no FROM ods.ods_inv_inventory_unit_di\n"
+                                "           WHERE travel_date = '${bizdate}' AND order_no <> '' GROUP BY pool_no, binlog_time) u   -- UNIT 池资源个体：同一事务锁定 / 释放的子单号"),
+                               ('', 'ON inventory_unit_latest.pool_no = inventory_pool_chg.pool_no',
+                                'ON u.pool_no = inventory_pool_chg.pool_no AND u.binlog_time = inventory_pool_chg.binlog_time   -- 按池号 + 事务时间对齐，一次变更一行不放大')],
     'dwd_inv_pool_change_rt': [('', 'LEFT JOIN ods.ods_inv_inventory_unit_rt j1', ''), ('', 'ON j1.pool_no = a.pool_no', '')],   # 按池号关联资源个体会一对多放大
     'dwd_ord_order_group_di': [
         ('payment_record_rn AS (', 'SELECT id, order_group_no, pay_time, binlog_op_type,', 'SELECT id, order_group_no, pay_time, pay_direction, pay_status, binlog_op_type,'),
@@ -965,6 +969,11 @@ def _cn(D, t, f):
     return f
 
 
+REGEX = {   # 生成结果里需要整段去掉的内容（正则，多行）
+    'dwd_inv_pool_change_di': [(r'\),\ninventory_unit_rn AS \([^\n]*\n(?:.*\n)*?\),\ninventory_unit_latest AS \([^\n]*\n(?:.*\n)*?\)\n', ')\n')],
+}
+
+
 def apply(etl, D, annotate):
     """etl：etl_gen.generate 的结果（原地修改）；D：etl_gen.Dict；annotate：etl_gen.annotate"""
     log = []
@@ -1005,6 +1014,13 @@ def apply(etl, D, annotate):
             if old not in etl[t]['sql']:
                 raise ValueError(f'{t}: 找不到 {old!r}')
             etl[t]['sql'] = etl[t]['sql'].replace(old, new)
+    for t, pats in REGEX.items():
+        if t in etl:
+            for pat, rp in pats:
+                new_ = re.sub(pat, rp, etl[t]['sql'], count=1)
+                if new_ == etl[t]['sql']:
+                    raise ValueError(f'{t}: 正则未命中 {pat[:40]}')
+                etl[t]['sql'] = new_
     for t, fields in LINE.items():
         if t not in etl:
             continue
@@ -1037,3 +1053,98 @@ def apply(etl, D, annotate):
             s = re.sub(r'^-- 标「待确认」的字段：[^\n]*\n', '', s, flags=re.M)
         e['sql'] = s
     return log
+
+
+# ---------------------------------------------------------------- 会员 RFM：分层不再留空，客单价分子取当日支付金额
+FULL['ads_cus_customer_rfm_df'] = ('hive', hdr('ads.ads_cus_customer_rfm_df', '会员RFM与复购', 'dws_cus_customer_lifetime_df + dws_cus_customer_trade_di + dim_sup_tenant_zip', [
+    'R = 最近支付距统计日天数，F = 累计支付子单数，M = 累计支付金额；按「本商户全部真实买家的均值」划高低（R 越小越好）',
+    'M 低于均值 → GENERAL 一般；M 高：R 近且 F 高 → HIGH_VALUE 重要价值，R 远且 F 高 → HIGH_KEEP 重要保持，R 近且 F 低 → HIGH_DEVELOP 重要发展，R 远且 F 低 → HIGH_RETAIN 重要挽留',
+    '复购率 = 复购买家数 / 支付买家数；复购买家 = 近 30 天支付子单数 ≥ 2（buyer_type = 1）',
+    '客单价 = 当日支付金额 / 当日支付买家数；分子取 dws_cus_customer_trade_di 当日支付金额（原生成误取买家数）'],
+    ['快照只读当日一个分区；均值按商户先算一次再关联，不做全表排序'])
+    + """WITH lt AS (   -- 游客 × 商户累计快照（真实买家）
+    SELECT seller_tenant_id,
+           buyer_customer_id,
+           DATEDIFF('${bizdate_dash}', last_pay_date) AS r_day,   -- R：最近支付距今天数
+           total_pay_order_qty AS f_qty,                          -- F：累计支付子单数
+           total_pay_amt AS m_amt,                                -- M：累计支付金额（元）
+           buyer_type,
+           pay_buyer_bitmap,
+           repeat_buyer_bitmap
+    FROM dws.dws_cus_customer_lifetime_df
+    WHERE travel_date = '${bizdate}' AND buyer_customer_id > 0
+),
+avg_ AS (   -- 每个商户的 R / F / M 均值，作为高低分界
+    SELECT seller_tenant_id, AVG(r_day) AS r_avg, AVG(f_qty) AS f_avg, AVG(m_amt) AS m_avg
+    FROM lt
+    GROUP BY seller_tenant_id
+),
+seg AS (   -- 每个买家落到一个 RFM 分层
+    SELECT lt.*,
+           CASE WHEN lt.m_amt < a.m_avg THEN 'GENERAL'
+                WHEN lt.r_day <= a.r_avg AND lt.f_qty >= a.f_avg THEN 'HIGH_VALUE'
+                WHEN lt.r_day > a.r_avg AND lt.f_qty >= a.f_avg THEN 'HIGH_KEEP'
+                WHEN lt.r_day <= a.r_avg THEN 'HIGH_DEVELOP'
+                ELSE 'HIGH_RETAIN'
+           END AS rfm_segment_code
+    FROM lt
+    JOIN avg_ a ON a.seller_tenant_id = lt.seller_tenant_id
+),
+td AS (   -- 当日支付金额（客单价分子）
+    SELECT seller_tenant_id, buyer_customer_id, SUM(pay_amt) AS pay_amt
+    FROM dws.dws_cus_customer_trade_di
+    WHERE travel_date = '${bizdate}'
+    GROUP BY seller_tenant_id, buyer_customer_id
+),
+tenant_cur AS (
+    SELECT tenant_id, tenant_name
+    FROM dim.dim_sup_tenant_zip
+    WHERE travel_date = '${bizdate}' AND end_date = '9999-12-31'
+)
+INSERT OVERWRITE TABLE ads.ads_cus_customer_rfm_df PARTITION (travel_date = '${bizdate}')
+SELECT s.seller_tenant_id,
+       s.rfm_segment_code,
+       MAX(tc.tenant_name) AS seller_tenant_name,
+       BITMAP_UNION(s.pay_buyer_bitmap) AS pay_buyer_bitmap,
+       BITMAP_UNION(s.repeat_buyer_bitmap) AS repeat_buyer_bitmap,
+       SUM(s.buyer_type) AS repurchase_numerator_qty,
+       BITMAP_UNION(s.pay_buyer_bitmap) AS repurchase_denominator_bitmap,
+       SUM(COALESCE(td.pay_amt, 0)) AS per_customer_numerator_amt,
+       BITMAP_UNION(s.pay_buyer_bitmap) AS per_customer_denominator_bitmap,
+       CURRENT_TIMESTAMP() AS etl_time
+FROM seg s
+LEFT JOIN td ON td.seller_tenant_id = s.seller_tenant_id AND td.buyer_customer_id = s.buyer_customer_id
+LEFT JOIN tenant_cur tc ON tc.tenant_id = s.seller_tenant_id
+GROUP BY s.seller_tenant_id, s.rfm_segment_code;""")
+
+# ---------------------------------------------------------------- 商户生命周期：阶段不再留空
+FULL['ads_sup_tenant_lifecycle_df'] = ('hive', hdr('ads.ads_sup_tenant_lifecycle_df', '商户生命周期', 'dws_sup_tenant_lifetime_df', [
+    '阶段（按优先级）：首单在近 30 天内 → NEW 新入驻；近 30 天有支付 → ACTIVE 活跃；近 30 天无支付、近 90 天有 → SILENT 沉默；近 90 天无支付 → CHURN 流失；从未支付 → NEW',
+    '动销率 = 动销商户数 / 该阶段商户数',
+    '流失阈值 90 天与口径说明一致；「套餐已到期」条件待套餐到期日进入商户快照后叠加（口径说明标注阈值待定）'],
+    ['快照只读当日一个分区，按阶段分组一次聚合'])
+    + """WITH lt AS (
+    SELECT seller_tenant_id,
+           active_tenant_bitmap,
+           active_tenant_qty,
+           pay_30d_amt,
+           total_pay_amt,
+           last_pay_date,
+           CASE WHEN first_pay_date IS NULL OR first_pay_date >= DATE_SUB('${bizdate_dash}', 29) THEN 'NEW'
+                WHEN pay_30d_amt > 0 THEN 'ACTIVE'
+                WHEN last_pay_date >= DATE_SUB('${bizdate_dash}', 89) THEN 'SILENT'
+                ELSE 'CHURN'
+           END AS tenant_lifecycle_stage_code
+    FROM dws.dws_sup_tenant_lifetime_df
+    WHERE travel_date = '${bizdate}'
+)
+INSERT OVERWRITE TABLE ads.ads_sup_tenant_lifecycle_df PARTITION (travel_date = '${bizdate}')
+SELECT tenant_lifecycle_stage_code,
+       BITMAP_UNION(active_tenant_bitmap) AS active_tenant_bitmap,
+       BITMAP_UNION(active_tenant_bitmap) AS tenant_active_numerator_bitmap,
+       COUNT(DISTINCT seller_tenant_id) AS tenant_active_denominator_qty,
+       COUNT(CASE WHEN pay_30d_amt = 0 AND total_pay_amt > 0 THEN seller_tenant_id END) AS silent_tenant_qty,
+       COUNT(CASE WHEN last_pay_date < DATE_SUB('${bizdate_dash}', 89) THEN seller_tenant_id END) AS churn_tenant_qty,
+       CURRENT_TIMESTAMP() AS etl_time
+FROM lt
+GROUP BY tenant_lifecycle_stage_code;""")

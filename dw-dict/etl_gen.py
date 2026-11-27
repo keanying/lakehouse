@@ -1400,10 +1400,20 @@ def annotate(sql, t, D):
     tcn = lambda x: D.t.get(x.split('#')[0], {}).get('cn', '')
     out, width = [], 0
     cmts = []
+    branch = ''          # 当前 UNION 分支（来源）名
+    holes = set()
+    agg = bool(re.search(r'\b(SUM|COUNT|BITMAP_UNION|MAX|MIN)\(', sql)) and t.split('_')[0] in ('dws', 'ads')
     for l in lines:
         code, sep, old = l.partition('  -- ')
         st = code.strip()
         new = ''
+        bm = (re.match(r'--\s*\((\d+)\)\s*(\S+)', st) or re.match(r'--\s*(\w+)：([^，；（]+)', st))
+        if bm:
+            branch = bm.group(2).strip() if bm.group(1).isdigit() else f'{bm.group(1)}：{bm.group(2).strip()}'
+        bm = re.match(r'(\w+) AS \(', st)
+        if bm:
+            m2 = re.search(r'来源「(.+?)」', old)
+            branch = f'来源「{m2.group(1)}」' if m2 else bm.group(1)
         if st.startswith('--') or not st:
             cmts.append((l, None))
             continue
@@ -1413,8 +1423,18 @@ def annotate(sql, t, D):
             name = am.group(1)
         elif re.fullmatch(r'(?:SELECT (?:DISTINCT )?)?(?:\w+\.)?(\w+),?', st) and st.rstrip(',').split('.')[-1].split()[-1] in fcm:
             name = st.rstrip(',').split('.')[-1].split()[-1]
-        if name and 'UNION ALL' in sql and name not in gcm_fixed and re.match(r"(CAST\((NULL|0) AS [\w(),]+\)|NULL|0) AS ", st):
-            new = (fcm.get(name) or gcm.get(name) or name) + '：本来源无，补空对齐 UNION ALL'
+        if name and 'UNION ALL' in sql and name not in gcm_fixed and '待确认' not in old and re.match(r"(CAST\((NULL|0|-1) AS [\w(),]+\)|NULL|0)\s+AS ", st):
+            cn_ = fcm.get(name) or gcm.get(name) or name
+            holes.add('dim' if ('无此维度' in old or re.match(r"CAST\(-1 ", st)) else 'agg' if agg else 'row')
+            if '无此维度' in old or re.match(r"CAST\(-1 ", st):
+                new, old = f'{cn_}：此来源不区分，取 -1（不适用）', ''
+            elif agg:
+                new, old = f'{cn_}：此来源不产出，补{"0" if st.startswith(("CAST(0", "0")) else "空"}', ''
+            else:
+                new, old = f'{cn_}：此源表无此字段，置空', ''
+        elif name and '无此维度' in old:
+            holes.add('dim')
+            new, old = f'{fcm.get(name) or gcm.get(name) or name}：此来源不区分，取默认值（不适用）', ''
         elif name and name in fcm and not re.match(r'(FROM|WITH|INSERT)\b', st) and not re.match(r'SELECT \*', st):
             new = fcm[name]
         elif name and name in gcm and not re.match(r'(FROM|WITH|INSERT)\b', st) and not re.match(r'SELECT \*', st):
@@ -1471,6 +1491,13 @@ def annotate(sql, t, D):
         if old:
             new = (new + '｜' if new and new not in old else '') + old
         cmts.append((code.rstrip() if (new or old) else l, new or None))
+    if holes:
+        txt = {'agg': '-- 补 0 / 补空列：多来源 UNION ALL 时，某来源不产出的指标补 0 或空，外层按粒度 SUM 后即为各来源之和，不影响结果',
+               'dim': '-- 取 -1 的维度列：该来源没有这个维度（如核销来源没有下单渠道），用 -1 表示「不适用」，按该维度分析时只看产出它的来源',
+               'row': '-- 置空列：多个源表 UNION ALL 归一时，某源表没有的字段置空（各源表字段对照见各分支）'}
+        k = next((i for i, (c, n) in enumerate(cmts) if n is not None or not c.strip().startswith('--')), 0)
+        have_ = {c.strip() for c, _ in cmts}
+        cmts[k:k] = [(x, None) for x in [txt[h] for h in ('agg', 'dim', 'row') if h in holes] if x not in have_]
     ls = sorted(len(c) for c, n in cmts if n)
     w = min(ls[int(len(ls) * 0.85)] if ls else 0, 80)   # 按大多数行对齐，超长行不拉宽
     for c, n in cmts:
