@@ -17,16 +17,16 @@ SELECT
     add_time                                                     AS trade_time,
     id,
     CAST(sid AS BIGINT)                                          AS supplier_id,
-    CAST(NULL AS STRING)                                         AS annual_id,   -- 待确认：来源未同步（旧字段 ods_ord_annual_card_active_apply_df.annual_id）
+    CAST(NULL AS BIGINT)                                         AS annual_id,   -- 待确认：来源未同步（旧字段 ods_ord_annual_card_active_apply_df.annual_id）
     CAST(NULL AS STRING)                                         AS mobile_mask,   -- 待确认：来源未同步（旧字段 ods_ord_annual_card_active_apply_df.mobile）
     CAST(NULL AS STRING)                                         AS id_card_no_mask,   -- 待确认：来源未同步（旧字段 ods_ord_annual_card_active_apply_df.id_card）
     CAST(NULL AS STRING)                                         AS name,   -- 待确认：来源未同步（旧字段 ods_ord_annual_card_active_apply_df.name）
     CAST(ticket_id AS BIGINT)                                    AS ticket_id,
     CAST(NULL AS STRING)                                         AS audit_materials,   -- 待确认：来源未同步（旧字段 ods_ord_annual_card_active_apply_df.audit_materials）
-    CAST(NULL AS STRING)                                         AS state,   -- 待确认：来源未同步（旧字段 ods_ord_annual_card_active_apply_df.state）
+    CAST(NULL AS BIGINT)                                         AS state,   -- 待确认：来源未同步（旧字段 ods_ord_annual_card_active_apply_df.state）
     CAST(NULL AS STRING)                                         AS apply_remark,   -- 待确认：来源未同步（旧字段 ods_ord_annual_card_active_apply_df.apply_remark）
     CAST(NULL AS STRING)                                         AS audit_remark,   -- 待确认：来源未同步（旧字段 ods_ord_annual_card_active_apply_df.audit_remark）
-    CAST(NULL AS STRING)                                         AS op_id,   -- 待确认：来源未同步（旧字段 ods_ord_annual_card_active_apply_df.op_id）
+    CAST(NULL AS BIGINT)                                         AS op_id,   -- 待确认：来源未同步（旧字段 ods_ord_annual_card_active_apply_df.op_id）
     CAST(NULL AS STRING)                                         AS active_params,   -- 待确认：来源未同步（旧字段 ods_ord_annual_card_active_apply_df.active_params）
     CAST(NULL AS STRING)                                         AS create_time,   -- 待确认：来源未同步（旧字段 ods_ord_annual_card_active_apply_df.create_time）
     update_time,

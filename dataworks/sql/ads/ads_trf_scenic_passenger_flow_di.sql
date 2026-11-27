@@ -4,16 +4,13 @@
 -- 分区：travel_date（YYYYMMDD）
 -- 调度：每日，依赖上游 DWS 当日分区；完成后回流 / 服务层读取
 -- 上游：dws_trf_scenic_inout_hrs、dws_ord_scenic_ticket_trade_di
--- 替代旧任务 9 个（上线对数一致后下线）：
---   · 业务工厂/手动任务/历史任务重跑/ads_trf_scenic_passenger_flow_oi（SERVERLESS_SPARK_SQL，cron 00 12 00 * * ?）
+-- 替代旧任务 6 个（上线对数一致后下线）：
 --   · 数据平台/ADS/ads_trf_cwd_scenic_traffic_oi（SERVERLESS_SPARK_SQL，cron 00 29 00 * * ?）
 --   · 数据平台/平台湖仓工作流/景区实时客流/ads_trf_scenic_passenger_flow_di（SERVERLESS_SPARK_SQL，cron 00 00 00 * * ?）
 --   · 数据平台/平台湖仓工作流/出入园数据/ads_trf_tourist_in_out_qty（SERVERLESS_SPARK_SQL，cron 00 00 00 * * ?）
 --   · 业务工厂/出入园/ADS/ads_datav_device_inout_statistics_d_i（EMR_SPARK_SQL，cron 00 30 00 * * ?）
 --   · 业务工厂/出入园/ADS/ads_datav_device_inout_statistics_month_d_i（EMR_SPARK_SQL，cron 00 30 00 * * ?）
 --   · 业务工厂/出入园/ADS/ads_datav_device_ticket_verification_d_i（EMR_SPARK_SQL，cron 00 30 00 * * ?）
---   · 业务工厂/数据备份服务/ADS/ads_everyday_land_enter_into_number_d_f（EMR_SPARK_SQL，cron 00 29 00 * * ?）
---   · 业务工厂/数据备份服务/ADS/ads_everyday_land_enter_into_number_d_i（EMR_SPARK_SQL，cron 00 00 01 * * ?）
 -- 性能：
 --   · ADS 只存日粒度：周 / 月 / 年 / 节假日 / 自定义区间与同比环比在查询时关联 dim_opr_period_f（见「指标口径 · ADS 业务指标」）
 --   · 比率类不落比率值，只存分子分母；去重类存位图；快照类取日终值

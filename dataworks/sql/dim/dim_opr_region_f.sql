@@ -4,11 +4,10 @@
 -- 分区：无分区
 -- 调度：每日，ODS 全部完成后；维表之间按上游顺序
 -- 上游：ods_opr_region_area_df、ods_opr_country_region_df、ods_opr_city_df、ods_opr_province_df
--- 替代旧任务 5 个（上线对数一致后下线）：
+-- 替代旧任务 4 个（上线对数一致后下线）：
 --   · 数据中台/数据维度(DIM)/dim_其他/dim_city_d_f（EMR_SPARK_SQL，cron 00 05 00 * * ?）
 --   · 数据中台/数据维度(DIM)/dim_其他/dim_province_d_f（EMR_SPARK_SQL，cron 00 10 00 * * ?）
 --   · 数据中台/DIM/dim_city_fixed_d_f（EMR_SPARK_SQL，cron 00 10 00 * * ?）
---   · 数据中台/数据维度(DIM)/dim_其他/废弃dim_city_fixed_d_f（EMR_SPARK_SQL，cron 00 10 00 * * ?）
 --   · 数据平台/DIM/dim_common_region_area_df（SERVERLESS_SPARK_SQL，cron 00 11 00 * * ?）
 -- 业务规则 / 修正：
 --   · 行政区划一张表（省 / 市 / 区县同表，parent_code 串联）；旧系统 3 张城市表（dim_city_d_f / fixed / 省表）合一

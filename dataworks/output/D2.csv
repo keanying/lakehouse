@@ -5,9 +5,6 @@
 AND node_id > 0
 AND num > 0
 "
-业务工厂/手动任务/临时同步任务/ods_pft_dc_daycount_info_his_d_i,pft_dc_daycount_info,"create_time >= UNIX_TIMESTAMP('${ds}') and create_time <UNIX_TIMESTAMP(DATE_ADD('${ds}',INTERVAL 1 day))"
-业务工厂/手动任务/临时同步任务/ods_pft_dc_daycount_info_history_d_i,pft_dc_daycount_info_history,"create_time >= UNIX_TIMESTAMP('${ds}') and create_time <UNIX_TIMESTAMP(DATE_ADD('${ds}',INTERVAL 1 day))"
-业务工厂/票务数据/出入园/出入园数据校验工作流/ods_pft_dc_daycount_info_d_i,pft_dc_daycount_info,"create_time >= UNIX_TIMESTAMP('${ds}') and create_time <UNIX_TIMESTAMP(DATE_ADD('${ds}',INTERVAL 1 day))"
 业务工厂/财务平衡/财务平衡汇总/ods_pft_trade_journal_d_i,pft_trade_journal,"rectime>=""${ds}""  AND rectime< DATE_ADD(""${ds}"",INTERVAL 1 DAY)"
 数据中台/ODS/ods_order_user_info_d_i_workflow/s_order_user_info_d_i,order_user_info,"create_time >= UNIX_TIMESTAMP(STR_TO_DATE('${ds}', '%Y%m%d')) - 2 * 60
 AND create_time < UNIX_TIMESTAMP(DATE_ADD(STR_TO_DATE('${ds}', '%Y%m%d'), INTERVAL 1 DAY)) + 2 * 60"

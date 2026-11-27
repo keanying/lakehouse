@@ -4,10 +4,9 @@
 -- 分区：travel_date（YYYYMMDD）
 -- 调度：每日，依赖上游 DWD 当日分区
 -- 上游：dwd_prd_resource_order_di、dim_prd_resource_df
--- 替代旧任务 3 个（上线对数一致后下线）：
+-- 替代旧任务 2 个（上线对数一致后下线）：
 --   · 业务工厂/内部信息/财务部/资源中心考核2/dws_resource_center_land_summary_d_f（EMR_SPARK_SQL，cron 00 00 00 * * ?）
 --   · 业务工厂/内部信息/财务部/资源中心考核2/dws_resource_center_user_d_f2（EMR_SPARK_SQL，cron 00 00 00 * * ?）
---   · 业务工厂/内部信息/资源中心/资源中心汇总工作流/dws_resource_center_user_d_f（EMR_SPARK_SQL，cron 00 00 00 * * ?）
 -- 性能：
 --   · 同一来源的指标在一个子查询里预聚合（一次扫描），各来源 UNION ALL 后按粒度汇总，不做明细级 JOIN
 --   · 待确认（无来源）：pay_sale_amt

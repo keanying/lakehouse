@@ -4,10 +4,8 @@
 -- 分区：无分区
 -- 调度：每日，ODS 全部完成后；维表之间按上游顺序
 -- 上游：ods_opr_common_dict_df、ods_opr_order_status_df、ods_opr_land_topic_df、ods_opr_resource_type_df
--- 替代旧任务 4 个（上线对数一致后下线）：
+-- 替代旧任务 2 个（上线对数一致后下线）：
 --   · 数据中台/同步任务/MySQL_to_Hive/同步-其他/s_dim_order_status_o_f（DI，cron 00 27 00 * * ?）
---   · 业务工厂/数据备份服务/dim_dataoutput_config_d_i（EMR_SPARK_SQL，cron 00 17 00 * * ?）
---   · 业务工厂/数据备份服务/数据备份服务插入测试商户使用（EMR_SPARK_SQL，cron 00 27 00 * * ?）
 --   · 数据平台/平台湖仓工作流/经营数据/dwd_opr_dashboard_user_auth_df（EMR_SPARK_SQL，cron 00 00 00 * * ?）
 -- 业务规则 / 修正：
 --   · 旧系统码值散落在 40+ 个脚本的 CASE WHEN（账号类型、订单操作、景区类型、主子单 …），同一码值多处写法不一

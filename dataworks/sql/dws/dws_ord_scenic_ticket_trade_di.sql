@@ -4,7 +4,7 @@
 -- 分区：travel_date（YYYYMMDD）
 -- 调度：每日，依赖上游 DWD 当日分区
 -- 上游：dwd_ord_order_di、dwd_ord_order_track_di、dwd_ord_verify_di、dwd_ord_order_distribution_di
--- 替代旧任务 33 个（上线对数一致后下线）：
+-- 替代旧任务 28 个（上线对数一致后下线）：
 --   · 业务工厂/报表数据/预定验证报表/预定验证报表工作流/dws_daily_report_summary_d_i（EMR_SPARK_SQL，cron 00 22 00 * * ?）
 --   · 业务工厂/报表数据/预定验证报表/预定验证报表工作流/dws_daily_report_summary_full_d_i（EMR_SPARK_SQL，cron 00 22 00 * * ?）
 --   · 业务工厂/报表数据/预定验证报表/预定验证报表工作流_小时维度/dws_daily_report_summary_hour_d_i（EMR_SPARK_SQL，cron 00 01 00 * * ?）
@@ -17,7 +17,7 @@
 --   · 业务工厂/报表数据/预定验证报表/预定验证报表工作流_小时维度_全维度2selectdb/dws_hourly_report_full_summary_d_i（EMR_SPARK_SQL，cron 00 00 05 * * ?）
 --   · 业务工厂/报表数据/预定验证报表/预定验证报表工作流/dws_monthly_report_summary_d_i（EMR_SPARK_SQL，cron 00 22 00 * * ?）
 --   · 业务工厂/报表数据/预定验证报表/预定验证报表工作流/dws_monthly_report_summary_remain_d_i（EMR_SPARK_SQL，cron 00 22 00 * * ?）
---   · … 另 21 个
+--   · … 另 16 个
 -- 性能：
 --   · 同一来源的指标在一个子查询里预聚合（一次扫描），各来源 UNION ALL 后按粒度汇总，不做明细级 JOIN
 --   · 去重类指标存位图（TO_BITMAP / BITMAP_UNION，UDF 与 PFT3.0 同一套），任意周期 BITMAP_UNION_COUNT
@@ -67,10 +67,10 @@ SELECT
     SUM(after_sale_refund_amt)                                   AS after_sale_refund_amt,
     SUM(after_sale_income_amt)                                   AS after_sale_income_amt,
     BITMAP_UNION(buyer_qty)                                      AS buyer_qty,
-    CAST(SUM(order_sale_amt) / NULLIF(SUM(order_ticket_qty), 0) AS DECIMAL(18,2)) AS order_avg_ticket_price,   -- 表内派生：不可跨行再汇总
     SUM(card_sale_amt)                                           AS card_sale_amt,
     SUM(card_sale_qty)                                           AS card_sale_qty,
     SUM(enter_qty)                                               AS enter_qty,
+    CAST(SUM(order_sale_amt) / NULLIF(SUM(order_ticket_qty), 0) AS DECIMAL(18,2)) AS order_avg_ticket_price,   -- 表内派生：不可跨行再汇总
     DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time
 FROM (
     -- ord：预订：下单日分区 = bizdate，已支付（含现场支付、含之后取消）

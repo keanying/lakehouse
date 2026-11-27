@@ -522,8 +522,8 @@ t('ads_sup_platform_operation_di', '平台经营（内部）', '1行=1天×商�
   dims('member_id') + mets('login_member_qty', 'module_open_qty', 'order_sale_amt', 'pay_sale_amt'),
   ['ads_company_order_month_summary_d_f', 'ads_marketing_department_supply_gmv_d_f', 'ads_module_open_rank_d_f', 'ads_operate_lv1_num_d_f', 'ads_plat_map_fly_d_f',
    'ads_plat_third_purchase_order_d_f'])
-t('ads_sup_customer_company_df', '客户公司属性（财务）', '1行=1个 CRM 客户公司', 'dim_sup_company_df、dws_sup_member_di、dws_sup_contract_di',
-  '财务部客户属性：合同、开票、回款、产品使用、登录活跃（全量快照）', [('company_id', 'BIGINT', '粒度键', 'CRM 客户公司ID')] + mets('contract_amt', 'invoice_amt', 'payback_amt', 'login_member_qty'),
+t('ads_sup_customer_company_df', '客户公司属性（财务）', '1行=1个 CRM 客户公司', 'dim_sup_company_df、dws_sup_member_di',
+  '财务部客户属性：产品使用、登录活跃（全量快照）；合同 / 开票 / 回款随 OA 合同链路下线', [('company_id', 'BIGINT', '粒度键', 'CRM 客户公司ID')] + mets('login_member_qty'),
   ['ads_cus_company_d_f', 'ads_cus_landtravel_d_f', r'^cache_landtravel_', 'dws_company_package_it_d_f', 'dws_cus_company_partner_d_f'], part='')
 t('ads_prd_resource_center_di', '资源中心经营', '1行=1天×资源×供应商', 'dws_prd_resource_center_di', '资源采购、订单、考核；' + ADS_NOTE,
   dims('resource_id', 'supplier_id') + mets('resource_purchase_qty', 'resource_order_qty', 'order_sale_amt'),

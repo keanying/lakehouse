@@ -800,16 +800,13 @@ GROUP BY scenic_id, platform_code
 INSERT OVERWRITE TABLE ads.ads_sup_customer_company_df
 SELECT
     c.company_id,
-    CAST(0 AS DECIMAL(18,2))                                         AS contract_amt,    -- 待确认：合同 → CRM 客户的对应（合同台账 pft_user_id_list）上线前确认
-    CAST(0 AS DECIMAL(18,2))                                         AS invoice_amt,     -- 待确认：同上
-    CAST(0 AS DECIMAL(18,2))                                         AS payback_amt,     -- 待确认：同上
     BITMAP_UNION(l.login_member_qty)                                 AS login_member_bitmap,
     {NOW}
 FROM (SELECT DISTINCT company_id, user_id FROM dim.dim_sup_company_df) c
 LEFT JOIN (SELECT member_id, BITMAP_UNION(login_member_qty) AS login_member_qty FROM dws.dws_sup_member_di WHERE {P} GROUP BY member_id) l
        ON l.member_id = c.user_id
 GROUP BY c.company_id
-""", ['CRM 客户公司 → 平台账号（user_id）→ 商户日汇总；一个公司多个账号时位图合并去重']
+""", ['CRM 客户公司 → 平台账号（user_id）→ 商户日汇总；一个公司多个账号时位图合并去重', '合同 / 开票 / 回款：OA 合同链路客户确认下线（内部信息 ODS-OA 与合同 DIM / DWD / DWS），本表不再提供']
     return None
 
 

@@ -4,7 +4,7 @@
 -- 分区：travel_date（YYYYMMDD）
 -- 调度：每日，依赖上游 DWS 当日分区；完成后回流 / 服务层读取
 -- 上游：dws_ord_scenic_ticket_trade_di
--- 替代旧任务 23 个（上线对数一致后下线）：
+-- 替代旧任务 19 个（上线对数一致后下线）：
 --   · 业务工厂/景区指标旧表/每日景区销售渠道旧表工作流/ads_daily_scenic_channel_d_i（EMR_SPARK_SQL，cron 00 00 00 * * ?）
 --   · 业务工厂/景区指标旧表/每日景区支付渠道旧表工作流/ads_daily_scenic_province_channel_d_i（EMR_SPARK_SQL，cron 00 00 00 * * ?）
 --   · 业务工厂/景区指标旧表/每日景区销售渠道旧表工作流/ads_daily_scenic_ticket_channel_d_i（EMR_SPARK_SQL，cron 00 00 00 * * ?）
@@ -15,9 +15,9 @@
 --   · 业务工厂/景区指标旧表/每日景区销售渠道旧表工作流/ads_yearly_scenic_channel_d_i（EMR_SPARK_SQL，cron 00 00 00 * * ?）
 --   · 业务工厂/景区指标旧表/每日景区支付渠道旧表工作流/ads_yearly_scenic_province_channel_d_i（EMR_SPARK_SQL，cron 00 00 00 * * ?）
 --   · 业务工厂/景区指标旧表/每日景区销售渠道旧表工作流/ads_yearly_scenic_ticket_channel_d_i（EMR_SPARK_SQL，cron 00 00 00 * * ?）
---   · 业务工厂/数据开放服务/基础数据/全渠道统计/ads_daily_full_channel_d_i（EMR_SPARK_SQL，cron 00 25 00 * * ?）
 --   · 业务工厂/景区指标旧表/每日景区销售渠道旧表工作流/ads_daily_full_channel_d_i（EMR_SPARK_SQL，cron 00 00 00 * * ?）
---   · … 另 11 个
+--   · 业务工厂/景区指标旧表/每日景区销售渠道旧表工作流/ads_daily_ticket_full_channel_d_i（EMR_SPARK_SQL，cron 00 00 00 * * ?）
+--   · … 另 7 个
 -- 性能：
 --   · ADS 只存日粒度：周 / 月 / 年 / 节假日 / 自定义区间与同比环比在查询时关联 dim_opr_period_f（见「指标口径 · ADS 业务指标」）
 --   · 比率类不落比率值，只存分子分母；去重类存位图；快照类取日终值

@@ -49,6 +49,7 @@ def category(n, keys, layer):
 
 
 SRCDDL, SRCDEP = {}, {}
+DEAD = {}   # 随上游下线的标准表
 
 
 def dep_text(d):
@@ -171,6 +172,45 @@ def build():
 
     def match(pat, t):
         return re.search(pat, t) if pat.startswith('^') else t == pat
+
+    # 客户确认下线 / 取消的节点（exclude.txt）排除后：没有任何存活上游（ODS / 其他标准表）、也没有仍在产出的旧表的标准表整体下线；
+    # 迭代到稳定（DWD 下线后，只靠它的 DWS / ADS 跟着下线）；口径来源表下线的指标一并去掉
+    std_names = {s_['name'] for s_ in model.T}
+
+    def up_tokens(spec):
+        pref = re.findall(r'(ods_\w+?)_\*', spec['up'])
+        xs = [x.strip() for x in re.split(r'[、]', spec['up']) if x.strip() and '*' not in x]
+        xs += [o for o in ods_names if any(o.startswith(p_) for p_ in pref)]
+        return [x for x in xs if re.match(r'(ods|dim|dwd|dws|ads)_', x)]
+
+    def alive(x):
+        if x.startswith('ods_'):
+            return x in ods_names or x[:-3] + '_df' in ods_names or x[:-3] + '_di' in ods_names
+        return x in std_names and x not in DEAD
+    DEAD.clear()
+    while True:
+        new = {}
+        for s_ in model.T:
+            ts = up_tokens(s_)
+            if s_['name'] in DEAD or not ts or any(alive(x) for x in ts) or any(match(p_, t) for p_ in s_['legacy'] for t in hive):
+                continue
+            new[s_['name']] = '上游全部下线：' + '、'.join(ts)
+        if not new:
+            break
+        DEAD.update(new)
+    model.T[:] = [s_ for s_ in model.T if s_['name'] not in DEAD]
+    dead_m = {m[1] for m in model.METRICS if m[9] in DEAD}
+    model.METRICS[:] = [m for m in model.METRICS if m[1] not in dead_m]
+    for n_ in dead_m:
+        model.M.pop(n_, None)
+    for s_ in model.T:
+        if isinstance(s_['fields'], list):
+            s_['fields'] = [f for f in s_['fields'] if f[0] not in dead_m]
+        s_['up'] = '、'.join(x for x in re.split(r'[、]', s_['up'])
+                             if x.strip() and (not re.match(r'(ods|dim|dwd|dws|ads)_\w+$', x.strip()) or alive(x.strip())))
+    if DEAD:
+        print('标准表随上游下线：', DEAD)
+        print('指标随来源下线：', sorted(dead_m))
     for spec in model.T:
         layer = spec['name'].split('_')[0].upper()
         legacy = []
@@ -832,8 +872,10 @@ def main():
                      'note': f"旧系统 {sum(1 for r in mrows if r[1] == 'Hive')} 张 Hive 表 + {sum(1 for r in mrows if r[1] != 'Hive')} 张回流表，每张都给出归属的标准表与处理方式；点行跳到标准表"},
          'nodes': {'cols': ['工作空间', '路径', '节点', '类型', 'cron', '写入表', '读取表', '处理'],
                    'rows': [[n['ws'], n['path'], n['name'], n['type'], n['cron'], '、'.join(sh(t) for t, k in n['writes'] if k != 'ddl'), '、'.join(sh(t) for t in n['reads'])[:300],
-                             next((x[6] for x in mrows if n['writes'] and x[0] == sh(n['writes'][0][0])), '')] for n in nodes if n['type'] != 'WORKFLOW'],
-                   'filters': [0, 3, 7], 'note': '全部旧节点（不含工作流容器）；「处理」取其写入表在旧表映射中的处理方式'},
+                             next((x[6] for x in mrows if n['writes'] and x[0] == sh(n['writes'][0][0])), '')] for n in nodes if n['type'] != 'WORKFLOW']
+                          + [[n['ws'], n['path'], n['name'], n['type'], n['cron'], '、'.join(sh(t) for t, k in n['writes'] if k != 'ddl'), '、'.join(sh(t) for t in n['reads'])[:300],
+                              '纯同步（库到库，原样迁移，不入数仓）'] for n in parse.SYNC_ONLY if n['type'] != 'WORKFLOW'],
+                   'filters': [0, 3, 7], 'note': f'全部旧节点（不含工作流容器）；「处理」取其写入表在旧表映射中的处理方式；另有 {sum(1 for n in parse.SYNC_ONLY if n["type"] != "WORKFLOW")} 个纯同步任务（客户确认不参与数仓计算）单独标出；下线 / 取消的节点（dataworks/exclude.txt）不列出'},
          'cover': {'cols': sh_['导出模型覆盖']['cols'], 'rows': [[str(x) for x in r] for r in sh_['导出模型覆盖']['rows']], 'filters': [5, 7, 6],
                    'note': f"旧系统 {len({r[0] for r in sh_['导出模型覆盖']['rows']})} 个导出（hive_to_db）应用层模型、{len(sh_['导出模型覆盖']['rows'])} 个字段逐个对到标准 ADS；缺的指标 / 维度已补进标准 ADS"},
          'unify': {'cols': sh_['口径统一']['cols'], 'rows': [[str(x) for x in r] for r in sh_['口径统一']['rows']], 'filters': [1, 3],

@@ -1,3 +1,7 @@
+{ds} —— 只取当天新建记录，之后的状态变化漏采，已改为按 update_time
+--   · 写入：truncate 当日分区（幂等，可重跑）；ORC + SNAPPY；脏数据 0 容忍（errorLimit=0），有脏数据直接失败告警
+-- DataWorks 数据集成 · 脚本模式（JSON）：
+-- ================================================================================================
 {
   "type": "job",
   "version": "2.0",
@@ -7,11 +11,10 @@
       "category": "reader",
       "name": "Reader",
       "parameter": {
-        "datasource": "RDS_summary",
+        "datasource": "BI_RDS_summary",
         "column": [
           "id",
           "fid",
-          "date",
           "lid",
           "tid",
           "pid",
@@ -33,7 +36,7 @@
         ],
         "connection": [
           {
-            "datasource": "RDS_summary",
+            "datasource": "BI_RDS_summary",
             "table": [
               "pft_report_terminal_pass"
             ]
@@ -56,7 +59,6 @@
         "column": [
           "id",
           "fid",
-          "date",
           "lid",
           "tid",
           "pid",

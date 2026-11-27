@@ -4,13 +4,11 @@
 -- 分区：travel_date（YYYYMMDD）
 -- 调度：每日，依赖上游 DWD 当日分区
 -- 上游：dwd_sup_member_login_di、dim_sup_member_relation_zip、dim_prd_ticket_df、dwd_opr_module_open_di
--- 替代旧任务 6 个（上线对数一致后下线）：
+-- 替代旧任务 4 个（上线对数一致后下线）：
 --   · 业务工厂/内部信息/财务部/客户属性cus_company/dws_cus_company_login_d_f（EMR_SPARK_SQL，cron 00 00 00 * * ?）
 --   · 业务工厂/内部信息/财务部/客户属性cus_company/dws_cus_company_partner_d_f（EMR_SPARK_SQL，cron 00 00 00 * * ?）
 --   · 业务工厂/内部信息/财务部/客户属性cus_company/dws_cus_company_prod_d_f（EMR_SPARK_SQL，cron 00 00 00 * * ?）
---   · 业务工厂/内部信息/运营/运营汇总工作流/dws_company_package_d_f（EMR_SPARK_SQL，cron 00 00 00 * * ?）
 --   · 业务工厂/内部信息/财务部/客户属性cus_company/dws_company_package_it_d_f（EMR_SPARK_SQL，cron 00 00 00 * * ?）
---   · 业务工厂/内部信息/微商城/微商城页面访问汇总工作流/dws_micromessage_page_view_d_f（EMR_SPARK_SQL，cron 00 00 00 * * ?）
 -- 性能：
 --   · 同一来源的指标在一个子查询里预聚合（一次扫描），各来源 UNION ALL 后按粒度汇总，不做明细级 JOIN
 --   · 去重类指标存位图（TO_BITMAP / BITMAP_UNION，UDF 与 PFT3.0 同一套），任意周期 BITMAP_UNION_COUNT
