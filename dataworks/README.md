@@ -41,12 +41,12 @@ python3 dataworks/standard/build.py
   - 每段 SQL 经 sqlglot 解析并核对输出列与字段清单一致；无来源的字段标「待确认」（ODS 0、DIM 102、DWD 73、DWS 8、ADS 0）；
 - 设计在 `standard/model.py`（表、粒度、字段、口径、旧表归并规则）与 `standard/rules.py`（业务域、ODS 命名、字段名标准化），改设计改这两个文件后重跑即可。
 
-## 业务库 DDL 更新
+## 业务库 DDL 补齐
 
-字典页「旧系统对照 · 业务库 DDL」：
-- 粘贴客户的 `CREATE TABLE` 语句（一次可贴多张），自动对到 366 张业务库表，并与现有字段（来自同步配置）比对：DDL 多出的、同步配置多出的；
-- 录入只存在本机浏览器，点「导出文件」得到 `src_ddl_YYYYMMDD.sql`，下次可「导入文件」继续录；
-- 文件交给数仓放到 `dataworks/input/`，重跑 `standard/build.py` 后业务库字段、类型、注释、主键以 DDL 为准，ODS 注释同步更新，页面上这些表显示「已入库」。见 `input/README.md`。
+独立工具 `dataworks/ddl_tool/`：Windows 双击 `启动.bat`，或运行 `python3 dataworks/ddl_tool/server.py`。启动后自动创建 `dataworks/input/src_ddl.sql`，并打开浏览器页面。
+- 在页面里粘贴客户的 `CREATE TABLE` 语句，按表名对到 366 张业务库表，并与同步配置读取的字段比对；
+- 每次保存直接写进这个文件，没有导出步骤；
+- 文件交给数仓后重跑 `standard/build.py`，业务库字段、类型、注释、主键以 DDL 为准，ODS 注释同步更新。见 `ddl_tool/README.md`、`input/README.md`。
 
 ## 排除范围
 
