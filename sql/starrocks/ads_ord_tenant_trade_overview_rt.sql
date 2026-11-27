@@ -3,6 +3,7 @@
 -- 来源：dws_ord_tenant_sku_trade_rt, dws_ord_tenant_sku_verify_rt
 -- 生成方式：StarRocks 异步物化视图（每分钟刷新）；字段 18 个：直接翻译 4 · 规则翻译 14 · 待确认 0
 -- 多来源：各来源按粒度键预聚合后 UNION ALL 合并，再按公式计算
+-- 补 0 / 补空列：多来源 UNION ALL 时，某来源不产出的指标补 0 或空，外层按粒度 SUM 后即为各来源之和，不影响结果
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS ads.ads_ord_tenant_trade_overview_rt  -- 异步物化视图，StarRocks 定时刷新
 REFRESH ASYNC EVERY (INTERVAL 1 MINUTE)
@@ -19,8 +20,8 @@ src_tenant_sku_trade AS (                             -- 来源「商户×SKU �
     SUM(s.pay_buyer_qty) AS pay_buyer_qty,            -- 支付买家数
     SUM(s.order_qty) AS order_qty,                    -- 下单子单数
     SUM(s.refund_ticket_qty) AS refund_ticket_qty,    -- 退款票数
-    NULL AS verify_ticket_qty,                        -- 核销票数：本来源无，补空对齐 UNION ALL
-    NULL AS verify_amt                                -- 核销金额：本来源无，补空对齐 UNION ALL
+    NULL AS verify_ticket_qty,                        -- 核销票数：此来源不产出，补空
+    NULL AS verify_amt                                -- 核销金额：此来源不产出，补空
   FROM dws.dws_ord_tenant_sku_trade_rt s              -- 来源表「商户×SKU 分钟级交易」
   WHERE s.travel_date = DATE_FORMAT(CURDATE(), '%Y%m%d')  -- 只取今日数据
   GROUP BY s.travel_date, s.seller_tenant_id          -- 按粒度键汇总
@@ -29,13 +30,13 @@ src_tenant_sku_verify AS (                            -- 来源「商户×SKU �
   SELECT
     s.travel_date AS travel_date,                     -- 数据日期
     s.seller_tenant_id AS seller_tenant_id,           -- 卖家租户ID
-    NULL AS pay_amt,                                  -- 支付金额（GMV）：本来源无，补空对齐 UNION ALL
-    NULL AS refund_amt,                               -- 退款金额：本来源无，补空对齐 UNION ALL
-    NULL AS pay_order_qty,                            -- 支付子单数：本来源无，补空对齐 UNION ALL
-    NULL AS pay_ticket_qty,                           -- 支付票数：本来源无，补空对齐 UNION ALL
-    NULL AS pay_buyer_qty,                            -- 支付买家数：本来源无，补空对齐 UNION ALL
-    NULL AS order_qty,                                -- 下单子单数：本来源无，补空对齐 UNION ALL
-    NULL AS refund_ticket_qty,                        -- 退款票数：本来源无，补空对齐 UNION ALL
+    NULL AS pay_amt,                                  -- 支付金额（GMV）：此来源不产出，补空
+    NULL AS refund_amt,                               -- 退款金额：此来源不产出，补空
+    NULL AS pay_order_qty,                            -- 支付子单数：此来源不产出，补空
+    NULL AS pay_ticket_qty,                           -- 支付票数：此来源不产出，补空
+    NULL AS pay_buyer_qty,                            -- 支付买家数：此来源不产出，补空
+    NULL AS order_qty,                                -- 下单子单数：此来源不产出，补空
+    NULL AS refund_ticket_qty,                        -- 退款票数：此来源不产出，补空
     SUM(s.verify_ticket_qty) AS verify_ticket_qty,    -- 核销票数
     SUM(s.verify_amt) AS verify_amt                   -- 核销金额
   FROM dws.dws_ord_tenant_sku_verify_rt s             -- 来源表「商户×SKU 实时核销」

@@ -13,6 +13,7 @@
 --   · 同一来源的指标在一个子查询里预聚合（一次扫描），各来源 UNION ALL 后按粒度汇总，不做明细级 JOIN
 --   · 来源：park = dwd.dwd_opr_parking_record_di（停车进出（5 厂商已在 DWD 归一））
 -- ================================================================================================
+-- 取 -1 的维度列：该来源没有这个维度（如核销来源没有下单渠道），用 -1 表示「不适用」，按该维度分析时只看产出它的来源
 INSERT OVERWRITE TABLE dws.dws_opr_parking_hrs PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
 SELECT
     scenic_id,                                                                    -- 景区ID
@@ -28,7 +29,7 @@ SELECT
 FROM (
     -- park：停车进出（5 厂商已在 DWD 归一）
     SELECT
-        CAST(-1 AS BIGINT)                                           AS scenic_id,  -- 景区ID｜该来源无此维度，取默认值
+        CAST(-1 AS BIGINT)                                           AS scenic_id,  -- 景区ID：此来源不区分，取 -1（不适用）
         parking_lot_code,                                                         -- 停车场编码
         parking_vendor,                                                           -- 停车系统厂商
         COALESCE(HOUR(inout_time), CAST(-1 AS INT))                  AS stat_hour,  -- 小时

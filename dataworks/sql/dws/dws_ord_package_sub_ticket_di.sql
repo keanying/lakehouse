@@ -11,6 +11,7 @@
 --   · 同一来源的指标在一个子查询里预聚合（一次扫描），各来源 UNION ALL 后按粒度汇总，不做明细级 JOIN
 --   · 来源：pkg = dwd.dwd_ord_order_di（套票子票：关联同日主票订单取主票票ID）；pkg_vfy = dwd.dwd_ord_verify_di（子票核销）
 -- ================================================================================================
+-- 补 0 / 补空列：多来源 UNION ALL 时，某来源不产出的指标补 0 或空，外层按粒度 SUM 后即为各来源之和，不影响结果
 INSERT OVERWRITE TABLE dws.dws_ord_package_sub_ticket_di PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
 SELECT
     scenic_id,                                                                    -- 景区ID
@@ -26,7 +27,7 @@ FROM (
         COALESCE(main_ticket_id, CAST(-1 AS BIGINT))                 AS main_ticket_id,  -- 套票主票票ID
         COALESCE(ticket_id, CAST(-1 AS BIGINT))                      AS sub_ticket_id,  -- 套票子票票ID
         SUM(origin_ticket_qty)                                       AS order_ticket_qty,  -- 预订票数
-        CAST(0 AS BIGINT)                                            AS verify_ticket_qty  -- 验证票数
+        CAST(0 AS BIGINT)                                            AS verify_ticket_qty  -- 验证票数：此来源不产出，补0
     FROM (
         SELECT s.*, m.ticket_id AS main_ticket_id                                 -- 套票主票票ID
         FROM dwd.dwd_ord_order_di s                                               -- 来源表「订单明细」
@@ -46,7 +47,7 @@ FROM (
         COALESCE(scenic_id, CAST(-1 AS BIGINT))                      AS scenic_id,  -- 景区ID
         COALESCE(main_ticket_id, CAST(-1 AS BIGINT))                 AS main_ticket_id,  -- 套票主票票ID
         COALESCE(ticket_id, CAST(-1 AS BIGINT))                      AS sub_ticket_id,  -- 套票子票票ID
-        CAST(0 AS BIGINT)                                            AS order_ticket_qty,  -- 预订票数
+        CAST(0 AS BIGINT)                                            AS order_ticket_qty,  -- 预订票数：此来源不产出，补0
         SUM(verify_ticket_qty)                                       AS verify_ticket_qty  -- 验证票数
     FROM (
         SELECT v.*, o.ticket_id AS main_ticket_id                                 -- 套票主票票ID

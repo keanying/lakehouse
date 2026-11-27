@@ -15,6 +15,8 @@
 --   · 同一来源的指标在一个子查询里预聚合（一次扫描），各来源 UNION ALL 后按粒度汇总，不做明细级 JOIN
 --   · 来源：card = dwd.dwd_ord_annual_card_trade_di（年卡交易）；vfy = dwd.dwd_ord_verify_di（核销：验证日分区 = bizdate）
 -- ================================================================================================
+-- 补 0 / 补空列：多来源 UNION ALL 时，某来源不产出的指标补 0 或空，外层按粒度 SUM 后即为各来源之和，不影响结果
+-- 取 -1 的维度列：该来源没有这个维度（如核销来源没有下单渠道），用 -1 表示「不适用」，按该维度分析时只看产出它的来源
 INSERT OVERWRITE TABLE dws.dws_ord_annual_card_di PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
 SELECT
     scenic_id,                                                                    -- 景区ID
@@ -28,25 +30,27 @@ SELECT
 FROM (
     -- card：年卡交易
     SELECT
-        CAST(-1 AS BIGINT)                                           AS scenic_id,  -- 景区ID｜该来源无此维度，取默认值
+        COALESCE(scenic_id, CAST(-1 AS BIGINT))                      AS scenic_id,  -- 景区ID
         COALESCE(card_product_id, CAST(-1 AS BIGINT))                AS card_product_id,  -- 年卡产品ID
         COALESCE(ticket_id, CAST(-1 AS BIGINT))                      AS ticket_id,  -- 票ID
         SUM(IF(trade_type = 'SELL', 1, 0))                           AS card_sale_qty,  -- 年卡售卡数
         SUM(IF(trade_type = 'SELL', trade_amt, 0))                   AS card_sale_amt,  -- 年卡售卡金额
         SUM(IF(trade_type = 'ACTIVE', 1, 0))                         AS card_active_qty,  -- 年卡激活数
-        CAST(0 AS BIGINT)                                            AS card_verify_qty  -- 年卡核销次数
+        CAST(0 AS BIGINT)                                            AS card_verify_qty  -- 年卡核销次数：此来源不产出，补0
     FROM dwd.dwd_ord_annual_card_trade_di
     WHERE travel_date = '${bizdate}'                                              -- 只取当日分区
-    GROUP BY COALESCE(card_product_id, CAST(-1 AS BIGINT)), COALESCE(ticket_id, CAST(-1 AS BIGINT))  -- 按粒度键汇总
+    GROUP BY COALESCE(scenic_id, CAST(-1 AS BIGINT)),                             -- 按粒度键汇总
+             COALESCE(card_product_id, CAST(-1 AS BIGINT)),
+             COALESCE(ticket_id, CAST(-1 AS BIGINT))
     UNION ALL
     -- vfy：核销：验证日分区 = bizdate
     SELECT
         COALESCE(scenic_id, CAST(-1 AS BIGINT))                      AS scenic_id,  -- 景区ID
-        CAST(-1 AS BIGINT)                                           AS card_product_id,  -- 年卡产品ID｜该来源无此维度，取默认值
+        CAST(-1 AS BIGINT)                                           AS card_product_id,  -- 年卡产品ID：此来源不区分，取 -1（不适用）
         COALESCE(ticket_id, CAST(-1 AS BIGINT))                      AS ticket_id,  -- 票ID
-        CAST(0 AS BIGINT)                                            AS card_sale_qty,  -- 年卡售卡数
-        CAST(0 AS DECIMAL(18,2))                                     AS card_sale_amt,  -- 年卡售卡金额
-        CAST(0 AS BIGINT)                                            AS card_active_qty,  -- 年卡激活数
+        CAST(0 AS BIGINT)                                            AS card_sale_qty,  -- 年卡售卡数：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS card_sale_amt,  -- 年卡售卡金额：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS card_active_qty,  -- 年卡激活数：此来源不产出，补0
         SUM(annual_card_flag)                                        AS card_verify_qty  -- 年卡核销次数
     FROM dwd.dwd_ord_verify_di
     WHERE travel_date = '${bizdate}'                                              -- 只取当日分区

@@ -12,6 +12,7 @@
 --   · 支付 / 票只扫近 400 天分区（票有效期上限）
 --   · 归属规则为小表 BROADCAST
 -- ================================================================================================
+-- 置空列：多个源表 UNION ALL 归一时，某源表没有的字段置空（各源表字段对照见各分支）
 WITH tk AS (                                                                      -- 票：聚合单内按单价占比（全 0 元时均分），用于把按聚合单的支付分摊到票
     SELECT ticket_no, order_no, order_group_no, spu_id, sku_id,
            COALESCE(unit_price_amt / NULLIF(SUM(unit_price_amt) OVER (PARTITION BY order_group_no), 0),
@@ -70,7 +71,7 @@ side AS (                                                                       
 dims AS (                                                                         -- 订单维度：产品 / 票种取票，下单渠道 / 售票员取聚合单
     SELECT s.*, t.order_no, t.spu_id, t.sku_id, g.channel_type,
            IF(g.operator_type = 'TENANT_STAFF', g.operator_id, NULL)   AS seller_staff_id,  -- 售票员
-           CAST(NULL AS STRING)                                         AS sale_point_code,  -- 售票站点
+           CAST(NULL AS STRING)                                         AS sale_point_code,  -- 售票站点：此源表无此字段，置空
            /* 源端缺口：业务库订单无售票站点 */
            IF(s.out_payment_no IS NULL, 'SELF', 'SUPPLIER')             AS payee_type,  -- 收款方类型
            COALESCE(st.settle_timing_type, 'VERIFY')                    AS settle_timing_type  -- 结算时点

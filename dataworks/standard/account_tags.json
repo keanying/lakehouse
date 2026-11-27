@@ -1,0 +1,22 @@
+[
+ [12404122, "NEW_MEDIA", "NEW_MEDIA_DY", "新媒体·抖音团购"],
+ [12513404, "NEW_MEDIA", "NEW_MEDIA_KS", "新媒体·快手"],
+ [13913690, "NEW_MEDIA", "NEW_MEDIA_DD", "新媒体·抖店"],
+ [15467659, "NEW_MEDIA", "NEW_MEDIA_KSDS", "新媒体·快手电商开放平台"],
+ [26856539, "NEW_MEDIA", "NEW_MEDIA_DYLK", "新媒体·抖音来客（按旧字段缩写 dylk）"],
+ [27003241, "NEW_MEDIA", "NEW_MEDIA_KSBDSH", "新媒体·快手本地生活（按旧字段缩写 ksbdsh）"],
+ [2175, "OTA", "OTA_QNR", "OTA·去哪儿"],
+ [28227, "OTA", "OTA_MTZL", "OTA·美团直连"],
+ [3663752, "OTA", "OTA_XCWL", "OTA·携程网络"],
+ [1214, "OTA", "OTA_XCWL", "OTA·携程网络"],
+ [9718585, "OTA", "OTA_MTQQ", "OTA·美团（mtqq）"],
+ [1252953, "OTA", "OTA_MFW", "OTA·马蜂窝"],
+ [9011093, "OTA", "OTA_ALI", "OTA·阿里飞猪"],
+ [10406130, "OTA", "OTA_KBW", "OTA·口碑"],
+ [13151618, "OTA", "OTA_MFWZY", "OTA·马蜂窝自营"],
+ [768763, "OTA", "OTA_YZWSC", "OTA·有赞微商城"],
+ [5624150, "OTA", "OTA_JD", "OTA·京东"],
+ [4560136, "OTA", "OTA_WM", "OTA·微盟"],
+ [10141128, "OTA", "OTA_GD", "OTA·高德"],
+ [5269593, "OTA", "OTA_MTTYYD", "OTA·美团通用预订"]
+]

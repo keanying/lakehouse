@@ -41,7 +41,6 @@ SELECT
     SUM(order_order_qty)                                         AS order_order_qty,  -- 预订订单数（日）
     SUM(order_ticket_qty)                                        AS order_ticket_qty,  -- 预订票数（日）
     SUM(verify_ticket_qty)                                       AS verify_ticket_qty,  -- 验证票数（日）
-    SUM(order_sale_amt)                                          AS order_sale_amt,  -- 预订金额（日）
     SUM(pay_sale_amt)                                            AS pay_sale_amt,  -- 支付金额（日）
     SUM(pay_ticket_qty)                                          AS pay_ticket_qty,  -- 支付票数（日）
     SUM(verify_sale_amt)                                         AS verify_sale_amt,  -- 验证金额（日）
@@ -66,7 +65,6 @@ FROM (
         SUM(order_order_qty)                                         AS order_order_qty,  -- 预订订单数（日）
         SUM(order_ticket_qty)                                        AS order_ticket_qty,  -- 预订票数（日）
         SUM(verify_ticket_qty)                                       AS verify_ticket_qty,  -- 验证票数（日）
-        SUM(order_sale_amt)                                          AS order_sale_amt,  -- 预订金额（日）
         SUM(pay_sale_amt)                                            AS pay_sale_amt,  -- 支付金额（日）
         SUM(pay_ticket_qty)                                          AS pay_ticket_qty,  -- 支付票数（日）
         SUM(verify_sale_amt)                                         AS verify_sale_amt  -- 验证金额（日）

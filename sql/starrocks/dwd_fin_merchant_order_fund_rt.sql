@@ -7,6 +7,7 @@
 -- 性能：
 --   · StarRocks 异步物化视图，1 分钟刷新；按 travel_date 分区，只刷新今天分区
 -- ================================================================================================
+-- 置空列：多个源表 UNION ALL 归一时，某源表没有的字段置空（各源表字段对照见各分支）
 CREATE MATERIALIZED VIEW IF NOT EXISTS dwd.dwd_fin_merchant_order_fund_rt         -- 异步物化视图，StarRocks 定时刷新
 REFRESH ASYNC EVERY (INTERVAL 1 MINUTE)
 AS
@@ -69,7 +70,7 @@ side AS (                                                                       
 dims AS (                                                                         -- 订单维度：产品 / 票种取票，下单渠道 / 售票员取聚合单
     SELECT s.*, t.order_no, t.spu_id, t.sku_id, g.channel_type,
            IF(g.operator_type = 'TENANT_STAFF', g.operator_id, NULL)   AS seller_staff_id,  -- 售票员
-           CAST(NULL AS STRING)                                         AS sale_point_code,  -- 售票站点
+           CAST(NULL AS STRING)                                         AS sale_point_code,  -- 售票站点：此源表无此字段，置空
            /* 源端缺口：业务库订单无售票站点 */
            IF(s.out_payment_no IS NULL, 'SELF', 'SUPPLIER')             AS payee_type,  -- 收款方类型
            COALESCE(st.settle_timing_type, 'VERIFY')                    AS settle_timing_type  -- 结算时点

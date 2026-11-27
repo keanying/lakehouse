@@ -3,6 +3,7 @@
 -- 来源：dwd_fin_account_balance_rt + dwd_fin_frozen_rt
 -- 生成方式：Flink SQL（持续聚合（快照类，按主键更新） → StarRocks 主键模型表）；字段 7 个：直接翻译 2 · 规则翻译 5 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总
+-- 补 0 / 补空列：多来源 UNION ALL 时，某来源不产出的指标补 0 或空，外层按粒度 SUM 后即为各来源之和，不影响结果
 
 INSERT INTO dws.dws_fin_account_fund_rt               -- 写入 StarRocks 目标表
 WITH
@@ -12,9 +13,9 @@ src_account_balance AS (                              -- 来源「实时账户�
     account_no AS account_no,                         -- 账户编号
     SUM(available_balance_amt) AS available_balance_amt,  -- 可用余额
     SUM(frozen_balance_amt) AS frozen_balance_amt,    -- 冻结余额
-    NULL AS freeze_amt,                               -- 冻结金额：本来源无，补空对齐 UNION ALL
-    NULL AS unfreeze_verify_amt,                      -- 核销解冻金额：本来源无，补空对齐 UNION ALL
-    NULL AS unfreeze_refund_amt                       -- 退款释放金额：本来源无，补空对齐 UNION ALL
+    NULL AS freeze_amt,                               -- 冻结金额：此来源不产出，补空
+    NULL AS unfreeze_verify_amt,                      -- 核销解冻金额：此来源不产出，补空
+    NULL AS unfreeze_refund_amt                       -- 退款释放金额：此来源不产出，补空
   FROM dwd.dwd_fin_account_balance_rt s               -- 来源表「实时账户余额」
   GROUP BY travel_date, account_no                    -- 按粒度键汇总
 ),
@@ -22,8 +23,8 @@ src_frozen AS (                                       -- 来源「实时冻结/�
   SELECT
     travel_date AS travel_date,                       -- 数据日期
     account_no AS account_no,                         -- 账户编号
-    NULL AS available_balance_amt,                    -- 可用余额：本来源无，补空对齐 UNION ALL
-    NULL AS frozen_balance_amt,                       -- 冻结余额：本来源无，补空对齐 UNION ALL
+    NULL AS available_balance_amt,                    -- 可用余额：此来源不产出，补空
+    NULL AS frozen_balance_amt,                       -- 冻结余额：此来源不产出，补空
     SUM(freeze_amt) AS freeze_amt,                    -- 冻结金额
     SUM(CASE WHEN frozen_status='RELEASED' and release_event_type='VERIFY' THEN freeze_amt END) AS unfreeze_verify_amt,  -- 核销解冻金额
     SUM(CASE WHEN frozen_status = 'RELEASED' and release_event_type='REFUND' THEN freeze_amt END) AS unfreeze_refund_amt  -- 退款释放金额

@@ -150,7 +150,7 @@ def ods_di(tb, fl, group, writers):
     rcols, wcols, masks = [], [], []
     for n in names:
         c = src_cols.get(n, n)
-        e, why = mask_expr(c, types.get(n), dom, dialect)
+        e, why = mask_expr(c, types.get(n), dom, dialect) if f"{tb['name']}.{n}" not in rules.NOT_SENSITIVE else (None, '')
         rcols.append(e or c)
         wcols.append(n)
         if e:
@@ -291,7 +291,6 @@ CORE = {
                                       "        WHERE o.travel_date = '${bizdate}' AND o.test_flag = 0\n    ) t")},
         'note': ['资源中心订单 = 标准订单明细 ∩ 资源中心采购关系（采购商 + 票），不再单独从业务库拉一遍订单（旧 dwd_resource_center_order_d_f 重算订单）',
                  '名称 / 账号 / 省市等冗余维度属性不在明细计算，查询时关联 dim_sup_member_df、dim_prd_scenic_df']},
-    **proc_model.core(),
     'dim_opr_region_f': {'branches': [
         ('ods_opr_region_area_df', {'region_code': 'area_code', 'region_name': 'area_name', 'parent_code': 'parent_code', 'region_level': 'level', 'area_code': 'area_code',
                                     'zip_code': 'zip_code', 'lng': 'lng', 'lat': 'lat', 'city_code': 'city_code'})],
@@ -314,6 +313,8 @@ CORE = {
         'dedup': ['pay_channel_id'], 'note': ['支付渠道码表：商户支付方式去重得到渠道清单；待确认：订单 paymode 与 channel_id 的对应关系']},
 }
 
+
+CORE.update(proc_model.core())   # 显式映射（业务过程 / 重建的维表）优先于上面的通用映射
 
 def _find_source(f, ups, OF):
     m = re.search(r'沿用旧表 (\w+)\.(\w+)', f['proc'])
@@ -558,6 +559,7 @@ SNAP = {'in_park_qty', 'account_balance_amt', 'distributor_total_qty', 'onshelf_
 # 表内派生（不可再汇总，ADS 不存）
 DERIVED = {'order_avg_ticket_price': 'CAST(SUM(order_sale_amt) / NULLIF(SUM(order_ticket_qty), 0) AS DECIMAL(18,2))'}
 # 每张 DWS 允许的来源（表的上游决定；同一指标多来源时按表选）
+SRC_FRM = {}     # 来源键 -> 子查询（替代直接读表）
 DWS_SRC = {
     'dws_ord_scenic_ticket_trade_di': ['ord', 'trk', 'vfy', 'card', 'inout'], 'dws_ord_scenic_ticket_trade_hrs': ['ord', 'trk', 'vfy'],
     'dws_ord_scenic_traveler_profile_di': ['trv_book', 'trv_verify'], 'dws_ord_scenic_pre_booking_di': ['ord_play'],
@@ -566,7 +568,7 @@ DWS_SRC = {
     'dws_sup_member_di': ['login', 'relation', 'ticketdim', 'module'], 'dws_sup_contract_di': ['contract'], 'dws_prd_resource_center_di': ['resource'],
     'dws_trf_page_view_di': ['pv'],
 }
-proc_metrics.etl(SRC, R, DWS_SRC)
+proc_metrics.etl(SRC, R, DWS_SRC, SRC_FRM)
 
 
 def _agg_of(ty, n):
@@ -615,6 +617,9 @@ def gen_dws(tb, fl, OF):
             else:
                 ml.append(col(null_of(f['ty']) if f['ty'] == 'BITMAP' or f['n'] in SNAP else f"CAST(0 AS {f['ty']})", f['n']))
         frm = tbl
+        if s in SRC_FRM:                       # 来源需要先在子查询里整理（如游客停留时长按游客配对首末轨迹）
+            frm = SRC_FRM[s]
+            where = [w for w in where if w != P]
         if s == 'pkg':
             frm = (f"(\n        SELECT s.*, m.ticket_id AS main_ticket_id\n        FROM {tbl} s\n        JOIN (SELECT order_no, ticket_id FROM {tbl} WHERE {P}) m ON m.order_no = s.main_order_no\n"
                    f"        WHERE s.{P}\n    ) t")
@@ -764,18 +769,34 @@ GROUP BY o.scenic_id, o.taker_phone_hash
     if name == 'ads_trf_digital_brain_di':
         return f"""
 INSERT OVERWRITE TABLE ads.ads_trf_digital_brain_di PARTITION (travel_date = '${{bizdate}}')
-SELECT scenic_id, data_domain, target_name, data_value AS data_value_qty, {NOW}
+SELECT
+    MD5(CONCAT_WS('|', '${{bizdate}}', data_domain, CAST(scenic_id AS STRING), target_name)) AS key_id,   -- 行键（旧表同规则：日期 | 指标域 | 景区 | 指标）
+    scenic_id,
+    data_domain,
+    CASE data_domain WHEN 'trade' THEN '交易' WHEN 'flow' THEN '客流' ELSE data_domain END AS indicator_domain,
+    target_name,
+    target_desc,
+    data_value AS data_value_qty,
+    {NOW}
 FROM (
-    -- 交易：由标准 ADS 转成「指标域 × 指标」竖表，大屏按 target_name 取数
+    -- 交易：由标准 ADS 转成「指标域 × 指标」竖表，大屏按 target_name 取数；STACK 每组 = (指标名, 指标说明, 值)
     SELECT scenic_id, 'trade' AS data_domain,
-           STACK(4, 'order_ticket_qty', CAST(SUM(order_ticket_qty) AS DECIMAL(20,4)), 'order_sale_amt', CAST(SUM(order_sale_amt) AS DECIMAL(20,4)),
-                    'verify_ticket_qty', CAST(SUM(verify_ticket_qty) AS DECIMAL(20,4)), 'cancel_ticket_qty', CAST(SUM(cancel_ticket_qty) AS DECIMAL(20,4))) AS (target_name, data_value)
+           STACK(4,
+               'order_ticket_qty', '预订票数（张）', CAST(SUM(order_ticket_qty) AS DECIMAL(20,4)),
+               'order_sale_amt', '预订金额（元）', CAST(SUM(order_sale_amt) AS DECIMAL(20,4)),
+               'verify_ticket_qty', '核销票数（张）', CAST(SUM(verify_ticket_qty) AS DECIMAL(20,4)),
+               'cancel_ticket_qty', '取消票数（张）', CAST(SUM(cancel_ticket_qty) AS DECIMAL(20,4))
+           ) AS (target_name, target_desc, data_value)
     FROM ads.ads_ord_scenic_trade_overview_di WHERE {P}
     GROUP BY scenic_id
     UNION ALL
     -- 客流
     SELECT scenic_id, 'flow',
-           STACK(3, 'enter_qty', CAST(SUM(enter_qty) AS DECIMAL(20,4)), 'exit_qty', CAST(SUM(exit_qty) AS DECIMAL(20,4)), 'in_park_qty', CAST(MAX(in_park_qty) AS DECIMAL(20,4))) AS (target_name, data_value)
+           STACK(3,
+               'enter_qty', '入园人次（人）', CAST(SUM(enter_qty) AS DECIMAL(20,4)),
+               'exit_qty', '离园人次（人）', CAST(SUM(exit_qty) AS DECIMAL(20,4)),
+               'in_park_qty', '在园峰值人数（人）', CAST(MAX(in_park_qty) AS DECIMAL(20,4))
+           ) AS (target_name, target_desc, data_value)
     FROM ads.ads_trf_scenic_passenger_flow_di WHERE {P}
     GROUP BY scenic_id
 ) t

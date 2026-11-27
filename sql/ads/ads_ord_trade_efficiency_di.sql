@@ -3,6 +3,7 @@
 -- 来源：dws_ord_tenant_sku_channel_trade_di, dws_ord_tenant_refund_di, dws_ord_tenant_sku_verify_di
 -- 生成方式：Spark SQL / Hive；字段 13 个：直接翻译 13 · 规则翻译 0 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总
+-- 补 0 / 补空列：多来源 UNION ALL 时，某来源不产出的指标补 0 或空，外层按粒度 SUM 后即为各来源之和，不影响结果
 
 WITH
 src_tenant_sku_channel_trade AS (                                        -- 来源「商户×SKU×渠道 交易日汇总」按粒度键预聚合
@@ -11,10 +12,10 @@ src_tenant_sku_channel_trade AS (                                        -- 来�
     sku_id AS sku_id,                                                    -- SKU ID
     SUM(pay_minute_qty) AS avg_pay_minute_numerator_qty,                 -- 平均支付时长分子（日）
     SUM(pay_order_qty) AS avg_pay_minute_denominator_qty,                -- 平均支付时长分母（日）
-    NULL AS avg_refund_process_hour_numerator_qty,                       -- 平均退款处理时长分子（日）：本来源无，补空对齐 UNION ALL
-    NULL AS avg_refund_process_hour_denominator_qty,                     -- 平均退款处理时长分母（日）：本来源无，补空对齐 UNION ALL
-    NULL AS avg_verify_after_pay_day_numerator_qty,                      -- 平均支付到核销天数分子（日）：本来源无，补空对齐 UNION ALL
-    NULL AS avg_verify_after_pay_day_denominator_qty,                    -- 平均支付到核销天数分母（日）：本来源无，补空对齐 UNION ALL
+    NULL AS avg_refund_process_hour_numerator_qty,                       -- 平均退款处理时长分子（日）：此来源不产出，补空
+    NULL AS avg_refund_process_hour_denominator_qty,                     -- 平均退款处理时长分母（日）：此来源不产出，补空
+    NULL AS avg_verify_after_pay_day_numerator_qty,                      -- 平均支付到核销天数分子（日）：此来源不产出，补空
+    NULL AS avg_verify_after_pay_day_denominator_qty,                    -- 平均支付到核销天数分母（日）：此来源不产出，补空
     SUM(advance_book_day_qty) AS avg_advance_book_day_numerator_qty,     -- 平均提前预订天数分子（日）
     SUM(pay_ticket_qty) AS avg_advance_book_day_denominator_qty,         -- 平均提前预订天数分母（日）
     SUM(timeout_cancel_order_qty) AS timeout_cancel_order_qty            -- 超时取消子单数（日）
@@ -26,15 +27,15 @@ src_tenant_refund AS (                                                   -- 来�
   SELECT
     seller_tenant_id AS seller_tenant_id,                                -- 卖家租户ID
     sku_id AS sku_id,                                                    -- SKU ID
-    NULL AS avg_pay_minute_numerator_qty,                                -- 平均支付时长分子（日）：本来源无，补空对齐 UNION ALL
-    NULL AS avg_pay_minute_denominator_qty,                              -- 平均支付时长分母（日）：本来源无，补空对齐 UNION ALL
+    NULL AS avg_pay_minute_numerator_qty,                                -- 平均支付时长分子（日）：此来源不产出，补空
+    NULL AS avg_pay_minute_denominator_qty,                              -- 平均支付时长分母（日）：此来源不产出，补空
     SUM(refund_process_hour_qty) AS avg_refund_process_hour_numerator_qty,  -- 平均退款处理时长分子（日）
     SUM(refund_success_qty) AS avg_refund_process_hour_denominator_qty,  -- 平均退款处理时长分母（日）
-    NULL AS avg_verify_after_pay_day_numerator_qty,                      -- 平均支付到核销天数分子（日）：本来源无，补空对齐 UNION ALL
-    NULL AS avg_verify_after_pay_day_denominator_qty,                    -- 平均支付到核销天数分母（日）：本来源无，补空对齐 UNION ALL
-    NULL AS avg_advance_book_day_numerator_qty,                          -- 平均提前预订天数分子（日）：本来源无，补空对齐 UNION ALL
-    NULL AS avg_advance_book_day_denominator_qty,                        -- 平均提前预订天数分母（日）：本来源无，补空对齐 UNION ALL
-    NULL AS timeout_cancel_order_qty                                     -- 超时取消子单数（日）：本来源无，补空对齐 UNION ALL
+    NULL AS avg_verify_after_pay_day_numerator_qty,                      -- 平均支付到核销天数分子（日）：此来源不产出，补空
+    NULL AS avg_verify_after_pay_day_denominator_qty,                    -- 平均支付到核销天数分母（日）：此来源不产出，补空
+    NULL AS avg_advance_book_day_numerator_qty,                          -- 平均提前预订天数分子（日）：此来源不产出，补空
+    NULL AS avg_advance_book_day_denominator_qty,                        -- 平均提前预订天数分母（日）：此来源不产出，补空
+    NULL AS timeout_cancel_order_qty                                     -- 超时取消子单数（日）：此来源不产出，补空
   FROM dws.dws_ord_tenant_refund_di s                                    -- 来源表「商户×SKU 退款日汇总」
   WHERE s.travel_date = '${bizdate}'                                     -- 只取当日分区
   GROUP BY seller_tenant_id, sku_id                                      -- 按粒度键汇总
@@ -43,15 +44,15 @@ src_tenant_sku_verify AS (                                               -- 来�
   SELECT
     seller_tenant_id AS seller_tenant_id,                                -- 卖家租户ID
     sku_id AS sku_id,                                                    -- SKU ID
-    NULL AS avg_pay_minute_numerator_qty,                                -- 平均支付时长分子（日）：本来源无，补空对齐 UNION ALL
-    NULL AS avg_pay_minute_denominator_qty,                              -- 平均支付时长分母（日）：本来源无，补空对齐 UNION ALL
-    NULL AS avg_refund_process_hour_numerator_qty,                       -- 平均退款处理时长分子（日）：本来源无，补空对齐 UNION ALL
-    NULL AS avg_refund_process_hour_denominator_qty,                     -- 平均退款处理时长分母（日）：本来源无，补空对齐 UNION ALL
+    NULL AS avg_pay_minute_numerator_qty,                                -- 平均支付时长分子（日）：此来源不产出，补空
+    NULL AS avg_pay_minute_denominator_qty,                              -- 平均支付时长分母（日）：此来源不产出，补空
+    NULL AS avg_refund_process_hour_numerator_qty,                       -- 平均退款处理时长分子（日）：此来源不产出，补空
+    NULL AS avg_refund_process_hour_denominator_qty,                     -- 平均退款处理时长分母（日）：此来源不产出，补空
     SUM(verify_after_pay_day_qty) AS avg_verify_after_pay_day_numerator_qty,  -- 平均支付到核销天数分子（日）
     SUM(verify_ticket_qty) AS avg_verify_after_pay_day_denominator_qty,  -- 平均支付到核销天数分母（日）
-    NULL AS avg_advance_book_day_numerator_qty,                          -- 平均提前预订天数分子（日）：本来源无，补空对齐 UNION ALL
-    NULL AS avg_advance_book_day_denominator_qty,                        -- 平均提前预订天数分母（日）：本来源无，补空对齐 UNION ALL
-    NULL AS timeout_cancel_order_qty                                     -- 超时取消子单数（日）：本来源无，补空对齐 UNION ALL
+    NULL AS avg_advance_book_day_numerator_qty,                          -- 平均提前预订天数分子（日）：此来源不产出，补空
+    NULL AS avg_advance_book_day_denominator_qty,                        -- 平均提前预订天数分母（日）：此来源不产出，补空
+    NULL AS timeout_cancel_order_qty                                     -- 超时取消子单数（日）：此来源不产出，补空
   FROM dws.dws_ord_tenant_sku_verify_di s                                -- 来源表「商户×SKU×核销点 核销日汇总」
   WHERE s.travel_date = '${bizdate}'                                     -- 只取当日分区
   GROUP BY seller_tenant_id, sku_id                                      -- 按粒度键汇总

@@ -3,18 +3,19 @@
 -- 来源：dws_opr_device_di, dws_ord_tenant_sku_verify_di
 -- 生成方式：Spark SQL / Hive；字段 12 个：直接翻译 10 · 规则翻译 2 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总
+-- 补 0 / 补空列：多来源 UNION ALL 时，某来源不产出的指标补 0 或空，外层按粒度 SUM 后即为各来源之和，不影响结果
 
 WITH
 src_device AS (                                               -- 来源「设备日汇总」按粒度键预聚合
   SELECT
     tenant_id AS tenant_id,                                   -- 租户ID
-    CAST(NULL AS STRING) AS device_type,                      -- 设备类型：本来源无，补空对齐 UNION ALL
+    CAST(NULL AS STRING) AS device_type,                      -- 设备类型：此来源不产出，补空
     SUM(online_minute_qty) AS device_online_numerator_qty,    -- 设备在线率分子（日）
     SUM(online_minute_qty) AS device_online_denominator_qty,  -- 设备在线率分母（日）
     SUM(offline_times_qty) AS offline_times_qty,              -- 设备离线次数（日）
     SUM(offline_verify_qty) AS offline_verify_numerator_qty,  -- 离线核销占比分子（日）
     SUM(verify_entitlement_qty) AS offline_verify_denominator_qty,  -- 离线核销占比分母（日）
-    NULL AS offline_conflict_qty,                             -- 离线核销冲突次数（日）：本来源无，补空对齐 UNION ALL
+    NULL AS offline_conflict_qty,                             -- 离线核销冲突次数（日）：此来源不产出，补空
     SUM(device_total_qty) AS device_total_qty                 -- 设备数（日快照）
   FROM dws.dws_opr_device_di s                                -- 来源表「设备日汇总」
   WHERE s.travel_date = '${bizdate}'                          -- 只取当日分区
@@ -23,14 +24,14 @@ src_device AS (                                               -- 来源「设备
 src_tenant_sku_verify AS (                                    -- 来源「商户×SKU×核销点 核销日汇总」按粒度键预聚合
   SELECT
     seller_tenant_id AS tenant_id,                            -- 租户ID
-    CAST(NULL AS STRING) AS device_type,                      -- 设备类型：本来源无，补空对齐 UNION ALL
-    NULL AS device_online_numerator_qty,                      -- 设备在线率分子（日）：本来源无，补空对齐 UNION ALL
-    NULL AS device_online_denominator_qty,                    -- 设备在线率分母（日）：本来源无，补空对齐 UNION ALL
-    NULL AS offline_times_qty,                                -- 设备离线次数（日）：本来源无，补空对齐 UNION ALL
-    NULL AS offline_verify_numerator_qty,                     -- 离线核销占比分子（日）：本来源无，补空对齐 UNION ALL
-    NULL AS offline_verify_denominator_qty,                   -- 离线核销占比分母（日）：本来源无，补空对齐 UNION ALL
+    CAST(NULL AS STRING) AS device_type,                      -- 设备类型：此来源不产出，补空
+    NULL AS device_online_numerator_qty,                      -- 设备在线率分子（日）：此来源不产出，补空
+    NULL AS device_online_denominator_qty,                    -- 设备在线率分母（日）：此来源不产出，补空
+    NULL AS offline_times_qty,                                -- 设备离线次数（日）：此来源不产出，补空
+    NULL AS offline_verify_numerator_qty,                     -- 离线核销占比分子（日）：此来源不产出，补空
+    NULL AS offline_verify_denominator_qty,                   -- 离线核销占比分母（日）：此来源不产出，补空
     SUM(offline_conflict_qty) AS offline_conflict_qty,        -- 离线核销冲突次数（日）
-    NULL AS device_total_qty                                  -- 设备数（日快照）：本来源无，补空对齐 UNION ALL
+    NULL AS device_total_qty                                  -- 设备数（日快照）：此来源不产出，补空
   FROM dws.dws_ord_tenant_sku_verify_di s                     -- 来源表「商户×SKU×核销点 核销日汇总」
   WHERE s.travel_date = '${bizdate}'                          -- 只取当日分区
   GROUP BY seller_tenant_id                                   -- 按粒度键汇总

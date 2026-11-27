@@ -9,6 +9,7 @@
 -- 性能：
 --   · 三类用户 UNION ALL，无关联
 -- ================================================================================================
+-- 置空列：多个源表 UNION ALL 归一时，某源表没有的字段置空（各源表字段对照见各分支）
 INSERT OVERWRITE TABLE dim.dim_cus_user_df         -- 整表覆盖写入
 SELECT user_key,                                   -- 用户键 = 类型前缀 + 源ID
        user_type,                                  -- 用户类型
@@ -27,14 +28,14 @@ FROM (
     SELECT CONCAT('T:', tourist_key) AS user_key,  -- 用户键 = 类型前缀 + 源ID
            'TOURIST' AS user_type,                 -- 用户类型
            tourist_key AS source_id,               -- 源ID
-           CAST(NULL AS STRING) AS user_name_mask,  -- 名称（游客为掩码）：本来源无，补空对齐 UNION ALL
-           CAST(NULL AS BIGINT) AS member_id,      -- 关联会员ID：本来源无，补空对齐 UNION ALL
-           CAST(NULL AS BIGINT) AS customer_id,    -- 关联 CRM 客户ID：本来源无，补空对齐 UNION ALL
+           CAST(NULL AS STRING) AS user_name_mask,  -- 名称（游客为掩码）：此源表无此字段，置空
+           CAST(NULL AS BIGINT) AS member_id,      -- 关联会员ID：此源表无此字段，置空
+           CAST(NULL AS BIGINT) AS customer_id,    -- 关联 CRM 客户ID：此源表无此字段，置空
            source_province_code AS province_code,  -- 所在 / 客源省
            first_order_date AS first_active_date,  -- 首次活跃日期
            GREATEST(COALESCE(last_order_date, ''), COALESCE(last_visit_date, '')) AS last_active_date,  -- 最近活跃日期
            'ACTIVE' AS status,                     -- 状态
-           0 AS test_flag                          -- 是否测试：本来源无，补空对齐 UNION ALL
+           0 AS test_flag                          -- 是否测试：此源表无此字段，置空
     FROM dim.dim_cus_tourist_df
     UNION ALL
     -- 会员：平台账号

@@ -3,7 +3,7 @@
 -- 粒度：1行=1张子订单（ordernum）
 -- 分区：travel_date（YYYYMMDD）
 -- 调度：每日，依赖上游 ODS 当日分区与相关维表
--- 上游：ods_ord_order_di、ods_ord_order_addon_di、ods_ord_order_apply_di、ods_ord_order_ticket_taker_di、dim_prd_ticket_df、dim_prd_scenic_df、dim_sup_member_df
+-- 上游：ods_ord_order_di、ods_ord_order_addon_di、ods_ord_order_apply_di、ods_ord_order_ticket_taker_di、ods_trf_all_api_order_di、dim_prd_ticket_df、dim_prd_scenic_df、dim_sup_member_df
 -- 替代旧任务 25 个（上线对数一致后下线）：
 --   · 数据中台/DW/dwd_order_d_i（EMR_SPARK_SQL，cron 00 00 03 * * ?）
 --   · 数据平台/DWD/dwd_ord_order_details_di（SERVERLESS_SPARK_SQL，cron 00 11 01 * * ?）
@@ -30,6 +30,7 @@
 --   · Spark 不允许同表边读边覆盖：先落临时表再写回
 -- ================================================================================================
 -- 参数：spark.sql.sources.partitionOverwriteMode=dynamic（只覆盖本次写到的下单日分区）
+-- 置空列：多个源表 UNION ALL 归一时，某源表没有的字段置空（各源表字段对照见各分支）
 DROP TABLE IF EXISTS tmp.dwd_ord_order_di_${bizdate};
 
 CREATE TABLE tmp.dwd_ord_order_di_${bizdate} STORED AS ORC AS
@@ -74,7 +75,7 @@ dist AS (                                                                       
     GROUP BY orderid                                                              -- 按粒度键汇总
 ),
 track_qty AS (                                                                    -- 原始票数 = 下单 + 加票（旧 dim_order_d_i 规则）
-    SELECT ordernum, SUM(tnum) AS booking_qty                                     -- 预定票数
+    SELECT ordernum, SUM(tnum) AS booking_qty                                     -- 下单票数
     FROM ods.ods_ord_order_track_di
     WHERE travel_date = '${bizdate}' AND action IN (0, 16)                        -- 只取当日分区，并按条件过滤
     GROUP BY ordernum                                                             -- 按粒度键汇总
@@ -156,9 +157,9 @@ SELECT /*+ BROADCAST(t, s, mb, ms, ph, ic) */
     COALESCE(b.distribute_level_qty, b.p_distribute_level_qty)       AS distribute_level_qty,  -- 分销链层级数
     b.ordermode                                                      AS order_mode,  -- 下单渠道编码
     IF(b.ordermode = 17, 'OTA', mb.distribute_system_code)           AS distribute_system_code,  -- 对接分销平台（OTA / API）编码｜17 = 淘宝 / 飞猪
-    CAST(NULL AS STRING)                                             AS purchase_system_code,  -- 对接采购平台编码｜待确认：采购平台订单表（旧 ods_third_purchase_order_d_f）未纳入同步
+    ap.coopb                                                         AS purchase_system_code,  -- 对接采购平台编码｜对接采购平台：第三方对接订单的系统ID（旧 ods_third_purchase_order_d_f），关联 dim_trf_channel_f（PURCHASE_SYSTEM）
     b.paymode                                                        AS pay_mode,  -- 支付方式编码
-    CAST(NULL AS STRING)                                             AS pay_account_type,  -- 付款资金账户类型｜待确认：资金账户类型不在订单表
+    CAST(b.paymode AS STRING)                                        AS pay_account_type,  -- 付款资金账户类型：旧 pay_funding_type 即订单 paymode，归类看 dim_fin_pay_channel_f.pay_channel_mapping_name
     CAST(b.status AS STRING)                                         AS order_status,  -- 订单状态
     CAST(b.pay_status AS STRING)                                     AS pay_status,  -- 支付状态
     b.tnum                                                           AS ticket_qty,  -- 当前票数
@@ -213,21 +214,28 @@ SELECT /*+ BROADCAST(t, s, mb, ms, ph, ic) */
     COALESCE(b.team_city_code, ph.city_code, ic.city_code)           AS taker_city_code,  -- 取票人客源市
     COALESCE(b.team_district_code, ic.area_code)                     AS taker_district_code,  -- 取票人客源区县
     b.certnum                                                        AS resource_id,  -- 资源中心资源ID
-    CAST(NULL AS BIGINT)                                             AS resource_center_supplier_id,  -- 资源中心供应商ID（租户ID）｜资源中心订单见 dwd_prd_resource_order_di
-    CAST(NULL AS BIGINT)                                             AS resource_center_purchase_id,  -- 资源中心采购商户
-    CAST(NULL AS BIGINT)                                             AS mall_supplier_id,  -- 微商城供应商ID（租户ID）
+    CAST(NULL AS BIGINT)                                             AS resource_center_supplier_id,  -- 资源中心供应商ID（租户ID）：此源表无此字段，置空
+    CAST(NULL AS BIGINT)                                             AS resource_center_purchase_id,  -- 资源中心采购商户：此源表无此字段，置空
+    CAST(NULL AS BIGINT)                                             AS mall_supplier_id,  -- 微商城供应商ID（租户ID）：此源表无此字段，置空
     IF(t.test_flag = 1 OR s.test_flag = 1 OR ms.test_flag = 1, 1, 0) AS test_flag,  -- 是否测试订单
     DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time,          -- ETL 加载时间
     DATE_FORMAT(b.ordertime, 'yyyyMMdd')                             AS travel_date  -- 数据日期｜分区 = 下单日
 FROM base b
+LEFT JOIN (SELECT pftorder, MAX(CAST(coopb AS STRING)) AS coopb
+    FROM ods.ods_trf_all_api_order_di WHERE travel_date = '${bizdate}' GROUP BY pftorder) ap
+       ON ap.pftorder = b.ordernum                                                -- 按 ordernum→pftorder 关联｜第三方对接订单（采购平台）
 LEFT JOIN (SELECT ticket_id, test_flag FROM dim.dim_prd_ticket_df) t ON t.ticket_id = b.tid
 LEFT JOIN (SELECT scenic_id, scenic_type_code, test_flag FROM dim.dim_prd_scenic_df) s ON s.scenic_id = b.lid
 LEFT JOIN (SELECT member_id, member_type_code, distribute_system_code FROM dim.dim_sup_member_df) mb  -- 关联「会员（平台账号）维度」按键聚合
   ON mb.member_id = b.member                                                      -- 按 member→member_id 关联
 LEFT JOIN (SELECT member_id, test_flag FROM dim.dim_sup_member_df) ms ON ms.member_id = b.aid
-LEFT JOIN (SELECT phone_prefix, province_code, city_code FROM dim.dim_opr_phone_area_f) ph  -- 关联「手机号归属地」按键聚合
+LEFT JOIN (
+    SELECT phone_prefix,
+    province_code,
+    city_code FROM dim.dim_opr_phone_area_f WHERE phone_prefix_type = 'SEGMENT'
+) ph
   ON ph.phone_prefix = SUBSTRING_INDEX(b.taker_tel, '#', 1)
-LEFT JOIN (SELECT area_code, province_code, city_code FROM dim.dim_opr_idcard_area_f) ic  -- 关联「身份证地区码」按键聚合
+LEFT JOIN (SELECT area_code, province_code, city_code FROM dim.dim_opr_idcard_area_f) ic  -- 关联「身份证地区维度」按键聚合
   ON ic.area_code = SUBSTR(b.taker_idcard, 1, 6)
 UNION ALL
 -- ④ 受影响分区里今天没变的订单：原样写回（动态分区覆盖会整分区替换）

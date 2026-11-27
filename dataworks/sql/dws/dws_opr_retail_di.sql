@@ -15,6 +15,7 @@
 --   · 同一来源的指标在一个子查询里预聚合（一次扫描），各来源 UNION ALL 后按粒度汇总，不做明细级 JOIN
 --   · 来源：retail = dwd.dwd_opr_retail_order_di（零售订单（3 系统已在 DWD 归一））
 -- ================================================================================================
+-- 取 -1 的维度列：该来源没有这个维度（如核销来源没有下单渠道），用 -1 表示「不适用」，按该维度分析时只看产出它的来源
 INSERT OVERWRITE TABLE dws.dws_opr_retail_di PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
 SELECT
     scenic_id,                                                                    -- 景区ID
@@ -36,17 +37,17 @@ SELECT
 FROM (
     -- retail：零售订单（3 系统已在 DWD 归一）
     SELECT
-        CAST(-1 AS BIGINT)                                           AS scenic_id,  -- 景区ID｜该来源无此维度，取默认值
+        CAST(-1 AS BIGINT)                                           AS scenic_id,  -- 景区ID：此来源不区分，取 -1（不适用）
         shop_code,                                                                -- 门店编码
         retail_vendor,                                                            -- 零售系统
         goods_code,                                                               -- 商品编码
-        CAST(-1 AS INT)                                              AS pay_mode,  -- 支付方式编码｜该来源无此维度，取默认值
+        CAST(-1 AS INT)                                              AS pay_mode,  -- 支付方式编码：此来源不区分，取 -1（不适用）
         COUNT(DISTINCT IF(refund_flag = 0, order_no, NULL))          AS retail_order_qty,  -- 零售单数
         SUM(IF(refund_flag = 0, COALESCE(item_qty, 0), 0))           AS retail_item_qty,  -- 零售件数
         SUM(IF(refund_flag = 0, sale_amt, 0))                        AS retail_sale_amt,  -- 零售销售额
         SUM(IF(refund_flag = 1, sale_amt, 0))                        AS retail_refund_amt,  -- 零售退款额
         SUM(IF(refund_flag = 0, COALESCE(pay_amt, sale_amt), 0))     AS retail_pay_amt,  -- 零售实付金额
-        SUM(IF(refund_flag = 0, sale_amt - COALESCE(pay_amt, sale_amt), 0)) AS retail_discount_amt,  -- 零售优惠金额
+        SUM(IF(refund_flag = 0, COALESCE(discount_amt, 0), 0))       AS retail_discount_amt,  -- 零售优惠金额
         SUM(IF(refund_flag = 1, COALESCE(item_qty, 0), 0))           AS retail_refund_item_qty,  -- 零售退货件数
         SUM(IF(refund_flag = 0, COALESCE(number_of_people, 0), 0))   AS retail_customer_qty,  -- 零售客流人数
         SUM(IF(refund_flag = 0, COALESCE(profit_amt, 0), 0))         AS retail_profit_amt,  -- 零售利润金额

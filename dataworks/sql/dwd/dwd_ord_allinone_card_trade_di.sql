@@ -9,17 +9,18 @@
 --   · 旧系统 dws_tps_aioc_summary_* 把 operation1~10 做成透视列，这里保留 trade_type 一列，DWS 按行汇总
 --   · 景区 / 票 / 订单支付方式按订单号关联近 2 年订单明细（同旧缓存表口径）；卡消费口径同旧系统：pay_status <> 3、排除 CMB 开头流水、排除预存卡已计的重复支付
 -- ================================================================================================
+-- 置空列：多个源表 UNION ALL 归一时，某源表没有的字段置空（各源表字段对照见各分支）
 INSERT OVERWRITE TABLE dwd.dwd_ord_allinone_card_trade_di PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
 -- (1) ods_ord_allinone_card_trades_di
 SELECT
     'CARD_OP'                                                    AS trade_source,  -- 流水来源
     CAST(id AS BIGINT)                                           AS trade_id,     -- 流水ID
     ordernum                                                     AS trade_no,     -- 交易流水订单号（退款为退款单号）
-    CAST(NULL AS STRING)                                         AS related_trade_no,  -- 退款对应的原消费流水号
+    CAST(NULL AS STRING)                                         AS related_trade_no,  -- 退款对应的原消费流水号：此源表无此字段，置空
     CAST(operation_type AS STRING)                               AS trade_type,   -- 交易类型
     CAST(sid AS BIGINT)                                          AS supplier_id,  -- 供应商ID（租户ID）
     CAST(member_id AS BIGINT)                                    AS member_id,    -- 持卡用户ID
-    CAST(NULL AS BIGINT)                                         AS counterparty_member_id,  -- 转账接收方用户ID（消费时的收款方）
+    CAST(NULL AS BIGINT)                                         AS counterparty_member_id,  -- 转账接收方用户ID（消费时的收款方）：此源表无此字段，置空
     CAST(aio_card_id AS BIGINT)                                  AS card_id,      -- 开卡记录ID
     card_no                                                      AS card_no_mask,  -- 实体卡号（ODS 已脱敏）
     CAST(wrist_id AS BIGINT)                                     AS wrist_id,     -- 腕带ID
@@ -33,13 +34,13 @@ SELECT
     CAST(physical_bonus AS DECIMAL(18,2)) / 100                  AS bonus_amt,    -- 卡奖励金发生额（元）
     CAST(physical_principal_balance AS DECIMAL(18,2)) / 100      AS principal_balance_amt,  -- 交易后卡本金余额（元）
     CAST(physical_bonus_balance AS DECIMAL(18,2)) / 100          AS bonus_balance_amt,  -- 交易后卡奖励金余额（元）
-    CAST(NULL AS INT)                                            AS pay_status,   -- 消费支付状态
-    CAST(NULL AS INT)                                            AS refund_status,  -- 退款状态
+    CAST(NULL AS INT)                                            AS pay_status,   -- 消费支付状态：此源表无此字段，置空
+    CAST(NULL AS INT)                                            AS refund_status,  -- 退款状态：此源表无此字段，置空
     FROM_UNIXTIME(create_time)                                   AS trade_time,   -- 交易时间
     CAST(o_scenic_id AS BIGINT)                                  AS scenic_id,    -- 景区ID
     CAST(o_ticket_id AS BIGINT)                                  AS ticket_id,    -- 票ID
     CAST(o_pay_mode AS INT)                                      AS order_pay_mode,  -- 订单支付方式（关联订单）
-    0                                                            AS prepaid_dup_flag,  -- 卡消费是否与预存卡充值
+    0                                                            AS prepaid_dup_flag,  -- 卡消费是否与预存卡充值：此源表无此字段，置空
     DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time           -- ETL 加载时间
 FROM (
         SELECT a.*, o.*
@@ -56,24 +57,24 @@ SELECT
     'PAY'                                                        AS trade_source,  -- 流水来源
     CAST(id AS BIGINT)                                           AS trade_id,     -- 流水ID
     ordernum                                                     AS trade_no,     -- 交易流水订单号（退款为退款单号）
-    CAST(NULL AS STRING)                                         AS related_trade_no,  -- 退款对应的原消费流水号
+    CAST(NULL AS STRING)                                         AS related_trade_no,  -- 退款对应的原消费流水号：此源表无此字段，置空
     'CONSUME'                                                    AS trade_type,   -- 交易类型
     CAST(sid AS BIGINT)                                          AS supplier_id,  -- 供应商ID（租户ID）
     CAST(member_id AS BIGINT)                                    AS member_id,    -- 持卡用户ID
     CAST(order_member_id AS BIGINT)                              AS counterparty_member_id,  -- 转账接收方用户ID（消费时的收款方）
-    CAST(NULL AS BIGINT)                                         AS card_id,      -- 开卡记录ID
-    CAST(NULL AS STRING)                                         AS card_no_mask,  -- 实体卡号（ODS 已脱敏）
-    CAST(NULL AS BIGINT)                                         AS wrist_id,     -- 腕带ID
-    CAST(NULL AS BIGINT)                                         AS site_id,      -- 站点ID
-    CAST(NULL AS BIGINT)                                         AS sub_merchant_id,  -- 子商户ID
-    CAST(NULL AS INT)                                            AS pay_type,     -- 支付方式
-    CAST(NULL AS INT)                                            AS channel,      -- 操作渠道
+    CAST(NULL AS BIGINT)                                         AS card_id,      -- 开卡记录ID：此源表无此字段，置空
+    CAST(NULL AS STRING)                                         AS card_no_mask,  -- 实体卡号（ODS 已脱敏）：此源表无此字段，置空
+    CAST(NULL AS BIGINT)                                         AS wrist_id,     -- 腕带ID：此源表无此字段，置空
+    CAST(NULL AS BIGINT)                                         AS site_id,      -- 站点ID：此源表无此字段，置空
+    CAST(NULL AS BIGINT)                                         AS sub_merchant_id,  -- 子商户ID：此源表无此字段，置空
+    CAST(NULL AS INT)                                            AS pay_type,     -- 支付方式：此源表无此字段，置空
+    CAST(NULL AS INT)                                            AS channel,      -- 操作渠道：此源表无此字段，置空
     CAST(operate_id AS BIGINT)                                   AS operator_id,  -- 操作员ID
     CAST(money AS DECIMAL(18,2)) / 100                           AS trade_amt,    -- 交易金额（元）
     CAST(balance_pay_money AS DECIMAL(18,2)) / 100               AS principal_amt,  -- 卡本金发生额（元）
     CAST(award_pay_money AS DECIMAL(18,2)) / 100                 AS bonus_amt,    -- 卡奖励金发生额（元）
-    CAST(NULL AS DECIMAL(18,2))                                  AS principal_balance_amt,  -- 交易后卡本金余额（元）
-    CAST(NULL AS DECIMAL(18,2))                                  AS bonus_balance_amt,  -- 交易后卡奖励金余额（元）
+    CAST(NULL AS DECIMAL(18,2))                                  AS principal_balance_amt,  -- 交易后卡本金余额（元）：此源表无此字段，置空
+    CAST(NULL AS DECIMAL(18,2))                                  AS bonus_balance_amt,  -- 交易后卡奖励金余额（元）：此源表无此字段，置空
     CAST(pay_status AS INT)                                      AS pay_status,   -- 消费支付状态
     CAST(refund_status AS INT)                                   AS refund_status,  -- 退款状态
     FROM_UNIXTIME(create_time)                                   AS trade_time,   -- 交易时间
@@ -105,27 +106,27 @@ SELECT
     'REFUND'                                                     AS trade_type,   -- 交易类型
     CAST(sid AS BIGINT)                                          AS supplier_id,  -- 供应商ID（租户ID）
     CAST(member_id AS BIGINT)                                    AS member_id,    -- 持卡用户ID
-    CAST(NULL AS BIGINT)                                         AS counterparty_member_id,  -- 转账接收方用户ID（消费时的收款方）
-    CAST(NULL AS BIGINT)                                         AS card_id,      -- 开卡记录ID
-    CAST(NULL AS STRING)                                         AS card_no_mask,  -- 实体卡号（ODS 已脱敏）
-    CAST(NULL AS BIGINT)                                         AS wrist_id,     -- 腕带ID
-    CAST(NULL AS BIGINT)                                         AS site_id,      -- 站点ID
-    CAST(NULL AS BIGINT)                                         AS sub_merchant_id,  -- 子商户ID
-    CAST(NULL AS INT)                                            AS pay_type,     -- 支付方式
-    CAST(NULL AS INT)                                            AS channel,      -- 操作渠道
+    CAST(NULL AS BIGINT)                                         AS counterparty_member_id,  -- 转账接收方用户ID（消费时的收款方）：此源表无此字段，置空
+    CAST(NULL AS BIGINT)                                         AS card_id,      -- 开卡记录ID：此源表无此字段，置空
+    CAST(NULL AS STRING)                                         AS card_no_mask,  -- 实体卡号（ODS 已脱敏）：此源表无此字段，置空
+    CAST(NULL AS BIGINT)                                         AS wrist_id,     -- 腕带ID：此源表无此字段，置空
+    CAST(NULL AS BIGINT)                                         AS site_id,      -- 站点ID：此源表无此字段，置空
+    CAST(NULL AS BIGINT)                                         AS sub_merchant_id,  -- 子商户ID：此源表无此字段，置空
+    CAST(NULL AS INT)                                            AS pay_type,     -- 支付方式：此源表无此字段，置空
+    CAST(NULL AS INT)                                            AS channel,      -- 操作渠道：此源表无此字段，置空
     CAST(operate_id AS BIGINT)                                   AS operator_id,  -- 操作员ID
     -CAST(refund_money AS DECIMAL(18,2)) / 100                   AS trade_amt,    -- 交易金额（元）
     -CAST(balance_refund_money AS DECIMAL(18,2)) / 100           AS principal_amt,  -- 卡本金发生额（元）
     -CAST(award_refund_money AS DECIMAL(18,2)) / 100             AS bonus_amt,    -- 卡奖励金发生额（元）
-    CAST(NULL AS DECIMAL(18,2))                                  AS principal_balance_amt,  -- 交易后卡本金余额（元）
-    CAST(NULL AS DECIMAL(18,2))                                  AS bonus_balance_amt,  -- 交易后卡奖励金余额（元）
-    CAST(NULL AS INT)                                            AS pay_status,   -- 消费支付状态
+    CAST(NULL AS DECIMAL(18,2))                                  AS principal_balance_amt,  -- 交易后卡本金余额（元）：此源表无此字段，置空
+    CAST(NULL AS DECIMAL(18,2))                                  AS bonus_balance_amt,  -- 交易后卡奖励金余额（元）：此源表无此字段，置空
+    CAST(NULL AS INT)                                            AS pay_status,   -- 消费支付状态：此源表无此字段，置空
     CAST(refund_status AS INT)                                   AS refund_status,  -- 退款状态
     FROM_UNIXTIME(create_time)                                   AS trade_time,   -- 交易时间
     CAST(o_scenic_id AS BIGINT)                                  AS scenic_id,    -- 景区ID
     CAST(o_ticket_id AS BIGINT)                                  AS ticket_id,    -- 票ID
     CAST(o_pay_mode AS INT)                                      AS order_pay_mode,  -- 订单支付方式（关联订单）
-    0                                                            AS prepaid_dup_flag,  -- 卡消费是否与预存卡充值
+    0                                                            AS prepaid_dup_flag,  -- 卡消费是否与预存卡充值：此源表无此字段，置空
     DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time           -- ETL 加载时间
 FROM (
         SELECT a.*, o.*
@@ -142,31 +143,31 @@ SELECT
     'IC_ORDER'                                                   AS trade_source,  -- 流水来源
     CAST(id AS BIGINT)                                           AS trade_id,     -- 流水ID
     ordernum                                                     AS trade_no,     -- 交易流水订单号（退款为退款单号）
-    CAST(NULL AS STRING)                                         AS related_trade_no,  -- 退款对应的原消费流水号
+    CAST(NULL AS STRING)                                         AS related_trade_no,  -- 退款对应的原消费流水号：此源表无此字段，置空
     'IC_CARD_BUY'                                                AS trade_type,   -- 交易类型
     CAST(sid AS BIGINT)                                          AS supplier_id,  -- 供应商ID（租户ID）
     CAST(member_id AS BIGINT)                                    AS member_id,    -- 持卡用户ID
-    CAST(NULL AS BIGINT)                                         AS counterparty_member_id,  -- 转账接收方用户ID（消费时的收款方）
+    CAST(NULL AS BIGINT)                                         AS counterparty_member_id,  -- 转账接收方用户ID（消费时的收款方）：此源表无此字段，置空
     CAST(card_id AS BIGINT)                                      AS card_id,      -- 开卡记录ID
-    CAST(NULL AS STRING)                                         AS card_no_mask,  -- 实体卡号（ODS 已脱敏）
-    CAST(NULL AS BIGINT)                                         AS wrist_id,     -- 腕带ID
-    CAST(NULL AS BIGINT)                                         AS site_id,      -- 站点ID
-    CAST(NULL AS BIGINT)                                         AS sub_merchant_id,  -- 子商户ID
-    CAST(NULL AS INT)                                            AS pay_type,     -- 支付方式
-    CAST(NULL AS INT)                                            AS channel,      -- 操作渠道
+    CAST(NULL AS STRING)                                         AS card_no_mask,  -- 实体卡号（ODS 已脱敏）：此源表无此字段，置空
+    CAST(NULL AS BIGINT)                                         AS wrist_id,     -- 腕带ID：此源表无此字段，置空
+    CAST(NULL AS BIGINT)                                         AS site_id,      -- 站点ID：此源表无此字段，置空
+    CAST(NULL AS BIGINT)                                         AS sub_merchant_id,  -- 子商户ID：此源表无此字段，置空
+    CAST(NULL AS INT)                                            AS pay_type,     -- 支付方式：此源表无此字段，置空
+    CAST(NULL AS INT)                                            AS channel,      -- 操作渠道：此源表无此字段，置空
     CAST(op_id AS BIGINT)                                        AS operator_id,  -- 操作员ID
     CAST(money AS DECIMAL(18,2)) / 100                           AS trade_amt,    -- 交易金额（元）
-    CAST(NULL AS DECIMAL(18,2))                                  AS principal_amt,  -- 卡本金发生额（元）
-    CAST(NULL AS DECIMAL(18,2))                                  AS bonus_amt,    -- 卡奖励金发生额（元）
-    CAST(NULL AS DECIMAL(18,2))                                  AS principal_balance_amt,  -- 交易后卡本金余额（元）
-    CAST(NULL AS DECIMAL(18,2))                                  AS bonus_balance_amt,  -- 交易后卡奖励金余额（元）
-    CAST(NULL AS INT)                                            AS pay_status,   -- 消费支付状态
-    CAST(NULL AS INT)                                            AS refund_status,  -- 退款状态
+    CAST(NULL AS DECIMAL(18,2))                                  AS principal_amt,  -- 卡本金发生额（元）：此源表无此字段，置空
+    CAST(NULL AS DECIMAL(18,2))                                  AS bonus_amt,    -- 卡奖励金发生额（元）：此源表无此字段，置空
+    CAST(NULL AS DECIMAL(18,2))                                  AS principal_balance_amt,  -- 交易后卡本金余额（元）：此源表无此字段，置空
+    CAST(NULL AS DECIMAL(18,2))                                  AS bonus_balance_amt,  -- 交易后卡奖励金余额（元）：此源表无此字段，置空
+    CAST(NULL AS INT)                                            AS pay_status,   -- 消费支付状态：此源表无此字段，置空
+    CAST(NULL AS INT)                                            AS refund_status,  -- 退款状态：此源表无此字段，置空
     FROM_UNIXTIME(order_time)                                    AS trade_time,   -- 交易时间
-    CAST(NULL AS BIGINT)                                         AS scenic_id,    -- 景区ID
-    CAST(NULL AS BIGINT)                                         AS ticket_id,    -- 票ID
-    CAST(NULL AS INT)                                            AS order_pay_mode,  -- 订单支付方式（关联订单）
-    0                                                            AS prepaid_dup_flag,  -- 卡消费是否与预存卡充值
+    CAST(NULL AS BIGINT)                                         AS scenic_id,    -- 景区ID：此源表无此字段，置空
+    CAST(NULL AS BIGINT)                                         AS ticket_id,    -- 票ID：此源表无此字段，置空
+    CAST(NULL AS INT)                                            AS order_pay_mode,  -- 订单支付方式（关联订单）：此源表无此字段，置空
+    0                                                            AS prepaid_dup_flag,  -- 卡消费是否与预存卡充值：此源表无此字段，置空
     DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time           -- ETL 加载时间
 FROM ods.ods_ord_park_card_order_df
 WHERE travel_date = '${bizdate}'                                                  -- 只取当日分区

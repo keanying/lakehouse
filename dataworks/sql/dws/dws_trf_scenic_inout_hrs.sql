@@ -20,8 +20,10 @@
 --   · … 另 5 个
 -- 性能：
 --   · 同一来源的指标在一个子查询里预聚合（一次扫描），各来源 UNION ALL 后按粒度汇总，不做明细级 JOIN
---   · 来源：inout = dwd.dwd_trf_scenic_inout_di（闸机进出流水，闸机组取自 dim_trf_gate_f）；vfy = dwd.dwd_ord_verify_di（核销：验证日分区 = bizdate）
+--   · 来源：inout = dwd.dwd_trf_scenic_inout_di（闸机进出流水，闸机组取自 dim_trf_gate_f）；vfy = dwd.dwd_ord_verify_di（核销：验证日分区 = bizdate）；stay = ods.ods_ord_order_traveler_track_di（游客停留：当日首末轨迹配对（游客轨迹 + 游客明细取景区））
 -- ================================================================================================
+-- 补 0 / 补空列：多来源 UNION ALL 时，某来源不产出的指标补 0 或空，外层按粒度 SUM 后即为各来源之和，不影响结果
+-- 取 -1 的维度列：该来源没有这个维度（如核销来源没有下单渠道），用 -1 表示「不适用」，按该维度分析时只看产出它的来源
 INSERT OVERWRITE TABLE dws.dws_trf_scenic_inout_hrs PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
 SELECT
     scenic_id,                                                                    -- 景区ID
@@ -29,17 +31,21 @@ SELECT
     terminal_no,                                                                  -- 终端号（闸机 / 手持机）
     stat_hour,                                                                    -- 小时
     ticket_id,                                                                    -- 票ID
+    terminal_type,                                                                -- 验证终端类型
     SUM(enter_qty)                                               AS enter_qty,    -- 入园人次
     SUM(exit_qty)                                                AS exit_qty,     -- 出园人次
     SUM(SUM(in_park_qty)) OVER (                                                  -- 在园 = 当日累计入园 − 累计出园（截至该小时）
         PARTITION BY scenic_id,
         gate_group_id,                                                            -- 闸机组ID
         terminal_no,                                                              -- 终端号（闸机 / 手持机）
-        ticket_id ORDER BY stat_hour
+        ticket_id,                                                                -- 票ID
+        terminal_type ORDER BY stat_hour
     ) AS in_park_qty,                                                             -- 在园人数
     SUM(verify_order_qty)                                        AS verify_order_qty,  -- 验证订单数
     SUM(verify_ticket_qty)                                       AS verify_ticket_qty,  -- 验证票数
     SUM(verify_person_qty)                                       AS verify_person_qty,  -- 核销人数
+    SUM(stay_minutes_qty)                                        AS stay_minutes_qty,  -- 游客停留分钟合计
+    SUM(stay_person_qty)                                         AS stay_person_qty,  -- 停留游客数
     DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time           -- ETL 加载时间
 FROM (
     -- inout：闸机进出流水，闸机组取自 dim_trf_gate_f
@@ -48,13 +54,16 @@ FROM (
         COALESCE(gate_group_id, CAST(-1 AS BIGINT))                  AS gate_group_id,  -- 闸机组ID
         terminal_no,                                                              -- 终端号（闸机 / 手持机）
         COALESCE(HOUR(inout_time), CAST(-1 AS INT))                  AS stat_hour,  -- 小时
-        CAST(-1 AS BIGINT)                                           AS ticket_id,  -- 票ID｜该来源无此维度，取默认值
+        COALESCE(ticket_id, CAST(-1 AS BIGINT))                      AS ticket_id,  -- 票ID
+        CAST(-1 AS INT)                                              AS terminal_type,  -- 验证终端类型：此来源不区分，取 -1（不适用）
         SUM(IF(inout_type = 'IN', person_qty, 0))                    AS enter_qty,  -- 入园人次
         SUM(IF(inout_type = 'OUT', person_qty, 0))                   AS exit_qty,  -- 出园人次
         SUM(CASE inout_type WHEN 'IN' THEN person_qty WHEN 'OUT' THEN -person_qty ELSE 0 END) AS in_park_qty,  -- 在园人数
-        CAST(0 AS BIGINT)                                            AS verify_order_qty,  -- 验证订单数
-        CAST(0 AS BIGINT)                                            AS verify_ticket_qty,  -- 验证票数
-        CAST(0 AS BIGINT)                                            AS verify_person_qty  -- 核销人数
+        CAST(0 AS BIGINT)                                            AS verify_order_qty,  -- 验证订单数：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS verify_ticket_qty,  -- 验证票数：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS verify_person_qty,  -- 核销人数：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS stay_minutes_qty,  -- 游客停留分钟合计：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS stay_person_qty  -- 停留游客数：此来源不产出，补0
     FROM (
         SELECT /*+ BROADCAST(g) */ i.*, g.gate_group_id
         FROM dwd.dwd_trf_scenic_inout_di i
@@ -65,27 +74,67 @@ FROM (
     GROUP BY COALESCE(scenic_id, CAST(-1 AS BIGINT)),                             -- 按粒度键汇总
              COALESCE(gate_group_id, CAST(-1 AS BIGINT)),
              terminal_no,                                                         -- 终端号（闸机 / 手持机）
-             COALESCE(HOUR(inout_time), CAST(-1 AS INT))
+             COALESCE(HOUR(inout_time), CAST(-1 AS INT)),
+             COALESCE(ticket_id, CAST(-1 AS BIGINT))
     UNION ALL
     -- vfy：核销：验证日分区 = bizdate
     SELECT
         COALESCE(scenic_id, CAST(-1 AS BIGINT))                      AS scenic_id,  -- 景区ID
-        CAST(-1 AS BIGINT)                                           AS gate_group_id,  -- 闸机组ID｜该来源无此维度，取默认值
+        CAST(-1 AS BIGINT)                                           AS gate_group_id,  -- 闸机组ID：此来源不区分，取 -1（不适用）
         terminal_no,                                                              -- 终端号（闸机 / 手持机）
         COALESCE(HOUR(verify_time), CAST(-1 AS INT))                 AS stat_hour,  -- 小时
         COALESCE(ticket_id, CAST(-1 AS BIGINT))                      AS ticket_id,  -- 票ID
-        CAST(0 AS BIGINT)                                            AS enter_qty,  -- 入园人次
-        CAST(0 AS BIGINT)                                            AS exit_qty,  -- 出园人次
-        CAST(NULL AS BIGINT)                                         AS in_park_qty,  -- 在园人数
+        COALESCE(terminal_type, CAST(-1 AS INT))                     AS terminal_type,  -- 验证终端类型
+        CAST(0 AS BIGINT)                                            AS enter_qty,  -- 入园人次：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS exit_qty,  -- 出园人次：此来源不产出，补0
+        CAST(NULL AS BIGINT)                                         AS in_park_qty,  -- 在园人数：此来源不产出，补空
         COUNT(DISTINCT order_no)                                     AS verify_order_qty,  -- 验证订单数
         SUM(verify_ticket_qty)                                       AS verify_ticket_qty,  -- 验证票数
-        SUM(COALESCE(traveler_qty, verify_ticket_qty))               AS verify_person_qty  -- 核销人数
+        SUM(COALESCE(traveler_qty, verify_ticket_qty))               AS verify_person_qty,  -- 核销人数
+        CAST(0 AS DECIMAL(18,2))                                     AS stay_minutes_qty,  -- 游客停留分钟合计：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS stay_person_qty  -- 停留游客数：此来源不产出，补0
     FROM dwd.dwd_ord_verify_di
     WHERE travel_date = '${bizdate}'                                              -- 只取当日分区
       AND test_flag = 0
     GROUP BY COALESCE(scenic_id, CAST(-1 AS BIGINT)),                             -- 按粒度键汇总
              terminal_no,                                                         -- 终端号（闸机 / 手持机）
              COALESCE(HOUR(verify_time), CAST(-1 AS INT)),
+             COALESCE(ticket_id, CAST(-1 AS BIGINT)),
+             COALESCE(terminal_type, CAST(-1 AS INT))
+    UNION ALL
+    -- stay：游客停留：当日首末轨迹配对（游客轨迹 + 游客明细取景区）
+    SELECT
+        COALESCE(scenic_id, CAST(-1 AS BIGINT))                      AS scenic_id,  -- 景区ID
+        CAST(-1 AS BIGINT)                                           AS gate_group_id,  -- 闸机组ID：此来源不区分，取 -1（不适用）
+        CAST(NULL AS STRING)                                         AS terminal_no,  -- 终端号（闸机 / 手持机）：此来源不区分，取 -1（不适用）
+        COALESCE(stat_hour, CAST(-1 AS INT))                         AS stat_hour,  -- 小时
+        COALESCE(ticket_id, CAST(-1 AS BIGINT))                      AS ticket_id,  -- 票ID
+        CAST(-1 AS INT)                                              AS terminal_type,  -- 验证终端类型：此来源不区分，取 -1（不适用）
+        CAST(0 AS BIGINT)                                            AS enter_qty,  -- 入园人次：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS exit_qty,  -- 出园人次：此来源不产出，补0
+        CAST(NULL AS BIGINT)                                         AS in_park_qty,  -- 在园人数：此来源不产出，补空
+        CAST(0 AS BIGINT)                                            AS verify_order_qty,  -- 验证订单数：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS verify_ticket_qty,  -- 验证票数：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS verify_person_qty,  -- 核销人数：此来源不产出，补0
+        SUM(stay_minutes)                                            AS stay_minutes_qty,  -- 游客停留分钟合计
+        COUNT(1)                                                     AS stay_person_qty  -- 停留游客数
+    FROM (
+        -- 游客轨迹：每位游客当日首末条轨迹（同旧口径：不区分动作，取时间差）
+        SELECT tr.scenic_id, s.ticket_id, HOUR(s.first_time) AS stat_hour,        -- 小时
+               CAST((UNIX_TIMESTAMP(s.last_time) - UNIX_TIMESTAMP(s.first_time)) / 60 AS DECIMAL(18,2)) AS stay_minutes
+        FROM (SELECT ordernum, CAST(idx AS INT) AS traveler_seq, MIN(tid) AS ticket_id,
+                     FROM_UNIXTIME(MIN(insert_time)) AS first_time,
+                     FROM_UNIXTIME(MAX(insert_time)) AS last_time
+              FROM ods.ods_ord_order_traveler_track_di
+              WHERE travel_date = '${bizdate}' AND FROM_UNIXTIME(insert_time, 'yyyyMMdd') = '${bizdate}'  -- 只取当日分区，并按条件过滤
+              GROUP BY ordernum, CAST(idx AS INT)) s                              -- 按粒度键汇总
+        JOIN (SELECT order_no, traveler_seq, scenic_id FROM dwd.dwd_ord_traveler_di  -- 景区取游客所在订单（近 90 天下单）
+              WHERE travel_date BETWEEN DATE_FORMAT(DATE_SUB(TO_DATE('${bizdate}', 'yyyyMMdd'), 90), 'yyyyMMdd')
+                AND '${bizdate}') tr
+          ON tr.order_no = s.ordernum AND tr.traveler_seq = s.traveler_seq        -- 按 ordernum→order_no、traveler_seq 关联
+    ) t
+    GROUP BY COALESCE(scenic_id, CAST(-1 AS BIGINT)),                             -- 按粒度键汇总
+             COALESCE(stat_hour, CAST(-1 AS INT)),
              COALESCE(ticket_id, CAST(-1 AS BIGINT))
 ) u                                                                               -- 各来源合并后的明细
-GROUP BY scenic_id, gate_group_id, terminal_no, stat_hour, ticket_id              -- 按粒度键汇总
+GROUP BY scenic_id, gate_group_id, terminal_no, stat_hour, ticket_id, terminal_type  -- 按粒度键汇总

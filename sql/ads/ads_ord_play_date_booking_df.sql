@@ -3,6 +3,7 @@
 -- 来源：dws_ord_sku_play_date_booking_df, dws_inv_sku_stock_df
 -- 生成方式：Spark SQL / Hive；字段 10 个：直接翻译 4 · 规则翻译 6 · 待确认 0
 -- 多来源：各来源按粒度键预聚合后 UNION ALL 合并，再按公式计算
+-- 补 0 / 补空列：多来源 UNION ALL 时，某来源不产出的指标补 0 或空，外层按粒度 SUM 后即为各来源之和，不影响结果
 
 WITH
 src_sku_play_date_booking AS (                          -- 来源「SKU×游玩日 预订存量快照」按粒度键预聚合
@@ -13,8 +14,8 @@ src_sku_play_date_booking AS (                          -- 来源「SKU×游玩�
     SUM(s.refund_ticket_qty) AS refund_ticket_qty,      -- 退款票数
     SUM(s.net_pay_ticket_qty) AS net_pay_ticket_qty,    -- 净支付票数
     SUM(s.stock_available_qty) AS stock_available_qty,  -- 可用库存
-    NULL AS stock_sold_qty,                             -- 已售库存：本来源无，补空对齐 UNION ALL
-    NULL AS stock_total_qty,                            -- 库存总量：本来源无，补空对齐 UNION ALL
+    NULL AS stock_sold_qty,                             -- 已售库存：此来源不产出，补空
+    NULL AS stock_total_qty,                            -- 库存总量：此来源不产出，补空
     SUM(s.advance_book_day_qty) AS advance_book_day_qty  -- 提前预订天数 = 游玩日期 - 下单日期
   FROM dws.dws_ord_sku_play_date_booking_df s           -- 来源表「SKU×游玩日 预订存量快照」
   WHERE s.travel_date = '${bizdate}'                    -- 只取当日分区
@@ -24,13 +25,13 @@ src_sku_stock AS (                                      -- 来源「SKU×库存�
   SELECT
     s.sku_id AS sku_id,                                 -- SKU ID
     s.play_date AS play_date,                           -- 游玩日期
-    NULL AS pay_ticket_qty,                             -- 支付票数：本来源无，补空对齐 UNION ALL
-    NULL AS refund_ticket_qty,                          -- 退款票数：本来源无，补空对齐 UNION ALL
-    NULL AS net_pay_ticket_qty,                         -- 净支付票数：本来源无，补空对齐 UNION ALL
-    NULL AS stock_available_qty,                        -- 可用库存：本来源无，补空对齐 UNION ALL
+    NULL AS pay_ticket_qty,                             -- 支付票数：此来源不产出，补空
+    NULL AS refund_ticket_qty,                          -- 退款票数：此来源不产出，补空
+    NULL AS net_pay_ticket_qty,                         -- 净支付票数：此来源不产出，补空
+    NULL AS stock_available_qty,                        -- 可用库存：此来源不产出，补空
     SUM(s.stock_sold_qty) AS stock_sold_qty,            -- 已售库存
     SUM(s.stock_total_qty) AS stock_total_qty,          -- 库存总量
-    NULL AS advance_book_day_qty                        -- 提前预订天数 = 游玩日期 - 下单日期：本来源无，补空对齐 UNION ALL
+    NULL AS advance_book_day_qty                        -- 提前预订天数 = 游玩日期 - 下单日期：此来源不产出，补空
   FROM dws.dws_inv_sku_stock_df s                       -- 来源表「SKU×库存维度 库存日快照」
   WHERE s.travel_date = '${bizdate}'                    -- 只取当日分区
   GROUP BY s.sku_id, s.play_date                        -- 按粒度键汇总

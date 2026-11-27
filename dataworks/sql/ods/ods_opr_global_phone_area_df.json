@@ -11,7 +11,7 @@
         "column": [
           "id",
           "country_id",
-          "CONCAT('#', SHA2(`phone_area_code`, 256))",
+          "phone_area_code",
           "sort"
         ],
         "connection": [

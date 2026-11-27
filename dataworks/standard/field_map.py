@@ -29,10 +29,46 @@ ALIAS = {
     'ticket_taker_province_idcard': 'taker_province_code', 'ticket_taker_city_idcard': 'taker_city_code', 'ticket_taker_county_idcard': 'taker_district_code',
     'expiration_time': 'valid_end_time', 'add_ticket_time': 'action_time', 'order_type': 'order_role', 'distribute_1_type': 'buyer_type', 'record_id': 'order_no',
     'main_tid': 'main_ticket_id', 'site_id': 'site_id', 'product_type': 'product_type', 'p_type': 'product_type',
+    'package_price': 'package_price_amt', 'package_negotiated_price': 'package_invoice_amt', 'package_achievement': 'package_performance_amt',
+    'sale_man_department': 'sale_man_group', 'customer_service_department': 'customer_service_group', 'back_detail': 'repayment_record',
+    'open_type_catalogue': 'open_type', 'cancel_status': 'order_status', 'distributor_is_ota': 'ota_flag', 'ticket_taker_country': 'country_code',
+    'land_province': 'province_name', 'land_city': 'city_name', 'land_country': 'country_name', 'member_kind': 'member_type_code',
+    'member_type': 'member_type_code', 'ticket_zip_code': 'zip_code', 'main_tid': 'main_ticket_id', 'level': 'distribute_level',
+    'sub_merchant_id': 'sub_merchant_id', 'verify_amount': 'verify_sale_amt',
     'order_pay_funding_type_id': 'pay_mode', 'order_pay_channel_id': 'pay_mode', 'sales_channel_id': 'order_mode', 'travel_minute': 'stat_minute',
 }
 TIME = re.compile(r'^(year|month|week|quarter|day|hour|fulldate|stat_date|insertdate|created_at|booking_month|booking_date|date_type|deadline|time_range|travel_minute|pay_date|'
                   r'(vertify|booking|pay|play|expiration|cancel)_(year|month|quarter|week|hour|date)|today|yesterday|weeks|more_week)$')
+DERIVE = {   # 由已有字段直接派生的属性（查询 / 回流时计算）
+    'is_around': '是否周边游客 = 取票人省（dwd_ord_order_di.taker_province_code）与景区所在省（dim_prd_scenic_df.province_code）相同',
+    'mall_distinguish': '是否微商城订单 = dwd_ord_order_di.mall_supplier_id 非空',
+    'add_ticket_time': '加票时间 = dwd_ord_order_track_di 中 track_action = ADD_TICKET 的 action_time',
+    'based_on_order': '按订单统计口径标志：出入园按核销（dwd_ord_verify_di）为 1，按闸机流水（dwd_trf_scenic_inout_di）为 0',
+    'avg_stay_minutes': '平均停留时长（分钟）= ads_trf_scenic_passenger_flow_di.stay_minutes_qty / stay_person_qty（按景区 / 日汇总后相除）',
+    'dimension_type': '维度类型：行转列配置（导出时把标准表的维度列名写入，如 order_mode / pay_mode / scenic_id），回流任务按配置展开',
+    'dimension_value': '维度取值：与 dimension_type 配对，取标准表对应维度列的值（行转列）',
+    'dimension_methods': '维度口径：行转列配置（渠道 / 支付方式等分组方式名），回流时按标准表维度列生成',
+}
+# 跨表引用：旧导出表里的属性列，标准里在另一张表（不在该导出对应标准表的上游链上）；(匹配 标准表 + 旧表 的正则, 标准表, 标准字段, 说明)
+XREF = {
+    'customer_country': [(r'channel_aids', 'ads_sup_customer_company_df', 'customer_country', '客户公司宽表')],
+    'customer_province': [(r'channel_aids', 'ads_sup_customer_company_df', 'customer_province', '客户公司宽表')],
+    'customer_city': [(r'channel_aids', 'ads_sup_customer_company_df', 'customer_city', '客户公司宽表')],
+    'customer_type': [(r'channel_aids', 'ads_sup_customer_company_df', 'customer_type', '客户公司宽表')],
+    'user_land_topic': [(r'channel_aids', 'ads_sup_customer_company_df', 'user_land_topic', '客户公司宽表')],
+    'user_contract_model': [(r'package', 'dwd_opr_package_open_di', 'cooperation_mode', '套餐开通明细的合作模式'),
+                            (r'channel_aids', 'ads_sup_customer_company_df', 'user_contract_model', '客户公司宽表')],
+    'start_time': [(r'service_business|service_merchant', 'dwd_sup_service_merchant_di', 'cooperation_date', '合作开始日期')],
+    'product_category': [(r'retail', 'dwd_opr_retail_order_di', 'goods_category', '零售商品分类（商品行带出）')],
+    'age': [(r'tourist_sex_age|tourist_instance', 'dwd_ord_traveler_di', 'age', '游客明细的年龄（按岁）；汇总表只存年龄段')],
+    'main_tid': [(r'report_full_summary', 'dws_ord_package_sub_ticket_di', 'main_ticket_id', '套票主票：查套票子票汇总')],
+    'sub_merchant_id': [(r'report_full_summary', 'dwd_ord_allinone_card_trade_di', 'sub_merchant_id', '子商户：一卡通交易明细')],
+    'spare_field1': [(r'landtravel', 'ads_cus_landtravel_verify_di', 'special_person_module_flag', '旧预留列改名：是否开通特定人员模块')],
+    'spare_field2': [(r'landtravel', 'ads_cus_landtravel_verify_di', 'identity_code_verify_flag', '旧预留列改名：是否开通身份动态码核销')],
+    'spare_field3': [(r'landtravel', 'ads_cus_landtravel_verify_di', 'jl_verify_num_13', '旧预留列改名：景旅认证-居住证核验人数')],
+    'insertdate': [(r'landtravel', 'ads_cus_landtravel_verify_di', 'verify_date', '核验日期')],
+}
+XTECH = {('landtravel', r'^spare_field([4-9]|1\d|20)$'): '旧表恒为空串的预留列，不再保留'}
 TECH = re.compile(r'^(id|dw_ins_time|update_time|updated_at|etl_time|payload|key|value|flat|configuration|auth_key|remark|memo)$')
 
 
@@ -72,6 +108,11 @@ PROD = {'mp': '门票', 'tp': '套票', 'yc': '演出', 'nk': '年卡', 'lyq': '
 
 
 def _channel(c):
+    m = re.match(r'^(new_media|ota)(?:_([a-z]+))?_(gmv|ticket_num|order_num)(?:_(kh|hz))?$', c)
+    if m and (m.group(1) == 'new_media' or m.group(2)):
+        met = {'gmv': 'order_sale_amt', 'ticket_num': 'order_ticket_qty', 'order_num': 'order_order_qty'}[m.group(3)]
+        code = m.group(1).upper() + ('_' + m.group(2).upper() if m.group(2) else '')
+        return met, {'marketing_type': code if m.group(2) else 'NEW_MEDIA_*（组内各账号标签合计）'}
     m = re.match(rf"^prod_({'|'.join(PROD)})_new_(gmv|ticket_num|order_num)$", c)
     if m:
         return {'gmv': 'order_sale_amt', 'ticket_num': 'order_ticket_qty', 'order_num': 'order_order_qty'}[m.group(2)], {'产品类型（票维度带出）': PROD[m.group(1)]}
@@ -94,21 +135,24 @@ def _mps(c):
         act = {'sales': 'pay', 'verify': 'verify', 'cancel': 'cancel', 'revoke': 'revoke', 'after_sale': 'after_sale'}[m.group(2)]
         meas = m.group(3)
         note = {'派生': '净额 = 支付 − 取消 − 撤销 − 售后（查询时由原子指标计算）'} if m.group(1) else {}
-        if meas in ('income_discount_amt', 'expense_discount_amt'):
-            return None                     # 优惠金额：明细层没有来源字段，作为缺口保留
+        if meas in ('income_discount_amt', 'expense_discount_amt'):        # 优惠：商户视角明细 dwd_ord_mps_detail_di（收入侧 = 销售优惠，支出侧 = 采购优惠）
+            return (f"{act}_{'sale' if meas.startswith('income') else 'cost'}_discount_amt", note) if act != 'after_sale' else None
         if meas == 'income_fee_amt' and act in ('cancel', 'revoke'):
             return f'{act}_fee_amt', note
-        if meas == 'expense_fee_amt':
-            return None
+        if meas == 'expense_fee_amt':                                          # 买方（采购）手续费
+            return (f'{act}_cost_fee_amt', note) if act in ('cancel', 'revoke') else None
         if act == 'after_sale':
-            return {'ticket_qty': 'after_sale_ticket_qty', 'income_amt': 'after_sale_refund_amt', 'expense_amt': None}.get(meas) and (
-                {'ticket_qty': 'after_sale_ticket_qty', 'income_amt': 'after_sale_refund_amt'}[meas], note)
+            return {'ticket_qty': ('after_sale_ticket_qty', note), 'income_amt': ('after_sale_refund_amt', note),
+                    'expense_amt': ('after_sale_cost_amt', note)}.get(meas)
         return f"{act}_{ {'order_qty': 'order_qty', 'ticket_qty': 'ticket_qty', 'income_amt': 'sale_amt', 'expense_amt': 'cost_amt'}[meas]}", note
     if c in ('collect_ticket_qty', 'pickup_ticket_qty'):
         return 'print_ticket_qty', {}
+    if c == 'reprint_ticket_qty':
+        return 'reprint_ticket_qty', {}
     m = re.match(r'^refund_fee_(income|expense)_amt$', c)
-    if m and m.group(1) == 'income':
-        return 'cancel_fee_amt', {'派生': '退款手续费 = 取消手续费 + 撤销手续费'}
+    if m:
+        return ('cancel_fee_amt', {'派生': '退款手续费 = 取消手续费 + 撤销手续费'}) if m.group(1) == 'income' else \
+            ('cancel_cost_fee_amt', {'派生': '退款采购手续费 = 取消采购手续费 + 撤销采购手续费'})
     return None
 
 
@@ -182,21 +226,10 @@ def decode(col, where):
 
 # 仍无法由标准模型提供的字段：按原因归类（缺口 · 原因），在消费清单里计入「待补口径」
 GAP = [
-    (r'mps_\w*report', r'discount|expense_fee|after_sale_expense|reprint|refund_fee_expense',
-     '明细无来源：优惠金额 / 买方手续费 / 重打印只在报表库预计算表（r_report_dwm_common）里，需业务库补同步订单优惠与手续费明细'),
-    (r'channel_aids|cus_company', r'^(new_media|ota_)\w*', '按固定账号清单判定（旧 SQL 硬编码 6 个账号 / OTA 账号），需提供账号配置表后作为分销商维度标签'),
     (r'channel_aids|cus_company', r'^pft_\w+_num_kh$|concat_all|customer_mobile', '客户属性页专用拼接 / 计数（产品数、扫码、存储、短信申请）或敏感明文，需业务确认是否保留'),
-    (r'landtravel', r'.', '景旅纵横认证（按证件类型的核销人数）与短信量：客户专项报表，需确认证件类型码表后在游客画像增加 证件类型 维度'),
-    (r'attraction_visitor_stats', r'.', '景区客群统计（省内外 / 港澳台 / 老人儿童 / 晨练 / 复购）：AI 项目专用口径，需业务给出判定规则'),
-    (r'res_center_assessment', r'.', '资源中心 2022 年度考核报表：一次性考核口径，建议确认是否仍在用'),
-    (r'digital_brain', r'.', '数字大脑指标配置表：指标名 / 说明为外部配置，原样同步'),
     (r'user_package', r'.', '套餐合同 / 回款 / 业绩字段：随 OA 合同链路下线，CRM 销售订单（dwd_sup_crm_sales_order_df）可替代时再对'),
     (r'order_forck|order_verify|order_draw|tourists_source', r'.', '订单明细宽表的派生属性（是否周边 / 国家 / 邮编 / 会员类别 / 取消状态等）：查询时关联维表，或需补维度属性'),
-    (r'retail', r'shop_category|product_category', '门店 / 商品分类：零售系统门店、商品表未同步分类字段，需补同步'),
-    (r'terminal_pass', r'site_id|terminal_type', '终端站点 / 终端类型：闸机维度（dim_trf_gate_f）未带此属性，需补同步终端表'),
     (r'report_full_summary', r'.', '套票主票 / 分销层级 / 子商户 / 站点：在套票子票汇总与分销链明细里有，交易汇总不带（避免放大），查询改用对应表'),
-    (r'passenger_flow', r'avg_stay', '平均停留时长：需按游客进出配对计算，闸机流水无游客标识（待确认）'),
-    (r'tourist_sex_age|tourist_instance', r'^age$', '年龄（明细值）：标准只存年龄段（age_group），旧表按岁存'),
     (r'.', r'.', '旧表结构字段（行转列配置 / 项目专用），未纳入标准模型'),
 ]
 
@@ -206,6 +239,10 @@ def gap_reason(col, where):
         if re.search(tp, where) and re.search(cp, col.lower()):
             return why
     return ''
+
+
+import project_ads  # noqa: E402
+VERBATIM = {s_['name'] for s_ in project_ads.SPECS}     # 项目报表：列名沿用旧表，导出列按同名直接对应
 
 
 def make_resolver(tables, fields):
@@ -226,10 +263,28 @@ def make_resolver(tables, fields):
         return seen
     dims = [t['name'] for t in tables if t['layer'] == 'DIM']
 
-    def resolve(col, std):
+    def resolve(col, std, where=''):
         c = col.lower()
+        for pat, xt, xc, why in XREF.get(c, ()):
+            if re.search(pat, f'{std} {where}') and xc in cols.get(xt, ()):
+                return '属性 / 明细字段', f'→ {xt}.{xc}（{why}）'
+        for (wp, cp), why in XTECH.items():
+            if re.search(wp, f'{std} {where}') and re.match(cp, c):
+                return '技术列', why
+        if c == 'name' and re.search('sbs_foundation', where):
+            return '属性 / 明细字段', '外部大屏配置（vscreen 数据中台 sbs_foundation_data）原样同步：景区大屏的配置项名称，不进标准模型'
         if TIME.match(c):
             return '统计周期（时间表）', '时间列：查询时关联 dim_opr_period_f / dim_opr_date_f'
+        import company_ads
+        if c in company_ads.DROPPED:
+            return '技术列', '旧表预留列已去掉：' + company_ads.DROPPED[c]
+        if c in company_ads.ALIAS:
+            cands_ = [company_ads.ALIAS[c]]
+            for t in chain(std) + dims:
+                if cands_[0] in cols.get(t, ()):
+                    return '属性 / 明细字段', f'→ {t}.{cands_[0]}（旧列 {c} 改名）'
+        if c in DERIVE:
+            return '属性 / 明细字段', '派生：' + DERIVE[c]
         if TECH.match(c):
             return '技术列', '主键 / 加载时间 / 扩展报文，迁移时按目标表结构生成'
         cands = [c, ALIAS.get(c, ''), rules.std_col(c)[0]]
@@ -239,4 +294,5 @@ def make_resolver(tables, fields):
                 if x and x in cols.get(t, ()):
                     return '属性 / 明细字段', f'→ {t}.{x}'
         return None
+    resolve.cols = cols
     return resolve

@@ -14,6 +14,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 # 由票 / 渠道 / 景区等维度关联即可得到的维度（不需要进 ADS 粒度）
 DERIVABLE = {'product_id': 'ticket_id', 'product_type': 'ticket_id', 'supplier_id': 'ticket_id', 'scenic_id': 'ticket_id',
              '维度名称（关联维表）': None, '统计周期（时间表）': None}
+MLOC = re.compile(r'company|s_company|merchant|member|user_|supplier_overview')
 LOC = re.compile(r'park|inout|terminal|retail|hotel|aioc|allinone|passenger|tourist_in_out')
 STD_DATE = {'order': '下单日', 'pay': '支付日', 'cancel': '取消日', 'verify': '验证日', 'finish': '完结日', 'revoke': '撤销日', 'print': '取票日', 'after_sale': '售后日'}
 
@@ -85,10 +86,15 @@ def analyse(nodes, C, mapping_rows, ads_specs, metrics, resolve=None, dims=(), b
         wc = [c.lower().strip('`') for c in w.get('columns') or [] if isinstance(c, str)]
         dims = [LM.dim_of(c) for c in rc]
         grain = {d for d in dims if d and d not in DERIVABLE}
-        if LOC.search(ht):              # 业态 / 出入园类旧表的省市是景区所在地：由景区维度带出
+        if LOC.search(ht) or MLOC.search(ht + ' ' + target):   # 业态类旧表的省市 = 景区所在地；商户类 = 商户所在地：都由维表带出
             grain -= {'province_code', 'city_code', 'district_code'}
         for i, c in enumerate(rc):
             out = wc[i] if i < len(wc) else c
+            vt = getattr(resolve, 'cols', {}).get(std, set()) if std in field_map.VERBATIM else set()
+            hit = next((x for x in (out, c) if x in vt), None)
+            if hit:                                   # 项目报表：同名列直接对应（不走通用指标解码）
+                cover.append([target, out, ht, c, '', '属性 / 明细字段', std, '属性 / 明细字段', f'→ {std}.{hit}（项目报表，列名沿用旧表）', '', ''])
+                continue
             d = LM.decode(c, ht + ' ' + target)
             x = field_map.decode(out, ht + ' ' + target) or field_map.decode(c, ht + ' ' + target)
             if x and (not d or d['metric'] not in metrics or x[0] in metrics):
@@ -96,7 +102,7 @@ def analyse(nodes, C, mapping_rows, ads_specs, metrics, resolve=None, dims=(), b
                      'note': '、'.join(f'{k}={v}' for k, v in x[1].items() if k not in dims)}
             if not d:
                 dm = LM.dim_of(c)
-                rv = (resolve(c, std) or resolve(out, std)) if resolve and not dm else None
+                rv = (resolve(c, std, ht + ' ' + target) or resolve(out, std, ht + ' ' + target)) if resolve and not dm else None
                 if rv:
                     cover.append([target, out, ht, c, '', rv[0], std, rv[0], rv[1], '', ''])
                     continue

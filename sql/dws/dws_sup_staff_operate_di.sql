@@ -6,13 +6,14 @@
 --   · 原自动生成版本把退款按审批人归属、代下单没有员工粒度，此处按发起人 / 操作人改正
 -- 性能：
 --   · 三个来源各自按（租户, 员工）预聚合后 UNION ALL
+-- 补 0 / 补空列：多来源 UNION ALL 时，某来源不产出的指标补 0 或空，外层按粒度 SUM 后即为各来源之和，不影响结果
 
 WITH x AS (
     SELECT tenant_id, operator_id AS staff_id,                           -- 员工ID
            COUNT(DISTINCT order_no) AS staff_order_qty,                  -- 员工代下单数
            SUM(CASE WHEN pay_time IS NOT NULL THEN unit_price_amt * buy_ticket_qty END) AS staff_pay_amt,  -- 员工代下单支付金额
-           0 AS staff_verify_qty,                                        -- 员工核销次数：本来源无，补空对齐 UNION ALL
-           0 AS staff_refund_qty                                         -- 员工发起退款单数：本来源无，补空对齐 UNION ALL
+           0 AS staff_verify_qty,                                        -- 员工核销次数：此来源不产出，补0
+           0 AS staff_refund_qty                                         -- 员工发起退款单数：此来源不产出，补0
     FROM dwd.dwd_ord_order_di
     WHERE travel_date = '${bizdate}' AND operator_type = 'TENANT_STAFF'  -- 只取当日分区，并按条件过滤
     GROUP BY tenant_id, operator_id                                      -- 按粒度键汇总

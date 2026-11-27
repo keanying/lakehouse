@@ -3,24 +3,25 @@
 -- 来源：dwd_ord_refund_di, dwd_ord_refund_ticket_di
 -- 生成方式：Spark SQL / Hive；字段 14 个：直接翻译 5 · 规则翻译 9 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总
+-- 补 0 / 补空列：多来源 UNION ALL 时，某来源不产出的指标补 0 或空，外层按粒度 SUM 后即为各来源之和，不影响结果
 
 WITH
 src_refund AS (                                                                   -- 来源「退款单明细」按粒度键预聚合
   SELECT
     seller_tenant_id AS seller_tenant_id,                                         -- 卖家租户ID
-    CAST(NULL AS BIGINT) AS sku_id,                                               -- SKU ID：本来源无，补空对齐 UNION ALL
+    CAST(NULL AS BIGINT) AS sku_id,                                               -- SKU ID：此来源不产出，补空
     refund_type AS refund_type,                                                   -- 退款类型
     initiator_type AS initiator_type,                                             -- 发起方
     refund_reason_desc AS refund_reason_desc,                                     -- 退款原因
     COUNT(refund_no) AS refund_apply_qty,                                         -- 退款申请单数
     COUNT(CASE WHEN refund_status='COMPLETED' THEN refund_no END) AS refund_success_qty,  -- 退款完成单数
-    NULL AS refund_ticket_qty,                                                    -- 退款票数：本来源无，补空对齐 UNION ALL
-    NULL AS refund_amt,                                                           -- 退款金额：本来源无，补空对齐 UNION ALL
+    NULL AS refund_ticket_qty,                                                    -- 退款票数：此来源不产出，补空
+    NULL AS refund_amt,                                                           -- 退款金额：此来源不产出，补空
     SUM(CASE WHEN refund_status = 'COMPLETED' THEN process_hour_qty END) AS refund_process_hour_qty,  -- 退款处理总时长｜口径：已完成退款的处理时长合计（求平均用）
     COUNT(CASE WHEN refund_status IN ('APPROVED', 'PROCESSING', 'COMPLETED')      -- 超时自动通过退款单数｜口径：口径说明：退款单没有审批方式字段，按「已通过但没有审批人」认定为超时自动通过
         AND COALESCE(approver_id, 0) = 0 THEN refund_no END) AS auto_approve_refund_qty,  -- 超时自动通过退款单数
     COUNT(CASE WHEN refund_status='REJECTED' THEN refund_no END) AS refund_reject_qty,  -- 退款驳回单数
-    NULL AS verified_refund_ticket_qty                                            -- 核销后退款票数：本来源无，补空对齐 UNION ALL
+    NULL AS verified_refund_ticket_qty                                            -- 核销后退款票数：此来源不产出，补空
   FROM dwd.dwd_ord_refund_di s                                                    -- 来源表「退款单明细」
   WHERE s.travel_date = '${bizdate}'                                              -- 只取当日分区
   GROUP BY seller_tenant_id, refund_type, initiator_type, refund_reason_desc      -- 按粒度键汇总
@@ -32,13 +33,13 @@ src_refund_ticket AS (                                                          
     refund_type AS refund_type,                                                   -- 退款类型
     initiator_type AS initiator_type,                                             -- 发起方
     refund_reason_desc AS refund_reason_desc,                                     -- 退款原因
-    NULL AS refund_apply_qty,                                                     -- 退款申请单数：本来源无，补空对齐 UNION ALL
-    NULL AS refund_success_qty,                                                   -- 退款完成单数：本来源无，补空对齐 UNION ALL
+    NULL AS refund_apply_qty,                                                     -- 退款申请单数：此来源不产出，补空
+    NULL AS refund_success_qty,                                                   -- 退款完成单数：此来源不产出，补空
     COUNT(DISTINCT CASE WHEN refund_status = 'COMPLETED' THEN ticket_no END) AS refund_ticket_qty,  -- 退款票数｜口径：退款完成的票
     SUM(CASE WHEN refund_status = 'COMPLETED' THEN refund_amt END) AS refund_amt,  -- 退款金额
-    NULL AS refund_process_hour_qty,                                              -- 退款处理总时长：本来源无，补空对齐 UNION ALL
-    NULL AS auto_approve_refund_qty,                                              -- 超时自动通过退款单数：本来源无，补空对齐 UNION ALL
-    NULL AS refund_reject_qty,                                                    -- 退款驳回单数：本来源无，补空对齐 UNION ALL
+    NULL AS refund_process_hour_qty,                                              -- 退款处理总时长：此来源不产出，补空
+    NULL AS auto_approve_refund_qty,                                              -- 超时自动通过退款单数：此来源不产出，补空
+    NULL AS refund_reject_qty,                                                    -- 退款驳回单数：此来源不产出，补空
     COUNT(DISTINCT CASE WHEN refund_status = 'COMPLETED'                          -- 核销后退款票数｜口径：退款时票已部分 / 全部使用
         AND before_ticket_status IN ('PARTIALLY_USED', 'USED') THEN ticket_no END) AS verified_refund_ticket_qty  -- 核销后退款票数
   FROM dwd.dwd_ord_refund_ticket_di s                                             -- 来源表「退款票明细」

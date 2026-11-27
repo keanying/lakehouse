@@ -3,6 +3,7 @@
 -- 来源：dws_ord_tenant_sku_channel_trade_di, dws_ord_tenant_refund_di
 -- 生成方式：Spark SQL / Hive；字段 19 个：直接翻译 15 · 规则翻译 4 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总
+-- 补 0 / 补空列：多来源 UNION ALL 时，某来源不产出的指标补 0 或空，外层按粒度 SUM 后即为各来源之和，不影响结果
 
 WITH
 src_tenant_sku_channel_trade AS (                         -- 来源「商户×SKU×渠道 交易日汇总」按粒度键预聚合
@@ -12,17 +13,17 @@ src_tenant_sku_channel_trade AS (                         -- 来源「商户×SK
     SUM(pay_amt) AS pay_amt,                              -- 支付金额（GMV）（日）
     SUM(pay_ticket_qty) AS pay_ticket_qty,                -- 支付票数（日）
     SUM(pay_amt) - SUM(cost_amt) AS gross_profit_amt,     -- 毛利额（日）
-    NULL AS refund_ticket_qty,                            -- 退款票数（日）：本来源无，补空对齐 UNION ALL
+    NULL AS refund_ticket_qty,                            -- 退款票数（日）：此来源不产出，补空
     SUM(pay_amt) AS avg_ticket_price_numerator_amt,       -- 平均票价分子（日）
     SUM(pay_ticket_qty) AS avg_ticket_price_denominator_qty,  -- 平均票价分母（日）
     SUM(pay_amt) AS gross_profit_numerator_amt,           -- 毛利率分子（日）
     SUM(pay_amt) AS gross_profit_denominator_amt,         -- 毛利率分母（日）
     SUM(pay_order_qty) AS pay_conversion_numerator_qty,   -- 下单支付转化率分子（日）
     SUM(order_qty) AS pay_conversion_denominator_qty,     -- 下单支付转化率分母（日）
-    NULL AS refund_numerator_qty,                         -- 退票率分子（日）：本来源无，补空对齐 UNION ALL
+    NULL AS refund_numerator_qty,                         -- 退票率分子（日）：此来源不产出，补空
     SUM(pay_ticket_qty) AS refund_denominator_qty,        -- 退票率分母（日）
     SUM(pay_amt) AS net_pay_amt_part1,                    -- 支付金额（GMV）（日）（分段）
-    NULL AS net_pay_amt_part2                             -- net_pay_amt_part2：本来源无，补空对齐 UNION ALL
+    NULL AS net_pay_amt_part2                             -- net_pay_amt_part2：此来源不产出，补空
   FROM dws.dws_ord_tenant_sku_channel_trade_di s          -- 来源表「商户×SKU×渠道 交易日汇总」
   WHERE s.travel_date = '${bizdate}'                      -- 只取当日分区
   GROUP BY seller_tenant_id, sku_id                       -- 按粒度键汇总
@@ -31,19 +32,19 @@ src_tenant_refund AS (                                    -- 来源「商户×SK
   SELECT
     seller_tenant_id AS seller_tenant_id,                 -- 卖家租户ID
     sku_id AS sku_id,                                     -- SKU ID
-    NULL AS pay_amt,                                      -- 支付金额（GMV）（日）：本来源无，补空对齐 UNION ALL
-    NULL AS pay_ticket_qty,                               -- 支付票数（日）：本来源无，补空对齐 UNION ALL
-    NULL AS gross_profit_amt,                             -- 毛利额（日）：本来源无，补空对齐 UNION ALL
+    NULL AS pay_amt,                                      -- 支付金额（GMV）（日）：此来源不产出，补空
+    NULL AS pay_ticket_qty,                               -- 支付票数（日）：此来源不产出，补空
+    NULL AS gross_profit_amt,                             -- 毛利额（日）：此来源不产出，补空
     SUM(refund_ticket_qty) AS refund_ticket_qty,          -- 退款票数（日）
-    NULL AS avg_ticket_price_numerator_amt,               -- 平均票价分子（日）：本来源无，补空对齐 UNION ALL
-    NULL AS avg_ticket_price_denominator_qty,             -- 平均票价分母（日）：本来源无，补空对齐 UNION ALL
-    NULL AS gross_profit_numerator_amt,                   -- 毛利率分子（日）：本来源无，补空对齐 UNION ALL
-    NULL AS gross_profit_denominator_amt,                 -- 毛利率分母（日）：本来源无，补空对齐 UNION ALL
-    NULL AS pay_conversion_numerator_qty,                 -- 下单支付转化率分子（日）：本来源无，补空对齐 UNION ALL
-    NULL AS pay_conversion_denominator_qty,               -- 下单支付转化率分母（日）：本来源无，补空对齐 UNION ALL
+    NULL AS avg_ticket_price_numerator_amt,               -- 平均票价分子（日）：此来源不产出，补空
+    NULL AS avg_ticket_price_denominator_qty,             -- 平均票价分母（日）：此来源不产出，补空
+    NULL AS gross_profit_numerator_amt,                   -- 毛利率分子（日）：此来源不产出，补空
+    NULL AS gross_profit_denominator_amt,                 -- 毛利率分母（日）：此来源不产出，补空
+    NULL AS pay_conversion_numerator_qty,                 -- 下单支付转化率分子（日）：此来源不产出，补空
+    NULL AS pay_conversion_denominator_qty,               -- 下单支付转化率分母（日）：此来源不产出，补空
     SUM(refund_ticket_qty) AS refund_numerator_qty,       -- 退票率分子（日）
-    NULL AS refund_denominator_qty,                       -- 退票率分母（日）：本来源无，补空对齐 UNION ALL
-    NULL AS net_pay_amt_part1,                            -- net_pay_amt_part1：本来源无，补空对齐 UNION ALL
+    NULL AS refund_denominator_qty,                       -- 退票率分母（日）：此来源不产出，补空
+    NULL AS net_pay_amt_part1,                            -- net_pay_amt_part1：此来源不产出，补空
     SUM(refund_amt) AS net_pay_amt_part2                  -- 支付金额（GMV）（日）（分段）
   FROM dws.dws_ord_tenant_refund_di s                     -- 来源表「商户×SKU 退款日汇总」
   WHERE s.travel_date = '${bizdate}'                      -- 只取当日分区

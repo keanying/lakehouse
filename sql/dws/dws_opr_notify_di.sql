@@ -3,6 +3,7 @@
 -- 来源：dwd_opr_notify_di, dwd_fin_resource_batch_di
 -- 生成方式：Spark SQL / Hive；字段 10 个：直接翻译 3 · 规则翻译 7 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总
+-- 补 0 / 补空列：多来源 UNION ALL 时，某来源不产出的指标补 0 或空，外层按粒度 SUM 后即为各来源之和，不影响结果
 
 WITH
 src_notify AS (                                           -- 来源「通知发送明细」按粒度键预聚合
@@ -14,7 +15,7 @@ src_notify AS (                                           -- 来源「通知发�
     COUNT(CASE WHEN send_status = 'SUCCESS' THEN 1 END) AS notify_success_qty,  -- 通知成功数
     COUNT(CASE WHEN notify_channel_type='SMS' THEN 1 END) AS sms_send_qty,  -- 短信发送数
     COUNT(CASE WHEN send_status = 'FAILED' THEN 1 END) AS notify_fail_qty,  -- 通知失败数
-    NULL AS resource_consume_qty                          -- 资源包消耗量：本来源无，补空对齐 UNION ALL
+    NULL AS resource_consume_qty                          -- 资源包消耗量：此来源不产出，补空
   FROM dwd.dwd_opr_notify_di s                            -- 来源表「通知发送明细」
   WHERE s.travel_date = '${bizdate}'                      -- 只取当日分区
   GROUP BY tenant_id, notify_channel_type, template_code  -- 按粒度键汇总
@@ -22,12 +23,12 @@ src_notify AS (                                           -- 来源「通知发�
 src_resource_batch AS (                                   -- 来源「资源包购买/消耗明细」按粒度键预聚合
   SELECT
     tenant_id AS tenant_id,                               -- 租户ID
-    CAST(NULL AS STRING) AS notify_channel_type,          -- 通知渠道：本来源无，补空对齐 UNION ALL
-    CAST(NULL AS STRING) AS template_code,                -- 通知模板编码：本来源无，补空对齐 UNION ALL
-    NULL AS notify_send_qty,                              -- 通知发送数：本来源无，补空对齐 UNION ALL
-    NULL AS notify_success_qty,                           -- 通知成功数：本来源无，补空对齐 UNION ALL
-    NULL AS sms_send_qty,                                 -- 短信发送数：本来源无，补空对齐 UNION ALL
-    NULL AS notify_fail_qty,                              -- 通知失败数：本来源无，补空对齐 UNION ALL
+    CAST(NULL AS STRING) AS notify_channel_type,          -- 通知渠道：此来源不产出，补空
+    CAST(NULL AS STRING) AS template_code,                -- 通知模板编码：此来源不产出，补空
+    NULL AS notify_send_qty,                              -- 通知发送数：此来源不产出，补空
+    NULL AS notify_success_qty,                           -- 通知成功数：此来源不产出，补空
+    NULL AS sms_send_qty,                                 -- 短信发送数：此来源不产出，补空
+    NULL AS notify_fail_qty,                              -- 通知失败数：此来源不产出，补空
     SUM(consume_qty) AS resource_consume_qty              -- 资源包消耗量｜口径：资源批次日消耗量 = 昨日剩余 − 今日剩余（不含新购）
   FROM dwd.dwd_fin_resource_batch_di s                    -- 来源表「资源包购买/消耗明细」
   WHERE s.travel_date = '${bizdate}'                      -- 只取当日分区

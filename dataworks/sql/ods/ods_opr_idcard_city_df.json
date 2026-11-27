@@ -10,7 +10,7 @@
         "datasource": "BI_RDS_bi_datav",
         "column": [
           "id",
-          "CASE WHEN CHAR_LENGTH(`idcard`) = 18 THEN CONCAT(LEFT(`idcard`, 6), SUBSTR(`idcard`, 7, 4), SUBSTR(`idcard`, 17, 1), '#', SHA2(UPPER(`idcard`), 256)) ELSE CONCAT('#', SHA2(UPPER(`idcard`), 256)) END",
+          "idcard",
           "province",
           "city",
           "country"

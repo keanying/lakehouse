@@ -417,20 +417,23 @@ _TAGS = [
                                        "WHERE travel_date = '${bizdate}' AND trade_source = 'PAY'"),
     ('dwd_ord_annual_card_trade_di', "SELECT DISTINCT order_no, 'ANNUAL_CARD' AS marketing_type FROM dwd.dwd_ord_annual_card_trade_di WHERE travel_date = '${bizdate}' AND COALESCE(order_no, '') <> ''"),
     ('ods_ord_external_code_order_df', "SELECT DISTINCT ordernum AS order_no, 'EXTERNAL_CODE' AS marketing_type FROM ods.ods_ord_external_code_order_df WHERE travel_date = '${bizdate}' AND state = 1"),
+    ('dim_trf_account_tag_f', "SELECT DISTINCT o.order_no, t.tag_code AS marketing_type FROM dwd.dwd_ord_order_di o JOIN dim.dim_trf_account_tag_f t ON t.member_id = o.buyer_id "
+                              "WHERE o.travel_date = '${bizdate}' UNION SELECT DISTINCT o.order_no, t.tag_code FROM dwd.dwd_ord_order_di o JOIN dim.dim_trf_account_tag_f t "
+                              "ON t.member_id = o.seller_id WHERE o.travel_date = '${bizdate}'"),
 ]
 proc('dwd_mkt_order_tag_di', '订单营销标签', '1行=1张订单×1个营销方式（当日下单）', '、'.join([b for b, _ in _TAGS] + ['dwd_ord_order_di']),
      '订单参与了哪些营销 / 特殊售卖方式：抢购、砍价、拼团、优惠券、全民营销、分销专员、资源中心、园区一卡通、年卡、外部发码；'
      '由各营销业务过程 DWD 按订单号对齐订单明细得到（一张订单可有多个标签），替代旧 channel_aids 里 is_xsqg / is_kj / marketing_type 等标签',
      [b for b, _ in _TAGS], [
          ('order_no', S, '主键', '订单号', 'order_no'),
-         ('marketing_type', S, '主键', '营销方式：SECKILL / CUT_PRICE / GROUP_BOOKING / COUPON / ALL_DIS / DISTRIBUTOR / RESOURCE_CENTER / PARK_CARD / ANNUAL_CARD / EXTERNAL_CODE', 'marketing_type'),
+         ('marketing_type', S, '主键', '营销方式：SECKILL / CUT_PRICE / GROUP_BOOKING / COUPON / ALL_DIS / DISTRIBUTOR / RESOURCE_CENTER / PARK_CARD / ANNUAL_CARD / EXTERNAL_CODE；新媒体 / OTA 账号标签（NEW_MEDIA_* / OTA_*，见 dim_trf_account_tag_f）', 'marketing_type'),
          ('supplier_id', B, '外键', '供应商ID（租户ID）', 'supplier_id'), ('scenic_id', B, '外键', '景区ID', 'scenic_id'), ('ticket_id', B, '外键', '票ID', 'ticket_id'),
          ('distributor_id', B, '外键', '一级分销商ID', 'distributor_id'), ('order_mode', I, '外键', '下单渠道', 'order_mode'), ('order_role', S, '状态类型', '主子单', 'order_role'),
          ('ticket_qty', B, '度量', '下单票数', 'origin_ticket_qty'), ('sale_amt', DEC, '度量', '下单金额（元）= 票数 × 销售单价', 'CAST(origin_ticket_qty * sale_price_amt AS DECIMAL(18,2))'),
          ('order_time', S, '时间', '下单时间', 'order_time'),
      ], frm={b: _tag(x) for b, x in _TAGS},
      notes=['各营销业务过程按订单号对齐当日下单的订单（预订口径同 dws_ord_scenic_ticket_trade_di）；一张订单可同时有多个营销方式，按营销方式汇总时不可跨类型相加',
-            '待确认：旧「新媒体」标签按 6 个固定账号判定（硬编码），未纳入；如仍需要请提供账号配置表'])
+            '新媒体 / OTA：订单买方或卖方命中账号标签表（旧 SQL 硬编码账号清单迁入 account_tags.json）'])
 
 # ---------------------------------------------------------------- 新增汇总：一卡通（替代 dws_tps_aioc_summary_* 的透视列）
 METRICS = [
@@ -447,10 +450,17 @@ AIO_WHERE = ("(trade_source IN ('CARD_OP', 'IC_ORDER') OR (trade_source = 'PAY' 
              " OR (trade_source = 'REFUND' AND refund_status = 2))")
 
 
+import std_rebuild  # noqa: E402,F401  旧数仓 DIM / DWD 从 ODS 显式重建（登记进 SPECS）
+
 def register(t, F, model):
     """在 model.T 的 DWD 段末尾登记业务过程表；另登记一卡通 DWS 的维度与指标"""
     for s in SPECS:
+        old = next((i for i, x in enumerate(model.T) if x['name'] == s['name']), None)
         t(s['name'], s['cn'], s['grain'], s['up'], s['note'], F(*[(n, ty, cat, cm, '') for n, ty, cat, cm, _ in s['cols']]), s['legacy'], part=s['part'])
+        if old is not None:                  # 重建已有表：原位替换，保留原来归并的旧表
+            new = model.T.pop()
+            new['legacy'] = new['legacy'] or model.T[old]['legacy']
+            model.T[old] = new
     model.D.update(DIMS)
     for m in METRICS:
         model.METRICS.append(m)

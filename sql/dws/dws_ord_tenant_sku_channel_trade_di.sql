@@ -3,33 +3,34 @@
 -- 来源：dwd_ord_order_di, dwd_ord_order_status_log_di, dwd_ord_order_group_di
 -- 生成方式：Spark SQL / Hive；字段 27 个：直接翻译 5 · 规则翻译 22 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总
+-- 补 0 / 补空列：多来源 UNION ALL 时，某来源不产出的指标补 0 或空，外层按粒度 SUM 后即为各来源之和，不影响结果
 
 WITH
 src_order_group AS (                                                          -- 来源「聚合单明细」按粒度键预聚合
   SELECT
     seller_tenant_id AS seller_tenant_id,                                     -- 卖家租户ID
-    CAST(NULL AS BIGINT) AS sku_id,                                           -- SKU ID：本来源无，补空对齐 UNION ALL
+    CAST(NULL AS BIGINT) AS sku_id,                                           -- SKU ID：此来源不产出，补空
     channel_id AS channel_id,                                                 -- 入口渠道ID
     app_ref_code AS app_ref_code,                                             -- 对接端引用
     operator_type AS operator_type,                                           -- 操作人类型
     COUNT(DISTINCT order_group_no) AS order_group_qty,                        -- 下单聚合单数
-    NULL AS order_qty,                                                        -- 下单子单数：本来源无，补空对齐 UNION ALL
-    NULL AS order_ticket_qty,                                                 -- 下单票数：本来源无，补空对齐 UNION ALL
-    NULL AS order_amt,                                                        -- 下单金额：本来源无，补空对齐 UNION ALL
-    NULL AS pay_order_qty,                                                    -- 支付子单数：本来源无，补空对齐 UNION ALL
-    NULL AS pay_ticket_qty,                                                   -- 支付票数：本来源无，补空对齐 UNION ALL
-    NULL AS pay_amt,                                                          -- 支付金额（GMV）：本来源无，补空对齐 UNION ALL
-    NULL AS pay_buyer_qty,                                                    -- 支付买家数：本来源无，补空对齐 UNION ALL
-    CAST(NULL AS BINARY) AS pay_buyer_bitmap,                                 -- 支付买家数去重位图：本来源无，补空对齐 UNION ALL
-    NULL AS cancel_order_qty,                                                 -- 取消子单数：本来源无，补空对齐 UNION ALL
-    NULL AS cancel_amt,                                                       -- 取消金额：本来源无，补空对齐 UNION ALL
-    NULL AS staff_order_qty,                                                  -- 员工代下单数：本来源无，补空对齐 UNION ALL
-    NULL AS combo_order_qty,                                                  -- 套票主单数：本来源无，补空对齐 UNION ALL
+    NULL AS order_qty,                                                        -- 下单子单数：此来源不产出，补空
+    NULL AS order_ticket_qty,                                                 -- 下单票数：此来源不产出，补空
+    NULL AS order_amt,                                                        -- 下单金额：此来源不产出，补空
+    NULL AS pay_order_qty,                                                    -- 支付子单数：此来源不产出，补空
+    NULL AS pay_ticket_qty,                                                   -- 支付票数：此来源不产出，补空
+    NULL AS pay_amt,                                                          -- 支付金额（GMV）：此来源不产出，补空
+    NULL AS pay_buyer_qty,                                                    -- 支付买家数：此来源不产出，补空
+    CAST(NULL AS BINARY) AS pay_buyer_bitmap,                                 -- 支付买家数去重位图：此来源不产出，补空
+    NULL AS cancel_order_qty,                                                 -- 取消子单数：此来源不产出，补空
+    NULL AS cancel_amt,                                                       -- 取消金额：此来源不产出，补空
+    NULL AS staff_order_qty,                                                  -- 员工代下单数：此来源不产出，补空
+    NULL AS combo_order_qty,                                                  -- 套票主单数：此来源不产出，补空
     COUNT(DISTINCT CASE WHEN pay_status='PAID' THEN order_group_no END) AS pay_order_group_qty,  -- 支付聚合单数
-    NULL AS cost_amt,                                                         -- 成本金额：本来源无，补空对齐 UNION ALL
-    NULL AS pay_minute_qty,                                                   -- 下单到支付总时长：本来源无，补空对齐 UNION ALL
-    NULL AS timeout_cancel_order_qty,                                         -- 超时取消子单数：本来源无，补空对齐 UNION ALL
-    NULL AS advance_book_day_qty                                              -- 提前预订天数合计：本来源无，补空对齐 UNION ALL
+    NULL AS cost_amt,                                                         -- 成本金额：此来源不产出，补空
+    NULL AS pay_minute_qty,                                                   -- 下单到支付总时长：此来源不产出，补空
+    NULL AS timeout_cancel_order_qty,                                         -- 超时取消子单数：此来源不产出，补空
+    NULL AS advance_book_day_qty                                              -- 提前预订天数合计：此来源不产出，补空
   FROM dwd.dwd_ord_order_group_di s                                           -- 来源表「聚合单明细」
   WHERE s.travel_date = '${bizdate}'                                          -- 只取当日分区
   GROUP BY seller_tenant_id, channel_id, app_ref_code, operator_type          -- 按粒度键汇总
@@ -41,11 +42,11 @@ src_order AS (                                                                --
     channel_id AS channel_id,                                                 -- 入口渠道ID
     app_ref_code AS app_ref_code,                                             -- 对接端引用
     operator_type AS operator_type,                                           -- 操作人类型
-    NULL AS order_group_qty,                                                  -- 下单聚合单数：本来源无，补空对齐 UNION ALL
+    NULL AS order_group_qty,                                                  -- 下单聚合单数：此来源不产出，补空
     COUNT(DISTINCT CASE WHEN s.parent_order_no = '' THEN s.order_no END) AS order_qty,  -- 下单子单数｜口径：不含套票子项（parent_order_no 非空的子单）
     SUM(buy_ticket_qty) AS order_ticket_qty,                                  -- 下单票数
     SUM(unit_price_amt*buy_ticket_qty) AS order_amt,                          -- 下单金额
-    NULL AS pay_order_qty,                                                    -- 支付子单数：本来源无，补空对齐 UNION ALL
+    NULL AS pay_order_qty,                                                    -- 支付子单数：此来源不产出，补空
     SUM(CASE WHEN pay_time IS NOT NULL THEN buy_ticket_qty END) AS pay_ticket_qty,  -- 支付票数
     SUM(CASE WHEN pay_time IS NOT NULL THEN unit_price_amt*buy_ticket_qty END) AS pay_amt,  -- 支付金额（GMV）
     COUNT(DISTINCT CASE WHEN s.pay_time IS NOT NULL                           -- 支付买家数｜口径：已支付的真人买家，剔除匿名与占位买家
@@ -54,14 +55,14 @@ src_order AS (                                                                --
     BITMAP_UNION(TO_BITMAP(CASE WHEN s.pay_time IS NOT NULL                   -- 支付买家数去重位图｜口径：同上，去重位图
         AND s.buyer_customer_id > 0
           AND rb.rb_customer_type = 'REAL' THEN s.buyer_customer_id END)) AS pay_buyer_bitmap,  -- 支付买家数去重位图
-    NULL AS cancel_order_qty,                                                 -- 取消子单数：本来源无，补空对齐 UNION ALL
+    NULL AS cancel_order_qty,                                                 -- 取消子单数：此来源不产出，补空
     SUM(CASE WHEN s.cancel_time IS NOT NULL THEN s.order_amt END) AS cancel_amt,  -- 取消金额｜口径：已取消子单的下单金额
     COUNT(CASE WHEN operator_type='TENANT_STAFF' THEN order_no END) AS staff_order_qty,  -- 员工代下单数
     COUNT(CASE WHEN combo_type=1 THEN order_no END) AS combo_order_qty,       -- 套票主单数
-    NULL AS pay_order_group_qty,                                              -- 支付聚合单数：本来源无，补空对齐 UNION ALL
+    NULL AS pay_order_group_qty,                                              -- 支付聚合单数：此来源不产出，补空
     SUM(CASE WHEN pay_time IS NOT NULL THEN cost_price_amt * buy_ticket_qty END) AS cost_amt,  -- 成本金额
-    NULL AS pay_minute_qty,                                                   -- 下单到支付总时长：本来源无，补空对齐 UNION ALL
-    NULL AS timeout_cancel_order_qty,                                         -- 超时取消子单数：本来源无，补空对齐 UNION ALL
+    NULL AS pay_minute_qty,                                                   -- 下单到支付总时长：此来源不产出，补空
+    NULL AS timeout_cancel_order_qty,                                         -- 超时取消子单数：此来源不产出，补空
     SUM(CASE WHEN s.pay_time IS NOT NULL THEN DATEDIFF(s.play_date, TO_DATE(s.pay_time)) * s.buy_ticket_qty END) AS advance_book_day_qty  -- 提前预订天数合计｜口径：（游玩日 − 支付日）× 票数
   FROM dwd.dwd_ord_order_di s                                                 -- 来源表「子单明细」
   LEFT JOIN (SELECT customer_id AS rb_customer_id, customer_type AS rb_customer_type FROM dim.dim_cus_customer_zip
@@ -74,29 +75,29 @@ src_order_status_log AS (                                                     --
   SELECT
     seller_tenant_id AS seller_tenant_id,                                     -- 卖家租户ID
     sku_id AS sku_id,                                                         -- SKU ID
-    CAST(NULL AS BIGINT) AS channel_id,                                       -- 入口渠道ID：本来源无，补空对齐 UNION ALL
-    CAST(NULL AS STRING) AS app_ref_code,                                     -- 对接端引用：本来源无，补空对齐 UNION ALL
-    CAST(NULL AS STRING) AS operator_type,                                    -- 操作人类型：本来源无，补空对齐 UNION ALL
-    NULL AS order_group_qty,                                                  -- 下单聚合单数：本来源无，补空对齐 UNION ALL
-    NULL AS order_qty,                                                        -- 下单子单数：本来源无，补空对齐 UNION ALL
-    NULL AS order_ticket_qty,                                                 -- 下单票数：本来源无，补空对齐 UNION ALL
-    NULL AS order_amt,                                                        -- 下单金额：本来源无，补空对齐 UNION ALL
+    CAST(NULL AS BIGINT) AS channel_id,                                       -- 入口渠道ID：此来源不产出，补空
+    CAST(NULL AS STRING) AS app_ref_code,                                     -- 对接端引用：此来源不产出，补空
+    CAST(NULL AS STRING) AS operator_type,                                    -- 操作人类型：此来源不产出，补空
+    NULL AS order_group_qty,                                                  -- 下单聚合单数：此来源不产出，补空
+    NULL AS order_qty,                                                        -- 下单子单数：此来源不产出，补空
+    NULL AS order_ticket_qty,                                                 -- 下单票数：此来源不产出，补空
+    NULL AS order_amt,                                                        -- 下单金额：此来源不产出，补空
     COUNT(DISTINCT CASE WHEN after_status='PAID' THEN order_no END) AS pay_order_qty,  -- 支付子单数
-    NULL AS pay_ticket_qty,                                                   -- 支付票数：本来源无，补空对齐 UNION ALL
-    NULL AS pay_amt,                                                          -- 支付金额（GMV）：本来源无，补空对齐 UNION ALL
-    NULL AS pay_buyer_qty,                                                    -- 支付买家数：本来源无，补空对齐 UNION ALL
-    CAST(NULL AS BINARY) AS pay_buyer_bitmap,                                 -- 支付买家数去重位图：本来源无，补空对齐 UNION ALL
+    NULL AS pay_ticket_qty,                                                   -- 支付票数：此来源不产出，补空
+    NULL AS pay_amt,                                                          -- 支付金额（GMV）：此来源不产出，补空
+    NULL AS pay_buyer_qty,                                                    -- 支付买家数：此来源不产出，补空
+    CAST(NULL AS BINARY) AS pay_buyer_bitmap,                                 -- 支付买家数去重位图：此来源不产出，补空
     COUNT(DISTINCT CASE WHEN after_status='CANCELLED' THEN order_no END) AS cancel_order_qty,  -- 取消子单数
-    NULL AS cancel_amt,                                                       -- 取消金额：本来源无，补空对齐 UNION ALL
-    NULL AS staff_order_qty,                                                  -- 员工代下单数：本来源无，补空对齐 UNION ALL
-    NULL AS combo_order_qty,                                                  -- 套票主单数：本来源无，补空对齐 UNION ALL
-    NULL AS pay_order_group_qty,                                              -- 支付聚合单数：本来源无，补空对齐 UNION ALL
-    NULL AS cost_amt,                                                         -- 成本金额：本来源无，补空对齐 UNION ALL
+    NULL AS cancel_amt,                                                       -- 取消金额：此来源不产出，补空
+    NULL AS staff_order_qty,                                                  -- 员工代下单数：此来源不产出，补空
+    NULL AS combo_order_qty,                                                  -- 套票主单数：此来源不产出，补空
+    NULL AS pay_order_group_qty,                                              -- 支付聚合单数：此来源不产出，补空
+    NULL AS cost_amt,                                                         -- 成本金额：此来源不产出，补空
     SUM(CASE WHEN before_status = 'PENDING_PAY' AND after_status = 'PAID' THEN stay_minute_qty END) AS pay_minute_qty,  -- 下单到支付总时长｜口径：待支付 → 已支付的停留分钟（下单到支付耗时）
     COUNT(CASE WHEN s.before_status = 'PENDING_PAY'                           -- 超时取消子单数｜口径：待支付 → 已取消，且取消时间不早于聚合单支付超时时间
         AND s.after_status = 'CANCELLED'
           AND s.change_time >= og.og_pay_timeout_time THEN s.order_no END) AS timeout_cancel_order_qty,  -- 超时取消子单数
-    NULL AS advance_book_day_qty                                              -- 提前预订天数合计：本来源无，补空对齐 UNION ALL
+    NULL AS advance_book_day_qty                                              -- 提前预订天数合计：此来源不产出，补空
   FROM dwd.dwd_ord_order_status_log_di s                                      -- 来源表「子单状态流转明细」
   LEFT JOIN (SELECT order_group_no AS og_no, MAX(pay_timeout_time) AS og_pay_timeout_time FROM dwd.dwd_ord_order_group_di
              WHERE travel_date >= DATE_FORMAT(DATE_SUB(TO_DATE('${bizdate}', 'yyyyMMdd'), 400), 'yyyyMMdd')
