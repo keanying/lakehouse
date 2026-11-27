@@ -12,6 +12,7 @@ sys.path[:0] = [str(ROOT), str(HERE)]
 import parse, catalog, audit  # noqa: E402
 import rules, model, names, exports  # noqa: E402
 import etl as etl_mod  # noqa: E402
+import src_ddl  # noqa: E402
 
 sh = catalog.sh
 LAYER_CN = {'ODS': '原始数据层', 'DIM': '维度层', 'DWD': '明细层', 'DWS': '汇总层', 'ADS': '应用层'}
@@ -47,6 +48,17 @@ def category(n, keys, layer):
     return '维度属性'
 
 
+SRCDDL = {}
+
+
+def ddl_col(lds, ltb, c):
+    """客户提供的业务库 DDL 中的列（无则 None）"""
+    d = SRCDDL.get(f'{lds}:{ltb}')
+    if not d:
+        return None
+    return next((x for x in d['cols'] if x['n'].lower() == c.lower()), None)
+
+
 def guess_type(n):
     """标准化后新增字段的类型：按命名规范的后缀推断"""
     for pat, ty in ((r'_amt$', 'DECIMAL(18,2)'), (r'_(qty|pv)$', 'BIGINT'), (r'_rate$', 'DECIMAL(20,6)'), (r'_(flag|level|hour)$|^stat_hour$', 'INT'), (r'_id$', 'BIGINT')):
@@ -78,6 +90,10 @@ def build():
     C = catalog.build(nodes)
     T, S, SC = C['tables'], C['sources'], C['schemas']
     tables, fields, mapping = [], [], {}
+    global SRCDDL
+    SRCDDL, notes_ = src_ddl.load(sorted({':'.join(rules.logical_source(ds, tb)) for ds, tb in S}))
+    for x in notes_:
+        print('业务库 DDL：', x)
 
     # ------------------------------------------------ ODS：每个逻辑业务表一张
     logical = collections.OrderedDict()
@@ -127,7 +143,12 @@ def build():
                 continue
             seq += 1
             ty, cm = tmap.get(c.lower(), ('STRING', ''))
+            dd = ddl_col(o['lds'], o['ltb'], c)
+            if dd and (c.lower() not in tmap):
+                ty = dd['t']
             cm = rules.FIELD_FIX.get((o['ltb'], c.lower())) or fix_mojibake(cm)
+            if dd and dd['c'] and not rules.FIELD_FIX.get((o['ltb'], c.lower())):
+                cm = dd['c']          # 业务库 DDL 注释是源头，优先于旧 Hive 表注释
             cat = '主键' if c.lower() == 'id' else 'ETL' if c.lower() in ETL_COLS else category(c.lower(), [], 'ODS')
             fields.append(['ODS', f'ods.{name}', cn, seq, c.lower(), rules.std_type(ty), cat, (cm or c) + ('（脱敏）' if rules.SENSITIVE.search(c) else ''),
                            f'{srcs[0]}.{c}' + ('，落地脱敏' if rules.SENSITIVE.search(c) else ''), ''])
@@ -623,13 +644,18 @@ def legacy_src(C, logical, ods_of_source, fcols, tcols):
     """业务库原始表（SRC）：DataWorks 同步任务读取的全部业务表；落地数仓的与 ODS 一一对应"""
     S, SC = C['sources'], C['schemas']
     ti, fi = {c: i for i, c in enumerate(tcols)}, {c: i for i, c in enumerate(fcols)}
-    trows, frows, ddl = [], [], {}
+    trows, frows, ddl, ddl_done = [], [], {}, {}
     groups = collections.OrderedDict()
     for (ds, tb), s in sorted(S.items()):
         groups.setdefault(rules.logical_source(ds, tb), []).append(((ds, tb), s))
     for no, ((lds, ltb), g) in enumerate(groups.items(), 1):
         name = f'{lds}:{ltb}'
         cols = max((s['cols'] for _, s in g), key=len)
+        D = SRCDDL.get(name)
+        synced = {c.lower() for c in cols}
+        if D:   # 客户 DDL：字段以 DDL 为准（顺序、类型、注释、主键），同步配置有而 DDL 没有的排在后面
+            dn = {x['n'].lower() for x in D['cols']}
+            cols = [x['n'] for x in D['cols']] + [c for c in cols if c.lower() not in dn]
         landing = sorted({l for _, s in g for l in s['landing']})
         types = {}
         for l in landing:
@@ -637,7 +663,7 @@ def legacy_src(C, logical, ods_of_source, fcols, tcols):
                 types.setdefault(c, (ty, cm))
         ods = sorted({ods_of_source[k] for k, _ in g if k in ods_of_source})
         targets = sorted({x for _, s in g for x in s['targets']})
-        cn = next((s.get('comment') for _, s in g if s.get('comment')), '') or rules.PINYIN.get(ltb, ('', ''))[1] or table_cn(ltb)
+        cn = next((s.get('comment') for _, s in g if s.get('comment')), '') or (D or {}).get('comment') or rules.PINYIN.get(ltb, ('', ''))[1] or table_cn(ltb)
         note = []
         if len(g) > 1:
             note.append('物理源：' + '、'.join(f'{a}.{b}' for (a, b), _ in g))
@@ -645,28 +671,41 @@ def legacy_src(C, logical, ods_of_source, fcols, tcols):
             note.append('未落数仓：同步任务直接写到 ' + ('、'.join(targets[:3]) + (' 等' if len(targets) > 3 else '') if targets else '其他系统'))
         if any(rules.DROP.match(c) for c in cols):
             note.append('含密码类字段，标准化后不同步')
+        if D:
+            ddl_done[name] = D.get('at') or D['file']
+            miss = [x['n'] for x in D['cols'] if x['n'].lower() not in synced]
+            note.append(f"表结构：客户 DDL（{D['file']}）" + (f"；未同步字段 {len(miss)} 个" if miss else ''))
         r = [''] * len(tcols)
         r[ti['序号']], r[ti['分层']], r[ti['业务域']], r[ti['表名（库.表）']], r[ti['表中文名']] = no, 'SRC', rules.domain_of(lds, ltb), name, cn
         r[ti['粒度']], r[ti['后缀含义']], r[ti['分区']] = '业务表，1行=1条源记录', f'{g[0][1].get("type", "")} 业务表', '无（业务库）'
         r[ti['来源']] = f'{rules.SOURCE_DB.get(lds, (lds, ""))[0]}（数据源 {lds}）'
-        r[ti['度量 / 口径 / 关键字段']] = f'同步字段 {len(cols)} 个'
+        r[ti['度量 / 口径 / 关键字段']] = f'字段 {len(cols)} 个，同步 {len(synced)} 个' + (f"；主键 {'、'.join(D['pk'])}" if D and D['pk'] else '') if D else f'同步字段 {len(cols)} 个'
         r[ti['下游表']] = '、'.join(ods)
         r[ti['备注']] = '；'.join(note)
         trows.append(r)
         lines = []
         for i, c in enumerate(cols, 1):
             ty, cm = types.get(c.lower(), ('', ''))
+            dd = ddl_col(lds, ltb, c)
+            if dd:
+                ty, cm = dd['t'], dd['c'] or cm
             fr = [''] * len(fcols)
             fr[fi['分层']], fr[fi['表名（库.表）']], fr[fi['表中文名']], fr[fi['序号']], fr[fi['字段名']] = 'SRC', name, cn, i, c
             fr[fi['类型']] = ty or '—'
-            fr[fi['字段类别']] = '主键' if c.lower() == 'id' else ('维度属性' if not rules.SENSITIVE.search(c) else '敏感字段')
+            is_pk = c in (D or {}).get('pk', []) if D else c.lower() == 'id'
+            fr[fi['字段类别']] = '主键' if is_pk else ('维度属性' if not rules.SENSITIVE.search(c) else '敏感字段')
             cm = rules.FIELD_FIX.get((ltb, c.lower())) or fix_mojibake(cm)
             fr[fi['字段注释']] = rules.ID_ANN[c.lower()][1] if c.lower() in rules.ID_ANN else (cm if not names.needs_name(cm, c) else NAMER.name(c, landing))
             fr[fi['加工 / 来源']] = '密码类字段：标准化后不再同步' if rules.DROP.match(c) else ('敏感字段：ODS 落地脱敏' if rules.SENSITIVE.search(c) else '')
+            if D and c.lower() not in synced:
+                fr[fi['加工 / 来源']] = '未同步（DDL 有、同步任务未读）'
+            elif D and not dd:
+                fr[fi['加工 / 来源']] = '同步配置有、DDL 没有：字段可能已删除或改名'
             frows.append(fr)
             lines.append(f'  {c:<32} {ty or "（类型以业务库为准）"}' + (f'  -- {cm}' if cm else ''))
-        ddl[name] = '-- 字段来自 DataWorks 同步任务配置（读端列）；类型取数仓落地表\n' + f'{ltb} (\n' + '\n'.join(lines) + '\n)'
-    return {'tables': trows, 'fields': frows, 'ddl': ddl, 'info': {}, 'ddlNote': '业务库表结构，取自同步任务配置'}
+        ddl[name] = (f"-- 客户提供 DDL（{D['file']}{'，' + D['at'] + ' 录入' if D.get('at') else ''}）\n" + D['ddl'] if D else
+                     '-- 字段来自 DataWorks 同步任务配置（读端列）；类型取数仓落地表\n' + f'{ltb} (\n' + '\n'.join(lines) + '\n)')
+    return {'tables': trows, 'fields': frows, 'ddl': ddl, 'info': {}, 'ddlNote': '业务库表结构，取自同步任务配置', 'ddlDone': ddl_done}
 
 
 def ads_specs():
@@ -781,6 +820,7 @@ def main():
                   'map': '<div style="font-weight:600;color:var(--text)">旧表 → 标准表</div><div>每张旧 Hive 表与回流表归到哪张标准表：合并 / 改名 / 回流改造 / 移出数仓 / 下线。迁移时按此逐张切换并对数。</div>',
                   'cover': '<div style="font-weight:600;color:var(--text)">导出模型覆盖</div><div>客户导出到 MySQL / Oracle / SelectDB 等的应用层模型，每个字段对到标准指标与标准 ADS：已覆盖 / 时间表派生（年 / 月 / 周、累计列）/ 已补全。</div>',
                   'unify': '<div style="font-weight:600;color:var(--text)">口径统一</div><div>同一个指标在旧系统有多种算法时逐个列出（Vn），说明与标准口径的差异；标准口径见「指标口径 · 口径字典」。</div>',
+                  'ddl': '<div style="font-weight:600;color:var(--text)">业务库 DDL</div><div>把客户给的建表语句贴进来：按表名对到业务库表，并和现在的字段（来自同步任务配置）比对。录入只存在本机浏览器，点「导出文件」得到一个 .sql 文件，交给数仓放到 dataworks/input/ 后重新生成，字典里的业务库字段、类型、注释、主键就以 DDL 为准。</div>',
                   'nodes': '<div style="font-weight:600;color:var(--text)">旧节点清单</div><div>导出包里的全部节点（同步、SQL、Python），可按工作空间、类型、处理方式筛选。</div>'},
          'reportHref': '../docs/问题清单.md'}
     meta = {'mode': 'legacy', 'xlsx': xlsx.name, 'built': datetime.date.today().isoformat(), 'dict2': xlsx.name,
