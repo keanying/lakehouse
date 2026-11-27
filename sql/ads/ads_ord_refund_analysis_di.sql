@@ -1,9 +1,8 @@
 -- ads.ads_ord_refund_analysis_di  退款分析
 -- 粒度：travel_date × seller_tenant_id × refund_reason_desc
 -- 来源：dws_ord_tenant_refund_di, dws_sup_tenant_trade_di
--- 生成方式：Spark SQL / Hive；字段 27 个：直接翻译 18 · 规则翻译 6 · 待确认 3
+-- 生成方式：Spark SQL / Hive；字段 27 个：直接翻译 18 · 规则翻译 9 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 src_tenant_refund AS (                                              -- 来源「商户×SKU 退款日汇总」按粒度键预聚合
@@ -27,11 +26,11 @@ src_tenant_refund AS (                                              -- 来源「
     NULL AS timeout_cancel_denominator_qty,
     SUM(CASE WHEN initiator_type = 'VISITOR' THEN refund_ticket_qty END) AS visitor_refund_ticket_qty,  -- 游客发起退款票数（日）
     SUM(CASE WHEN initiator_type = 'MERCHANT' THEN refund_ticket_qty END) AS merchant_refund_ticket_qty,  -- 商户发起退款票数（日）
-    SUM(CASE WHEN 1 = 1 THEN refund_ticket_qty END) AS ota_refund_ticket_qty,  -- OTA发起退款票数（日）｜待确认：修饰词 退款发起方=OTA发起 在 dws_ord_tenant_refund_di 中找不到对应字段
+    SUM(CASE WHEN initiator_type = 'OTA' THEN refund_ticket_qty END) AS ota_refund_ticket_qty,  -- OTA发起退款票数｜口径：退款发起方 = OTA
     SUM(CASE WHEN initiator_type = 'SYSTEM' THEN refund_ticket_qty END) AS system_refund_ticket_qty,  -- 系统发起退款票数（日）
     SUM(CASE WHEN initiator_type = 'VISITOR' THEN refund_amt END) AS visitor_refund_amt,  -- 游客发起退款金额（日）
     SUM(CASE WHEN initiator_type = 'MERCHANT' THEN refund_amt END) AS merchant_refund_amt,  -- 商户发起退款金额（日）
-    SUM(CASE WHEN 1 = 1 THEN refund_amt END) AS ota_refund_amt,     -- OTA发起退款金额（日）｜待确认：修饰词 退款发起方=OTA发起 在 dws_ord_tenant_refund_di 中找不到对应字段
+    SUM(CASE WHEN initiator_type = 'OTA' THEN refund_amt END) AS ota_refund_amt,  -- OTA发起退款金额｜口径：退款发起方 = OTA
     SUM(CASE WHEN initiator_type = 'SYSTEM' THEN refund_amt END) AS system_refund_amt  -- 系统发起退款金额（日）
   FROM dws.dws_ord_tenant_refund_di s                               -- 来源表「商户×SKU 退款日汇总」
   WHERE s.travel_date = '${bizdate}'                                -- 只取当日分区

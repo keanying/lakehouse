@@ -1,9 +1,8 @@
 -- dws.dws_ord_tenant_sku_channel_trade_di  商户×SKU×渠道 交易日汇总
 -- 粒度：travel_date × seller_tenant_id × sku_id × channel_id × app_ref_code × operator_type
 -- 来源：dwd_ord_order_di, dwd_ord_order_status_log_di, dwd_ord_order_group_di
--- 生成方式：Spark SQL / Hive；字段 27 个：直接翻译 5 · 规则翻译 10 · 待确认 12
+-- 生成方式：Spark SQL / Hive；字段 27 个：直接翻译 5 · 规则翻译 22 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 src_order_group AS (                                                              -- 来源「聚合单明细」按粒度键预聚合
@@ -43,24 +42,26 @@ src_order AS (                                                                  
     app_ref_code AS app_ref_code,                                                 -- 对接端引用
     operator_type AS operator_type,                                               -- 操作人类型
     NULL AS order_group_qty,
-    COUNT(DISTINCT CASE WHEN 1 = 1 THEN order_no END) AS order_qty,               -- 下单子单数｜待确认：combo 子项除外
+    COUNT(DISTINCT CASE WHEN s.parent_order_no = '' THEN s.order_no END) AS order_qty,  -- 下单子单数｜口径：不含套票子项（parent_order_no 非空的子单）
     SUM(buy_ticket_qty) AS order_ticket_qty,                                      -- 下单票数
     SUM(unit_price_amt*buy_ticket_qty) AS order_amt,                              -- 下单金额
     NULL AS pay_order_qty,
     SUM(CASE WHEN pay_time IS NOT NULL THEN buy_ticket_qty END) AS pay_ticket_qty,  -- 支付票数
     SUM(CASE WHEN pay_time IS NOT NULL THEN unit_price_amt*buy_ticket_qty END) AS pay_amt,  -- 支付金额（GMV）
-    COUNT(DISTINCT CASE WHEN 1 = 1 THEN buyer_customer_id END) AS pay_buyer_qty,  -- 支付买家数｜待确认：buyer_customer_id>0 and kind='REAL'
-    BITMAP_UNION(TO_BITMAP(CASE WHEN 1 = 1 THEN buyer_customer_id END)) AS pay_buyer_bitmap,  -- 支付买家数去重位图｜待确认：buyer_customer_id>0 and kind='REAL'
+    COUNT(DISTINCT CASE WHEN s.pay_time IS NOT NULL AND s.buyer_customer_id > 0 AND rb.rb_customer_type = 'REAL' THEN s.buyer_customer_id END) AS pay_buyer_qty,  -- 支付买家数｜口径：已支付的真人买家，剔除匿名与占位买家
+    BITMAP_UNION(TO_BITMAP(CASE WHEN s.pay_time IS NOT NULL AND s.buyer_customer_id > 0 AND rb.rb_customer_type = 'REAL' THEN s.buyer_customer_id END)) AS pay_buyer_bitmap,  -- 支付买家数去重位图｜口径：同上，去重位图
     NULL AS cancel_order_qty,
-    SUM(CASE WHEN 1 = 1 THEN order_amt END) AS cancel_amt,                        -- 取消金额｜待确认：of cancelled orders
+    SUM(CASE WHEN s.cancel_time IS NOT NULL THEN s.order_amt END) AS cancel_amt,  -- 取消金额｜口径：已取消子单的下单金额
     COUNT(CASE WHEN operator_type='TENANT_STAFF' THEN order_no END) AS staff_order_qty,  -- 员工代下单数
-    COUNT(CASE WHEN 1 = 1 THEN order_no END) AS combo_order_qty,                  -- 套票主单数｜待确认：combo_flag=1
+    COUNT(CASE WHEN combo_type=1 THEN order_no END) AS combo_order_qty,           -- 套票主单数
     NULL AS pay_order_group_qty,
     SUM(CASE WHEN pay_time IS NOT NULL THEN cost_price_amt * buy_ticket_qty END) AS cost_amt,  -- 成本金额
     NULL AS pay_minute_qty,
     NULL AS timeout_cancel_order_qty,
-    NULL AS advance_book_day_qty                                                  -- 待确认：sum(datediff(play_date, pay_date) * buy_ticket_qty)
-  FROM dwd.dwd_ord_order_di s                                                     -- 来源表「子单明细」
+    SUM(CASE WHEN s.pay_time IS NOT NULL THEN DATEDIFF(s.play_date, TO_DATE(s.pay_time)) * s.buy_ticket_qty END) AS advance_book_day_qty  -- 提前预订天数合计｜口径：（游玩日 − 支付日）× 票数
+  FROM dwd.dwd_ord_order_di s  -- 来源表「子单明细」
+  LEFT JOIN (SELECT customer_id AS rb_customer_id, customer_type AS rb_customer_type FROM dim.dim_cus_customer_zip
+             WHERE travel_date = '${bizdate}' AND end_date = '9999-12-31') rb ON rb.rb_customer_id = s.buyer_customer_id
   WHERE s.travel_date = '${bizdate}'                                              -- 只取当日分区
   GROUP BY seller_tenant_id, sku_id, channel_id, app_ref_code, operator_type      -- 按粒度键汇总
 ),
@@ -86,10 +87,12 @@ src_order_status_log AS (                                                       
     NULL AS combo_order_qty,
     NULL AS pay_order_group_qty,
     NULL AS cost_amt,
-    NULL AS pay_minute_qty,                                                       -- 待确认：sum(minutes(pay_time - create_time))
-    COUNT(CASE WHEN 1 = 1 THEN order_no END) AS timeout_cancel_order_qty,         -- 超时取消子单数｜待确认：after_status='CANCELLED' and reason='PAY_TIMEOUT'
+    SUM(CASE WHEN before_status = 'PENDING_PAY' AND after_status = 'PAID' THEN stay_minute_qty END) AS pay_minute_qty,  -- 下单到支付总时长｜口径：待支付 → 已支付的停留分钟（下单到支付耗时）
+    COUNT(CASE WHEN s.before_status = 'PENDING_PAY' AND s.after_status = 'CANCELLED' AND s.change_time >= og.og_pay_timeout_time THEN s.order_no END) AS timeout_cancel_order_qty,  -- 超时取消子单数｜口径：待支付 → 已取消，且取消时间不早于聚合单支付超时时间
     NULL AS advance_book_day_qty
-  FROM dwd.dwd_ord_order_status_log_di s                                          -- 来源表「子单状态流转明细」
+  FROM dwd.dwd_ord_order_status_log_di s  -- 来源表「子单状态流转明细」
+  LEFT JOIN (SELECT order_group_no AS og_no, MAX(pay_timeout_time) AS og_pay_timeout_time FROM dwd.dwd_ord_order_group_di
+             WHERE travel_date >= DATE_FORMAT(DATE_SUB(TO_DATE('${bizdate}', 'yyyyMMdd'), 400), 'yyyyMMdd') GROUP BY order_group_no) og ON og.og_no = s.order_group_no
   WHERE s.travel_date = '${bizdate}'                                              -- 只取当日分区
   GROUP BY seller_tenant_id, sku_id                                               -- 按粒度键汇总
 ),

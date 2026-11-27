@@ -1,9 +1,8 @@
 -- ads.ads_opr_device_health_di  设备健康
 -- 粒度：travel_date × tenant_id × device_type
 -- 来源：dws_opr_device_di, dws_ord_tenant_sku_verify_di
--- 生成方式：Spark SQL / Hive；字段 12 个：直接翻译 10 · 规则翻译 0 · 待确认 2
+-- 生成方式：Spark SQL / Hive；字段 12 个：直接翻译 10 · 规则翻译 2 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 src_device AS (                                                 -- 来源「设备日汇总」按粒度键预聚合

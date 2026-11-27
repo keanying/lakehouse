@@ -45,7 +45,7 @@ SELECT
   GET_JSON_OBJECT(entitlement_latest.entitlement_detail, '$.maxCount') AS max_qty,  -- 最大可用次数（COUNTED-计次型
   JSON_ARRAY_LENGTH(GET_JSON_OBJECT(entitlement_latest.entitlement_detail, '$.candidateRefs')) AS candidate_qty,  -- 可选项目数
   GET_JSON_OBJECT(entitlement_latest.entitlement_detail, '$.durationMinutes') AS duration_minute_qty,  -- 可用时长（分钟
-  GET_JSON_OBJECT(entitlement_latest.entitlement_detail, '$.quotaAmount') AS quota_amt,  -- 额度（元
+  ROUND(CAST(GET_JSON_OBJECT(entitlement_latest.entitlement_detail, '$.quotaAmount') AS DECIMAL(18,2)) / 100, 2) AS quota_amt,  -- 额度（元
   (GET_JSON_OBJECT(entitlement_latest.entitlement_detail, '$.maxCount')) - (entitlement_latest.used_count) AS remain_qty,  -- 剩余可用次数 = 最大可用次数 - 已使用次数
   entitlement_latest.create_time                               AS issue_time,     -- 发放时间
   CURRENT_TIMESTAMP()                                          AS etl_time        -- ETL 加载时间

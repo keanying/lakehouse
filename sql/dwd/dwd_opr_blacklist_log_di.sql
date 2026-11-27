@@ -1,9 +1,8 @@
 -- dwd.dwd_opr_blacklist_log_di  黑名单变更明细
 -- 粒度：1行=1次黑名单新增/失效/撤销
 -- 来源：ods_opr_blacklist_di
--- 生成方式：Spark SQL / Hive；字段 18 个：直接翻译 17 · 规则翻译 0 · 待确认 1
+-- 生成方式：Spark SQL / Hive；字段 18 个：直接翻译 17 · 规则翻译 1 · 待确认 0
 -- 流水/状态变更类：保留每条变更记录；每个 WITH 逻辑块只取用到的列并先过滤分区
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 blacklist_chg AS (                                     -- 主表「黑名单」：保留每条变更记录，只取用到的列
@@ -28,7 +27,7 @@ SELECT
   blacklist_chg.tenant_id        AS tenant_id,         -- 租户ID
   blacklist_chg.create_time      AS create_time,       -- 创建时间
   blacklist_chg.update_time      AS update_time,       -- 更新时间
-  blacklist_chg.blacklist_status AS change_type,       -- 变更类型｜待确认：ods_opr_blacklist_di.blacklist_status 变化判定
+  CASE blacklist_chg.blacklist_status WHEN 'ACTIVE' THEN 'ADD' WHEN 'EXPIRED' THEN 'EXPIRE' WHEN 'REVOKED' THEN 'REVOKE' END AS change_type,  -- 变更类型｜口径：每条变更记录按变更后状态：有效 = 新增，已过期 = 到期失效，已撤销 = 撤销
   blacklist_chg.binlog_time      AS change_time,       -- 变更时间
   1                              AS change_qty,        -- 变更次数
   CURRENT_TIMESTAMP()            AS etl_time           -- ETL 加载时间

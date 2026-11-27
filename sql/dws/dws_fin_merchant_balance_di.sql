@@ -14,9 +14,9 @@ WITH f AS (
            IF(f.change_amt >= 0, 'IN', 'OUT') AS direction_type
     FROM dwd.dwd_fin_fund_flow_di f
     JOIN (SELECT account_no, subject_id, account_type FROM dim.dim_fin_account_df WHERE travel_date = '${bizdate}' AND account_type IN ('MERCHANT', 'DISTRIBUTOR')) a ON a.account_no = f.account_no
-    WHERE f.travel_date = '${bizdate}'
+    WHERE f.travel_date = '${bizdate}'                                            -- 只取当日分区
 ),
-ev AS (   -- 解冻流水的冻结事件：related_no 对冻结单号或票号（待确认）
+ev AS (                                                                           -- 解冻流水的冻结事件：related_no 对冻结单号或票号（待确认）
     SELECT account_no, frozen_no, ticket_no, release_event_type FROM dwd.dwd_fin_frozen_di WHERE travel_date = '${bizdate}' AND frozen_status = 'RELEASED'
 ),
 m AS (
@@ -25,20 +25,20 @@ m AS (
     LEFT JOIN ev e1 ON f.flow_type = 'UNFREEZE' AND e1.account_no = f.account_no AND e1.frozen_no = f.related_no
     LEFT JOIN ev e2 ON f.flow_type = 'UNFREEZE' AND e1.frozen_no IS NULL AND e2.account_no = f.account_no AND e2.ticket_no = f.related_no
 ),
-hit AS (   -- 规则匹配：取最具体的一条
+hit AS (                                                                          -- 规则匹配：取最具体的一条
     SELECT m.flow_no, r.report_code,
-           ROW_NUMBER() OVER (PARTITION BY m.flow_no ORDER BY (r.frozen_event_type <> '') DESC, (r.direction_type <> '') DESC, (r.fee_item_code <> '') DESC) AS rn
+           ROW_NUMBER() OVER (PARTITION BY m.flow_no ORDER BY (r.frozen_event_type <> '') DESC, (r.direction_type <> '') DESC, (r.fee_item_code <> '') DESC) AS rn  -- 同一主键多次变更，按 binlog 时间倒序编号
     FROM m
-    JOIN (SELECT * FROM dim.dim_fin_report_rule_f WHERE source_type = 'FUND_FLOW') r
-      ON r.flow_type = m.flow_type AND (r.fee_item_code = '' OR r.fee_item_code = m.fee_item_code)
+    JOIN (SELECT * FROM dim.dim_fin_report_rule_f WHERE source_type = 'FUND_FLOW') r  -- 关联「财务报表归属规则」按键聚合
+      ON r.flow_type = m.flow_type AND (r.fee_item_code = '' OR r.fee_item_code = m.fee_item_code)  -- 按 flow_type、fee_item_code 关联
      AND (r.direction_type = '' OR r.direction_type = m.direction_type) AND (r.frozen_event_type = '' OR r.frozen_event_type = m.frozen_event_type)
 )
-INSERT OVERWRITE TABLE dws.dws_fin_merchant_balance_di PARTITION (travel_date = '${bizdate}')
+INSERT OVERWRITE TABLE dws.dws_fin_merchant_balance_di PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
 SELECT m.merchant_tenant_id, m.account_no, COALESCE(h.report_code, 'UNCLASSIFIED') AS report_code, m.flow_type, COALESCE(m.fee_item_code, '') AS fee_item_code,
-       SUM(IF(m.change_amt > 0, m.change_amt, 0))                    AS fund_in_amt,
-       -SUM(IF(m.change_amt < 0, m.change_amt, 0))                   AS fund_out_amt,
-       COUNT(m.flow_no)                                              AS fund_flow_qty,
-       DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time
+       SUM(IF(m.change_amt > 0, m.change_amt, 0))                    AS fund_in_amt,  -- 资金流入
+       -SUM(IF(m.change_amt < 0, m.change_amt, 0))                   AS fund_out_amt,  -- 资金流出
+       COUNT(m.flow_no)                                              AS fund_flow_qty,  -- 流水笔数
+       DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time        -- ETL 加载时间
 FROM m
 LEFT JOIN (SELECT flow_no, report_code FROM hit WHERE rn = 1) h ON h.flow_no = m.flow_no
-GROUP BY m.merchant_tenant_id, m.account_no, COALESCE(h.report_code, 'UNCLASSIFIED'), m.flow_type, COALESCE(m.fee_item_code, '');
+GROUP BY m.merchant_tenant_id, m.account_no, COALESCE(h.report_code, 'UNCLASSIFIED'), m.flow_type, COALESCE(m.fee_item_code, '');  -- 按粒度键汇总

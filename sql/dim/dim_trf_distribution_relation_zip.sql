@@ -1,9 +1,8 @@
 -- dim.dim_trf_distribution_relation_zip  分销关系维度
 -- 粒度：1行=1条分销关系×1个有效区间
 -- 来源：ods_trf_distribution_relation_df
--- 生成方式：Spark SQL / Hive（拉链表）；字段 19 个：直接翻译 13 · 规则翻译 1 · 待确认 5
+-- 生成方式：Spark SQL / Hive（拉链表）；字段 19 个：直接翻译 13 · 规则翻译 6 · 待确认 0
 -- 拉链：比对今日源数据与昨日拉链的行哈希，变化的旧版本闭链、新版本开链；源为全量快照，消失的主键闭链
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 distribution_relation_src AS (                                                    -- 主表「分销关系」，只取用到的列
@@ -26,13 +25,16 @@ src AS (                                                                        
     distribution_relation_src.relation_status                    AS relation_status,  -- 状态
     distribution_relation_src.create_time                        AS create_time,  -- 创建时间
     distribution_relation_src.update_time                        AS update_time,  -- 更新时间
-    distribution_relation_src.parent_relation_id                 AS chain_level_no,  -- 本关系在采购链中的层级｜待确认：ods_trf_distribution_relation_df.parent_relation_id 递归
-    distribution_relation_src.supplier_tenant_id                 AS level1_tenant_id,  -- 1 级（源头供应商）租户ID｜待确认：ods_trf_distribution_relation_df.supplier_tenant_id 递归至根
-    distribution_relation_src.distributor_tenant_id              AS level2_tenant_id,  -- 2 级分销商租户ID｜待确认：ods_trf_distribution_relation_df.distributor_tenant_id 递归
-    distribution_relation_src.distributor_tenant_id              AS level3_tenant_id,  -- 3 级分销商租户ID｜待确认：ods_trf_distribution_relation_df.distributor_tenant_id 递归
-    distribution_relation_src.distributor_tenant_id              AS level4_tenant_id,  -- 4 级分销商租户ID｜待确认：ods_trf_distribution_relation_df.distributor_tenant_id 递归
-    ROUND(distribution_relation_src.credit_limit - distribution_relation_src.credit_used /100, 2) AS credit_available_amt  -- 剩余授信额度
+    (1 + IF(p1.id IS NULL, 0, 1) + IF(p2.id IS NULL, 0, 1) + IF(p3.id IS NULL, 0, 1)) AS chain_level_no,  -- 本关系在采购链中的层级｜口径：本关系往上逐级找上级关系（parent_relation_id，最多 4 级）的层数
+    CASE (1 + IF(p1.id IS NULL, 0, 1) + IF(p2.id IS NULL, 0, 1) + IF(p3.id IS NULL, 0, 1)) WHEN 1 THEN distribution_relation_src.supplier_tenant_id WHEN 2 THEN p1.supplier_tenant_id WHEN 3 THEN p2.supplier_tenant_id WHEN 4 THEN p3.supplier_tenant_id END AS level1_tenant_id,  -- 1 级｜口径：最顶层关系的供应商 = 源头供应商
+    CASE (1 + IF(p1.id IS NULL, 0, 1) + IF(p2.id IS NULL, 0, 1) + IF(p3.id IS NULL, 0, 1)) WHEN 1 THEN distribution_relation_src.distributor_tenant_id WHEN 2 THEN p1.distributor_tenant_id WHEN 3 THEN p2.distributor_tenant_id WHEN 4 THEN p3.distributor_tenant_id END AS level2_tenant_id,  -- 2 级分销商租户ID｜口径：最顶层关系的分销商
+    CASE (1 + IF(p1.id IS NULL, 0, 1) + IF(p2.id IS NULL, 0, 1) + IF(p3.id IS NULL, 0, 1)) WHEN 2 THEN distribution_relation_src.distributor_tenant_id WHEN 3 THEN p1.distributor_tenant_id WHEN 4 THEN p2.distributor_tenant_id END AS level3_tenant_id,  -- 3 级分销商租户ID｜口径：第 2 层关系的分销商
+    CASE (1 + IF(p1.id IS NULL, 0, 1) + IF(p2.id IS NULL, 0, 1) + IF(p3.id IS NULL, 0, 1)) WHEN 3 THEN distribution_relation_src.distributor_tenant_id WHEN 4 THEN p1.distributor_tenant_id END AS level4_tenant_id,  -- 4 级分销商租户ID｜口径：第 3 层关系的分销商
+    ROUND((distribution_relation_src.credit_limit - distribution_relation_src.credit_used) / 100, 2) AS credit_available_amt  -- 剩余授信额度
   FROM distribution_relation_src
+      LEFT JOIN distribution_relation_src p1 ON p1.id = distribution_relation_src.parent_relation_id   -- 上一级关系
+      LEFT JOIN distribution_relation_src p2 ON p2.id = p1.parent_relation_id
+      LEFT JOIN distribution_relation_src p3 ON p3.id = p2.parent_relation_id
 ),
 src_hash AS (                                                                     -- 今日状态的行哈希（比较是否变化）
   SELECT s.*, MD5(CONCAT_WS('|', CAST(relation_no AS STRING), CAST(supplier_tenant_id AS STRING), CAST(distributor_tenant_id AS STRING), CAST(parent_relation_id AS STRING), CAST(distribution_mode_type AS STRING), CAST(payment_mode_type AS STRING), CAST(credit_limit_amt AS STRING), CAST(credit_used_amt AS STRING), CAST(relation_status AS STRING), CAST(create_time AS STRING), CAST(update_time AS STRING), CAST(chain_level_no AS STRING), CAST(level1_tenant_id AS STRING), CAST(level2_tenant_id AS STRING), CAST(level3_tenant_id AS STRING), CAST(level4_tenant_id AS STRING), CAST(credit_available_amt AS STRING))) AS row_hash

@@ -1,9 +1,8 @@
 -- dwd.dwd_opr_audit_log_di  审计操作明细
 -- 粒度：1行=1条操作日志
 -- 来源：ods_opr_audit_log_di
--- 生成方式：Spark SQL / Hive；字段 17 个：直接翻译 15 · 规则翻译 1 · 待确认 1
+-- 生成方式：Spark SQL / Hive；字段 17 个：直接翻译 15 · 规则翻译 2 · 待确认 0
 -- 流水/状态变更类：保留每条变更记录；每个 WITH 逻辑块只取用到的列并先过滤分区
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 audit_log_chg AS (                                    -- 主表「审计日志」：保留每条变更记录，只取用到的列
@@ -28,7 +27,7 @@ SELECT
   audit_log_chg.update_time       AS update_time,     -- 更新时间
   audit_log_chg.create_time       AS action_time,     -- 操作时间
   HOUR(audit_log_chg.create_time) AS action_hour_no,  -- 操作小时
-  NULL                            AS night_action_type,  -- 是否凌晨操作｜待确认：action_hour_no 判定
+  CASE WHEN HOUR(audit_log_chg.create_time) < 6 THEN 1 ELSE 0 END AS night_action_type,  -- 是否凌晨操作｜口径：0~6 点（不含 6 点）的操作
   1                               AS action_qty,      -- 操作次数
   CURRENT_TIMESTAMP()             AS etl_time         -- ETL 加载时间
 FROM audit_log_chg;

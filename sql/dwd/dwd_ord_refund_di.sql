@@ -46,8 +46,8 @@ SELECT
   order_group_dtl.channel_id                                   AS channel_id,     -- 入口渠道ID
   refund_order_latest.create_time                              AS apply_time,     -- 退款申请时间
   CASE WHEN refund_order_latest.refund_status = 'COMPLETED' THEN refund_order_latest.binlog_time END AS finish_time,  -- 退款完成时间
-  (CASE WHEN refund_order_latest.refund_status = 'COMPLETED' THEN refund_order_latest.binlog_time END) - (refund_order_latest.create_time) AS process_hour_qty,  -- 退款处理时长
-  GET_JSON_OBJECT(refund_order_latest.refund_items, '$.ticketNos') AS refund_ticket_qty,  -- 退款票数
+  ROUND((UNIX_TIMESTAMP(CASE WHEN refund_order_latest.refund_status = 'COMPLETED' THEN refund_order_latest.binlog_time END) - UNIX_TIMESTAMP(refund_order_latest.create_time)) / 3600, 2) AS process_hour_qty,  -- 退款处理时长
+  SIZE(FLATTEN(FROM_JSON(refund_order_latest.refund_items, 'array<struct<orderNo:string,ticketNos:array<string>,amount:bigint>>').ticketNos)) AS refund_ticket_qty,  -- 退款票数
   CURRENT_TIMESTAMP()                                          AS etl_time        -- ETL 加载时间
 FROM refund_order_latest
 LEFT JOIN order_group_dtl                                                         -- 关联「聚合单明细」，取 卖家租户ID、入口渠道ID

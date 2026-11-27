@@ -1,9 +1,8 @@
 -- dwd.dwd_cus_customer_register_di  游客注册明细
 -- 粒度：1行=1个新注册游客
 -- 来源：ods_cus_customer_di
--- 生成方式：Spark SQL / Hive；字段 15 个：直接翻译 14 · 规则翻译 0 · 待确认 1
+-- 生成方式：Spark SQL / Hive；字段 15 个：直接翻译 14 · 规则翻译 1 · 待确认 0
 -- 主表增量先去重再关联；每个 WITH 逻辑块只取用到的列并先过滤分区；小维表广播关联
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 customer_rn AS (                                               -- 「C端游客主账号」当日增量，同一主键按 binlog 时间倒序编号
@@ -38,7 +37,7 @@ SELECT  /*+ BROADCAST(channel_dim) */
   customer_latest.create_time        AS create_time,           -- 创建时间
   customer_latest.update_time        AS update_time,           -- 更新时间
   channel_dim.channel_id             AS register_channel_id,   -- 注册渠道ID
-  customer_latest.birthday           AS age_band_code,         -- 注册时年龄段｜待确认：ods_cus_customer_di.birthday 计算
+  CASE WHEN FLOOR(MONTHS_BETWEEN(TO_DATE(customer_latest.create_time), TO_DATE(customer_latest.birthday)) / 12) IS NULL THEN 'UNKNOWN' WHEN FLOOR(MONTHS_BETWEEN(TO_DATE(customer_latest.create_time), TO_DATE(customer_latest.birthday)) / 12) < 18 THEN '0_17' WHEN FLOOR(MONTHS_BETWEEN(TO_DATE(customer_latest.create_time), TO_DATE(customer_latest.birthday)) / 12) <= 25 THEN '18_25' WHEN FLOOR(MONTHS_BETWEEN(TO_DATE(customer_latest.create_time), TO_DATE(customer_latest.birthday)) / 12) <= 35 THEN '26_35' WHEN FLOOR(MONTHS_BETWEEN(TO_DATE(customer_latest.create_time), TO_DATE(customer_latest.birthday)) / 12) <= 45 THEN '36_45' WHEN FLOOR(MONTHS_BETWEEN(TO_DATE(customer_latest.create_time), TO_DATE(customer_latest.birthday)) / 12) <= 60 THEN '46_60' ELSE '60_PLUS' END AS age_band_code,  -- 注册时年龄段｜口径：按生日算注册时年龄后分段
   customer_latest.create_time        AS register_time,         -- 注册时间
   1                                  AS register_qty,          -- 注册人数
   CURRENT_TIMESTAMP()                AS etl_time               -- ETL 加载时间

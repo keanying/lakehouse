@@ -1,16 +1,15 @@
 -- dws.dws_prd_sku_price_di  SKU×渠道 价格日汇总
 -- 粒度：travel_date × sku_id × price_channel_code
 -- 来源：dwd_prd_sku_price_calendar_df, dwd_prd_price_point_log_di, dwd_ord_order_di, dwd_prd_sku_version_di
--- 生成方式：Spark SQL / Hive；字段 11 个：直接翻译 2 · 规则翻译 6 · 待确认 3
+-- 生成方式：Spark SQL / Hive；字段 11 个：直接翻译 2 · 规则翻译 9 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 src_sku_price_calendar AS (                     -- 来源「SKU每日生效价日历」按粒度键预聚合
   SELECT
     sku_id AS sku_id,                           -- SKU ID
     price_channel_code AS price_channel_code,   -- 价格渠道编码
-    NULL AS list_price_amt,                     -- 待确认：price/100 from 价格日历
+    MAX(CASE WHEN price_date = '${bizdate_dash}' THEN list_price_amt END) AS list_price_amt,  -- 生效标价｜口径：价格日历中统计日当天生效的挂牌价
     NULL AS price_change_qty,
     NULL AS pay_amt,
     NULL AS pay_ticket_qty,

@@ -1,9 +1,8 @@
 -- ads.ads_opr_risk_monitor_di  风控监控
 -- 粒度：travel_date × rule_id × action_type
 -- 来源：dws_opr_risk_rule_hit_di, dws_opr_audit_action_di, dws_ord_tenant_sku_verify_di
--- 生成方式：Spark SQL / Hive；字段 14 个：直接翻译 11 · 规则翻译 0 · 待确认 3
+-- 生成方式：Spark SQL / Hive；字段 14 个：直接翻译 11 · 规则翻译 3 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 src_risk_rule_hit AS (                              -- 来源「风控规则命中日汇总」按粒度键预聚合

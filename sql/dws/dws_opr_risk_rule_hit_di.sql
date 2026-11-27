@@ -1,9 +1,8 @@
 -- dws.dws_opr_risk_rule_hit_di  风控规则命中日汇总
 -- 粒度：travel_date × rule_id × action_type × dimension_type
 -- 来源：dwd_opr_risk_event_di, dwd_opr_blacklist_log_di, dwd_opr_account_ban_di
--- 生成方式：Spark SQL / Hive；字段 10 个：直接翻译 3 · 规则翻译 2 · 待确认 5
+-- 生成方式：Spark SQL / Hive；字段 10 个：直接翻译 3 · 规则翻译 7 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 src_risk_event AS (                               -- 来源「风控事件明细」按粒度键预聚合
@@ -12,7 +11,7 @@ src_risk_event AS (                               -- 来源「风控事件明细
     action_type AS action_type,                   -- 处置动作
     dimension_type AS dimension_type,             -- 规则维度
     COUNT(event_no) AS risk_hit_qty,              -- 风控命中次数
-    COUNT(CASE WHEN 1 = 1 THEN event_no END) AS risk_block_qty,  -- 风控拦截次数｜待确认：action='BLOCK'
+    COUNT(CASE WHEN action_type='BLOCK' THEN event_no END) AS risk_block_qty,  -- 风控拦截次数
     NULL AS blacklist_add_qty,
     NULL AS ban_qty
   FROM dwd.dwd_opr_risk_event_di s                -- 来源表「风控事件明细」
@@ -26,7 +25,7 @@ src_blacklist_log AS (                            -- 来源「黑名单变更明
     dimension_type AS dimension_type,             -- 规则维度
     NULL AS risk_hit_qty,
     NULL AS risk_block_qty,
-    COUNT(CASE WHEN 1 = 1 THEN blacklist_no END) AS blacklist_add_qty,  -- 新增黑名单数｜待确认：新增
+    COUNT(CASE WHEN change_type = 'ADD' THEN blacklist_no END) AS blacklist_add_qty,  -- 新增黑名单数｜口径：黑名单变更类型为新增
     NULL AS ban_qty
   FROM dwd.dwd_opr_blacklist_log_di s             -- 来源表「黑名单变更明细」
   WHERE s.travel_date = '${bizdate}'              -- 只取当日分区

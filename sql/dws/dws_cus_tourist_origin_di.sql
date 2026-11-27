@@ -1,9 +1,8 @@
 -- dws.dws_cus_tourist_origin_di  游客客源画像日汇总
 -- 粒度：travel_date × seller_tenant_id × sku_id × origin_province_code × origin_city_code × age_band_code × gender_type
 -- 来源：dwd_ord_ticket_person_di, dwd_ord_verify_di, dwd_ord_ticket_di
--- 生成方式：Spark SQL / Hive；字段 19 个：直接翻译 6 · 规则翻译 4 · 待确认 9
+-- 生成方式：Spark SQL / Hive；字段 19 个：直接翻译 6 · 规则翻译 13 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 src_ticket_person AS (                                -- 来源「票游客明细」按粒度键预聚合
@@ -32,7 +31,7 @@ src_verify AS (                                       -- 来源「核销明细�
     CAST(NULL AS STRING) AS age_band_code,
     CAST(NULL AS STRING) AS gender_type,
     NULL AS tourist_qty,
-    COUNT(CASE WHEN 1 = 1 THEN verify_no END) AS verify_person_qty,  -- 核销人次（入园人次）｜待确认：SUCCESS（待补放行人数后改 sum(pass_count)）
+    COUNT(CASE WHEN verify_result_type = 'SUCCESS' THEN verify_no END) AS verify_person_qty,  -- 核销人次（入园人次）
     NULL AS person_linked_qty,
     NULL AS realname_ticket_qty,
     NULL AS issue_ticket_qty

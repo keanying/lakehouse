@@ -1,9 +1,8 @@
 -- dim.dim_opr_package_df  套餐维度
 -- 粒度：1行=1个套餐
 -- 来源：ods_opr_package_df + ods_opr_app_binding_df, dim_opr_app_df
--- 生成方式：Spark SQL / Hive；字段 14 个：直接翻译 11 · 规则翻译 1 · 待确认 2
+-- 生成方式：Spark SQL / Hive；字段 14 个：直接翻译 11 · 规则翻译 3 · 待确认 0
 -- 每个 WITH 逻辑块只取用到的列并先过滤分区；小维表广播关联
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 package_src AS (                                                    -- 主表「套餐包」，只取用到的列
@@ -18,7 +17,13 @@ app_binding_count AS (                                              -- 「套餐
   WHERE travel_date = '${bizdate}'                                  -- 只取当日分区
   GROUP BY package_id                                               -- 按粒度键汇总
 ),
-app_dim AS (                                                        -- 「应用维度」当日数据，只取用到的列
+pkg_app_agg AS (   -- 套餐包含的应用编码（去重排序拼接）  -- 「应用维度」当日数据，只取用到的列
+  SELECT b.package_id, CONCAT_WS(',', SORT_ARRAY(COLLECT_SET(a.app_code))) AS app_code_list
+  FROM (SELECT package_id, app_id FROM ods.ods_opr_app_binding_df WHERE travel_date = '${bizdate}') b
+  JOIN (SELECT app_id, app_code FROM dim.dim_opr_app_df WHERE travel_date = '${bizdate}') a ON a.app_id = b.app_id
+  GROUP BY b.package_id
+),
+app_dim AS (
   SELECT app_code, app_id
   FROM dim.dim_opr_app_df
   WHERE travel_date = '${bizdate}'                                  -- 只取当日分区
@@ -36,10 +41,10 @@ SELECT  /*+ BROADCAST(app_dim) */
   package_src.create_time                   AS create_time,         -- 创建时间
   package_src.update_time                   AS update_time,         -- 更新时间
   COALESCE(app_binding_count.v, 0)          AS app_qty,             -- 包含应用数
-  app_dim.app_code                          AS app_code_list_desc,  -- 包含应用编码列表｜待确认：dim_opr_app_df.app_code 聚合
+  paa.app_code_list AS app_code_list_desc,  -- 包含应用编码列表｜口径：套餐绑定的应用编码，去重排序后逗号拼接
   CURRENT_TIMESTAMP()                       AS etl_time             -- ETL 加载时间
 FROM package_src
 LEFT JOIN app_binding_count                                         -- 关联「套餐-应用绑定」，取 包含应用数
   ON app_binding_count.package_id = package_src.id                  -- 按 id→package_id 关联
-LEFT JOIN app_dim                                                   -- 关联「应用维度」，取 包含应用编码列表
-  ON app_dim.app_id = package_src.id;                               -- 按 id→app_id 关联｜待确认：关联键
+LEFT JOIN pkg_app_agg paa  -- 关联「应用维度」，取 包含应用编码列表
+  ON paa.package_id = package_src.id;

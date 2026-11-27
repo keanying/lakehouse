@@ -37,13 +37,29 @@ def main():
     raw = copy.deepcopy(data)            # 客户原版（页面「改造前」对照用）
     from supplement import fin_report   # 3.0 财务报表补齐（客户 Excel 不改，生成时追加）
     fin_etl, fin_new = fin_report.apply(data)
+    from supplement import etl_fix
+    dict_fixed = etl_fix.fix_dict(data)   # 客户字典里的字段定义错误（编码被标成金额）
     res = checks.run(data, DOCS / 'source')
     model = ads_model.build(data, res)
     data2, changed = ads_model.apply_to_dictionary(data, model, res)
     res['mclass'].update(model.pop('mclass_extra', {}))   # 新登记的位图口径
     res['after'] = [{k: f[k] for k in ('id', 'level', 'cat', 'title', 'n')} for f in checks.run(data2, DOCS / 'source')['findings']]   # 改造版复核
     etl = etl_gen.generate(data2, model)
-    etl.update(fin_etl)   # 财务报表新增表用手写加工逻辑
+    D2 = etl_gen.Dict(data2)
+    for t, e in fin_etl.items():   # 财务报表新增表用手写加工逻辑，逐行补字段中文注释（与自动生成的表同一套注释规则）
+        etl[t] = {**e, 'sql': etl_gen.annotate(e['sql'], t, D2)}
+    # 自动生成里的「待确认」占位字段：按表补齐口径（行级替换 / 补关联 / 整表手写）
+    for msg in etl_fix.apply(etl, D2, etl_gen.annotate):
+        print('  etl_fix:', msg)
+    tdi = {c: i for i, c in enumerate(data2['待确认事项']['cols'])}
+    n0 = max(int(r[tdi['序号']]) for r in data2['待确认事项']['rows'] if str(r[tdi['序号']]).isdigit())
+    for k, (cat, q, how, imp) in enumerate(etl_fix.TODO, 1):
+        r = [''] * len(tdi)
+        for kk, v in (('序号', n0 + k), ('类别', cat), ('问题', q), ('当前处理 / 建议', how), ('影响', imp)):
+            r[tdi[kk]] = v
+        data2['待确认事项']['rows'].append(r)
+    for t, note in dict_fixed.items():
+        changed[t] = (changed[t] + '；' if t in changed else '') + note
     for t in fin_new:
         changed.setdefault(t, '新增表（3.0 财务报表）')
     model.pop('_int')

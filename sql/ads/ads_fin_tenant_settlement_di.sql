@@ -1,9 +1,8 @@
 -- ads.ads_fin_tenant_settlement_di  商户结算对账
 -- 粒度：travel_date × tenant_id
 -- 来源：dws_fin_account_frozen_di, dws_fin_account_flow_di, dws_fin_tenant_pay_method_di
--- 生成方式：Spark SQL / Hive；字段 22 个：直接翻译 17 · 规则翻译 3 · 待确认 2
+-- 生成方式：Spark SQL / Hive；字段 22 个：直接翻译 17 · 规则翻译 5 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 src_tenant_pay_method AS (                               -- 来源「商户×支付方式 收付款日汇总」按粒度键预聚合

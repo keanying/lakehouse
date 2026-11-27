@@ -105,6 +105,19 @@ class Dict:
                                                      'cmt': str(r[fi['字段注释']]), 'p': str(r[fi['加工 / 来源']]).strip(),
                                                      'up': str(r[fi['上游字段']])})
         self.cols = {t: dict.fromkeys(x["n"] for x in fs) for t, fs in self.f.items()}   # 按字段清单顺序（有序，保证生成结果稳定）
+        # 源字段名 → 本表字段名（DWD 入仓时改名 / 分转元）：口径里常按业务库原字段名书写，翻译时换成本表字段
+        self.ren = {}
+        for t, fs in self.f.items():
+            m = {}
+            for x in fs:
+                mm = re.match(r'^(?:ods|dwd|dim|dws)_\w+\.(\w+)', x['p'])
+                orig = mm.group(1) if mm else None
+                if not orig:
+                    u = re.match(r'^\w+\.\w+\.(\w+)$', x['up'].strip())
+                    orig = u.group(1) if u else None
+                if orig and orig != x['n'] and orig not in self.cols[t] and orig not in m:
+                    m[orig] = (x['n'], bool(re.search(r'÷\s*100|/\s*100', x['p'])))
+            self.ren[t] = m
 
     def db(self, t):
         return t.split('_', 1)[0]
@@ -316,6 +329,14 @@ class RowGen:
                 mseg = re.search(r'第\s*(\d+)\s*段', p)
                 if mseg:
                     return f"SPLIT({b0}, '/')[{int(mseg.group(1)) - 1}]", 'rule', ''
+            if (len(names) == 2 and all(nm in done for nm in names) and re.search(r'_(hour|minute|day)_qty$', n)
+                    and all(nm.endswith(('_time', '_at')) for nm in names) and re.search(r'相减|-|−', p)):
+                # 两个时间相减得时长：字符串时间不能直接相减，换成时间戳差再按单位折算
+                a_, b_ = (done[nm] for nm in names)
+                unit = re.search(r'_(hour|minute|day)_qty$', n).group(1)
+                if self.flink:
+                    return f'TIMESTAMPDIFF({unit.upper()}, {b_}, {a_})', 'rule', ''
+                return f"ROUND((UNIX_TIMESTAMP({a_}) - UNIX_TIMESTAMP({b_})) / {dict(hour=3600, minute=60, day=86400)[unit]}, 2)", 'rule', ''
             if len(names) == 2 and all(nm in done for nm in names) and '相减' in p:
                 a_, b_ = (done[nm] for nm in names)
                 if all(nm.endswith('_date') for nm in names):
@@ -415,12 +436,18 @@ class RowGen:
         if m:
             tc = f'{base.split(".")[0]}.{m.group(2)}'
             return f"CASE WHEN {base} = '{m.group(1)}' THEN {tc} END", 'rule', ''
-        m = re.search(r'展开\s*(\w+)\s*长度', rest)
+        # JSON 展开：支持多级路径（priceChangeLog.oldPrice）；源列是 JSON 数组（注释形如 [{...}]）时取第一个元素；带 ÷100 的分转元
+        src_cmt = next((y['cmt'] for y in self.D.f.get(s, []) if y['n'] == c), '')
+        root = '$[0]' if re.search(r'^[^\[{]*[:：]\s*\[\{', src_cmt) else '$'   # 第一个括号是 [ 才算数组
+        m = re.search(r'展开\s*([\w.]+)\s*长度', rest)
         if m:
-            return f"JSON_ARRAY_LENGTH(GET_JSON_OBJECT({base}, '$.{m.group(1)}'))", 'rule', ''
-        m = re.search(r'展开\s*(\w+)', rest)
+            return f"JSON_ARRAY_LENGTH(GET_JSON_OBJECT({base}, '{root}.{m.group(1)}'))", 'rule', ''
+        m = re.search(r'展开\s*([\w.]+)', rest)
         if m:
-            return f"GET_JSON_OBJECT({base}, '$.{m.group(1)}')", 'rule', ''
+            e = f"GET_JSON_OBJECT({base}, '{root}.{m.group(1)}')"
+            if re.search(r'÷\s*100|/\s*100', rest):
+                e = f'ROUND(CAST({e} AS DECIMAL(18,2)) / 100, 2)'
+            return e, 'rule', ''
         if '取日期' in rest:
             return (f"DATE_FORMAT({base}, 'yyyyMMdd')" if not self.flink else f"DATE_FORMAT({base}, 'yyyyMMdd')"), 'rule', ''
         m = re.search(r'第\s*(\d+)\s*段', rest)
@@ -738,11 +765,36 @@ BMP = re.compile(r'^bitmap_union\s*\(\s*to_bitmap\s*\((.*?)\)\s*\)\s*(.*)$', re.
 AGG = re.compile(r'^(count|sum|max|min|avg|bitmap_union)\s*\(\s*(distinct\s+)?(.*?)\)\s*(.*)$', re.I | re.S)
 
 
+PLAIN = {'where', 'and', 'or', 'in', 'not', 'is', 'null', 'of', 'by', 'group', 'distinct', 'between', 'like', 'case', 'when', 'then',
+         'else', 'end', 'as', 'on', 'true', 'false'}
+
+
+def remap(D, s, frag):
+    """把口径里的业务库原字段名换成来源表 s 的字段名；已转元的字段去掉 /100"""
+    sc, ren = D.cols.get(s, {}), D.ren.get(s, {})
+    if not ren:
+        return frag
+    parts = re.split(r"('[^']*')", frag)
+
+    def f(mm):
+        w = mm.group(0)
+        if w in sc or w.lower() in SQL_WORDS or w.lower() in PLAIN or w not in ren:
+            return w
+        return ren[w][0]
+    for i in range(0, len(parts), 2):
+        parts[i] = re.sub(r'(?<![\w.])[a-z_][a-z0-9_]*\b', f, parts[i])
+    out = ''.join(parts)
+    for col, conv in ren.values():
+        if conv:
+            out = re.sub(rf'\b{col}\s*/\s*100\b', col, out)
+    return out
+
+
 def translate_cond(D, s, cond):
     """把 where 条件里的裸编码（COMPLETED）补成 字段='编码'，中文条件标待确认"""
     st = 'rule'
     note = ''
-    c = cond.strip()
+    c = remap(D, s, re.sub(r'（[^）]*）', '', cond).strip())
     c = re.sub(r'\s*of paid orders?', ' AND pay_time IS NOT NULL', c)
     c = re.sub(r'（与离线同一口径 \w+）|\(与离线同一口径 \w+\)', '', c)
     c = re.sub(r'(\w+)\s+in\s+周期', rf"DATE_FORMAT(\1, 'yyyyMMdd') = '{BIZ}'", c)
@@ -772,6 +824,7 @@ def dws_metric(D, s, text, ftype):
     """'sum(x) where cond' → (聚合表达式, 状态, 说明)"""
     t = text.strip()
     t = re.sub(r'（与离线同一口径 \w+）', '', t).strip()
+    t = remap(D, s, t)
     b = BMP.match(t)
     if b:
         cond, st, note = ('', 'rule', '')

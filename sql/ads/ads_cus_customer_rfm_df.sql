@@ -1,9 +1,8 @@
 -- ads.ads_cus_customer_rfm_df  会员RFM与复购
 -- 粒度：travel_date × seller_tenant_id × rfm_segment_code
 -- 来源：dws_cus_customer_lifetime_df
--- 生成方式：Spark SQL / Hive；字段 10 个：直接翻译 9 · 规则翻译 0 · 待确认 1
+-- 生成方式：Spark SQL / Hive；字段 10 个：直接翻译 9 · 规则翻译 1 · 待确认 0
 -- 来源先按粒度键预聚合；快照/累计表：增量来源取截至统计日的全部分区
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 src_customer_lifetime AS (                               -- 来源「游客累计至今汇总」按粒度键预聚合

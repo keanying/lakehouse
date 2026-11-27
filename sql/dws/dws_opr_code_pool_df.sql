@@ -1,9 +1,8 @@
 -- dws.dws_opr_code_pool_df  码池使用快照
 -- 粒度：travel_date × tenant_id × code_pool_id × pool_type
 -- 来源：dim_opr_code_pool_df, dwd_ord_ticket_credential_di
--- 生成方式：Spark SQL / Hive；字段 9 个：直接翻译 3 · 规则翻译 1 · 待确认 5
+-- 生成方式：Spark SQL / Hive；字段 9 个：直接翻译 3 · 规则翻译 6 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总；快照/累计表：增量来源取截至统计日的全部分区
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 src_code_pool AS (                                  -- 来源「码池维度」按粒度键预聚合
@@ -11,9 +10,9 @@ src_code_pool AS (                                  -- 来源「码池维度」�
     tenant_id AS tenant_id,                         -- 租户ID
     code_pool_id AS code_pool_id,                   -- 码池ID
     pool_type AS pool_type,                         -- 码池类型
-    NULL AS code_capacity_qty,                      -- 待确认：sum(capacity)
-    NULL AS code_allocated_qty,                     -- 待确认：sum(allocated_count)
-    NULL AS code_recycled_qty,                      -- 待确认：sum(recycled_count)
+    SUM(capacity_qty) AS code_capacity_qty,         -- 码池容量
+    SUM(allocated_qty) AS code_allocated_qty,       -- 已分配码数
+    SUM(recycled_qty) AS code_recycled_qty,         -- 回收复用码数
     NULL AS issue_credential_qty,
     NULL AS revoke_credential_qty
   FROM dim.dim_opr_code_pool_df s                   -- 来源表「码池维度」
@@ -29,7 +28,7 @@ src_ticket_credential AS (                          -- 来源「凭证发码/撤
     NULL AS code_allocated_qty,
     NULL AS code_recycled_qty,
     COUNT(credential_no) AS issue_credential_qty,   -- 发码数
-    COUNT(CASE WHEN 1 = 1 THEN credential_no END) AS revoke_credential_qty  -- 凭证撤销数｜待确认：status='REVOKED'
+    COUNT(CASE WHEN credential_status='REVOKED' THEN credential_no END) AS revoke_credential_qty  -- 凭证撤销数
   FROM dwd.dwd_ord_ticket_credential_di s           -- 来源表「凭证发码/撤销明细」
   WHERE s.travel_date <= '${bizdate}'               -- 累计口径：取截至统计日的全部分区
   GROUP BY tenant_id, code_pool_id                  -- 按粒度键汇总

@@ -1,59 +1,50 @@
 -- dim.dim_opr_region_f  地区维度
 -- 粒度：1行=1个末级地区
--- 来源：ods_opr_region_df + ods_opr_country_df
--- 生成方式：Spark SQL / Hive；字段 23 个：直接翻译 14 · 规则翻译 3 · 待确认 6
--- 每个 WITH 逻辑块只取用到的列并先过滤分区
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
+-- 来源：ods_opr_region_df + ods_opr_i18n_translation_df + ods_opr_country_df
+-- 生成方式：手写（结构不适合按字段自动翻译）；业务规则：
+--   · 省 / 市 / 区县编码：沿 parent_id 向上自关联，取层级为 1 / 2 / 3 的祖先（含自身）的行政区划码
+--   · 名称：翻译表 zh-CN（表 t_region、字段 region_name、实体 = 地区 ID）；翻译缺失时取完整路径最后一段；省市区名称取完整路径对应段
+--   · 身份证前 6 位 = 区县行政区划码，客源地解析按此关联
+-- 性能：
+--   · 地区表约数千行，全量覆盖
 
-WITH
-region_src AS (                                            -- 主表「地区字典」，只取用到的列
-  SELECT country_code, create_time, id, parent_id, region_code, region_level, region_path, region_status,
-         sort_order, update_time
-  FROM ods.ods_opr_region_df
-  WHERE travel_date = '${bizdate}'                         -- 只取当日分区
+WITH r AS (
+    SELECT id, region_code, parent_id, country_code, region_level, region_path, region_status, sort_order, create_time, update_time
+    FROM ods.ods_opr_region_df WHERE travel_date = '${bizdate}'
 ),
-i18n_translation_src AS (                                  -- 「翻译表」当日数据，只取用到的列
-  SELECT field_value, id
-  FROM ods.ods_opr_i18n_translation_df
-  WHERE travel_date = '${bizdate}'                         -- 只取当日分区
+tr AS (                                                                           -- 地区中文名（口径说明：翻译表的表名 / 字段名按 t_region.region_name 约定）
+    SELECT entity_id, MAX(field_value) AS name_cn
+    FROM ods.ods_opr_i18n_translation_df
+    WHERE travel_date = '${bizdate}' AND table_name = 't_region' AND field_name = 'region_name' AND locale = 'zh-CN'  -- 只取当日分区，并按条件过滤
+    GROUP BY entity_id                                                            -- 按粒度键汇总
 ),
-i18n_translation_src_2 AS (                                -- 「翻译表」当日数据，只取用到的列
-  SELECT field_value, id
-  FROM ods.ods_opr_i18n_translation_df
-  WHERE travel_date = '${bizdate}'                         -- 只取当日分区
+x AS (
+    SELECT r.*, p1.region_code AS c1, p1.region_level AS l1, p2.region_code AS c2, p2.region_level AS l2,
+           p3.region_code AS c3, p3.region_level AS l3, p4.region_code AS c4, p4.region_level AS l4
+    FROM r
+    LEFT JOIN r p1 ON p1.id = r.parent_id
+    LEFT JOIN r p2 ON p2.id = p1.parent_id
+    LEFT JOIN r p3 ON p3.id = p2.parent_id
+    LEFT JOIN r p4 ON p4.id = p3.parent_id
 ),
-country_src AS (                                           -- 「国家字典」当日数据，只取用到的列
-  SELECT country_code, iso3_code
-  FROM ods.ods_opr_country_df
-  WHERE travel_date = '${bizdate}'                         -- 只取当日分区
+country_src AS (
+    SELECT country_code, iso3_code FROM ods.ods_opr_country_df WHERE travel_date = '${bizdate}'
 )
-INSERT OVERWRITE TABLE dim.dim_opr_region_f                -- 整表覆盖写入
-SELECT
-  region_src.id                         AS region_id,      -- 地区字典ID（源表主键 id）
-  region_src.region_code                AS region_code,    -- 行政区划码(国标
-  region_src.parent_id                  AS parent_id,      -- 上级地区ID
-  region_src.country_code               AS country_code,   -- 所属国家码(冗余
-  region_src.region_level               AS region_level_no,  -- 层级
-  region_src.region_path                AS region_path_desc,  -- 完整路径含自身
-  region_src.region_status              AS region_status,  -- 状态
-  region_src.sort_order                 AS sort_no,        -- 排序权重
-  region_src.create_time                AS create_time,    -- 创建时间
-  region_src.update_time                AS update_time,    -- 更新时间
-  i18n_translation_src.field_value      AS region_name,    -- 地区名称（中文）｜待确认：ods_opr_i18n_translation_df.field_value 取 zh-CN
-  i18n_translation_src_2.field_value    AS country_name,   -- 国家名称
-  country_src.iso3_code                 AS iso3_code,      -- 国家三位码
-  region_src.parent_id                  AS province_code,  -- 所属省份编码｜待确认：ods_opr_region_df.parent_id 递归到 region_level=1
-  SPLIT(region_src.region_path, '/')[1] AS province_name,  -- 所属省份名称
-  region_src.parent_id                  AS city_code,      -- 所属城市编码｜待确认：ods_opr_region_df.parent_id 递归到 region_level=2
-  SPLIT(region_src.region_path, '/')[2] AS city_name,      -- 所属城市名称
-  region_src.region_code                AS district_code,  -- 区县编码｜待确认：ods_opr_region_df.region_code（region_level=3 时）
-  SPLIT(region_src.region_path, '/')[3] AS district_name,  -- 区县名称
-  region_src.region_code                AS id_card_prefix_code,  -- 身份证前 6 位行政区划码
-  CURRENT_TIMESTAMP()                   AS etl_time        -- ETL 加载时间
-FROM region_src
-LEFT JOIN i18n_translation_src                             -- 关联「翻译表」，取 地区名称（中文）
-  ON i18n_translation_src.id = region_src.id               -- 按 id 关联｜待确认：关联键
-LEFT JOIN i18n_translation_src_2                           -- 关联「翻译表」，取 国家名称
-  ON i18n_translation_src_2.id = region_src.id             -- 按 id 关联｜待确认：关联键
-LEFT JOIN country_src                                      -- 关联「国家字典」，取 国家三位码
-  ON country_src.country_code = region_src.country_code;   -- 按 country_code 关联
+INSERT OVERWRITE TABLE dim.dim_opr_region_f                                       -- 整表覆盖写入
+SELECT /*+ BROADCAST(country_src) */
+    x.id AS region_id, x.region_code, x.parent_id, x.country_code, x.region_level AS region_level_no, x.region_path AS region_path_desc,  -- 完整路径含自身
+    x.region_status, x.sort_order AS sort_no, x.create_time, x.update_time,
+    COALESCE(tr.name_cn, ELEMENT_AT(SPLIT(x.region_path, '/'), -1))                       AS region_name,  -- 地区名称（中文）
+    SPLIT(x.region_path, '/')[0]                                                           AS country_name,  -- 国家名称
+    c.iso3_code,                                                                  -- 国家三位码
+    COALESCE(IF(x.region_level = 1, x.region_code, NULL), IF(x.l1 = 1, x.c1, NULL), IF(x.l2 = 1, x.c2, NULL), IF(x.l3 = 1, x.c3, NULL), IF(x.l4 = 1, x.c4, NULL)) AS province_code,  -- 所属省份编码
+    SPLIT(x.region_path, '/')[1]                                                           AS province_name,  -- 所属省份名称
+    COALESCE(IF(x.region_level = 2, x.region_code, NULL), IF(x.l1 = 2, x.c1, NULL), IF(x.l2 = 2, x.c2, NULL), IF(x.l3 = 2, x.c3, NULL)) AS city_code,  -- 所属城市编码
+    SPLIT(x.region_path, '/')[2]                                                           AS city_name,  -- 所属城市名称
+    COALESCE(IF(x.region_level = 3, x.region_code, NULL), IF(x.l1 = 3, x.c1, NULL), IF(x.l2 = 3, x.c2, NULL)) AS district_code,  -- 区县编码
+    SPLIT(x.region_path, '/')[3]                                                           AS district_name,  -- 区县名称
+    IF(x.region_level = 3, x.region_code, NULL)                                            AS id_card_prefix_code,  -- 身份证前 6 位行政区划码
+    CURRENT_TIMESTAMP() AS etl_time                                               -- ETL 加载时间
+FROM x
+LEFT JOIN tr ON tr.entity_id = x.id
+LEFT JOIN country_src c ON c.country_code = x.country_code;

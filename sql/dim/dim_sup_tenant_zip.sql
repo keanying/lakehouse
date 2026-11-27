@@ -1,9 +1,8 @@
 -- dim.dim_sup_tenant_zip  租户（商户/供应商/分销商）维度
 -- 粒度：1行=1个租户×1个有效区间
 -- 来源：ods_sup_tenant_df + ods_sup_tenant_config_df + ods_opr_package_subscription_di
--- 生成方式：Spark SQL / Hive（拉链表）；字段 22 个：直接翻译 19 · 规则翻译 2 · 待确认 1
+-- 生成方式：Spark SQL / Hive（拉链表）；字段 22 个：直接翻译 19 · 规则翻译 3 · 待确认 0
 -- 拉链：比对今日源数据与昨日拉链的行哈希，变化的旧版本闭链、新版本开链；源为全量快照，消失的主键闭链
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 tenant_src AS (                                                 -- 主表「租户」，只取用到的列
@@ -33,16 +32,18 @@ tenant_config_max_2 AS (                                        -- 「租户配�
   GROUP BY tenant_id                                            -- 按粒度键汇总
 ),
 package_subscription_rn AS (                                    -- 「套餐订购」当日增量，同一主键按 binlog 时间倒序编号
-  SELECT expire_at, id, package_id, tenant_id, binlog_op_type,
+  SELECT expire_at, start_at, subscription_status, id, package_id, tenant_id, binlog_op_type,
          ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn  -- 同一主键多次变更，按 binlog 时间倒序编号
   FROM ods.ods_opr_package_subscription_di
-  WHERE travel_date = '${bizdate}'                              -- 只取当日分区
+  WHERE travel_date >= DATE_FORMAT(DATE_SUB(TO_DATE('${bizdate}', 'yyyyMMdd'), 400), 'yyyyMMdd')   -- 订购可能早于今天，取近 400 天  -- 只取当日分区
 ),
 package_subscription_latest AS (                                -- 「套餐订购」每个主键只保留最新一条，剔除已删除记录
-  SELECT expire_at, id, package_id, tenant_id
+  SELECT tenant_id, MAX_BY(package_id, start_at) AS package_id, MAX_BY(expire_at, start_at) AS expire_at
   FROM package_subscription_rn
   WHERE rn = 1
-    AND binlog_op_type <> 'DELETE'                              -- 剔除源库已删除的记录
+    AND binlog_op_type <> 'DELETE'  -- 剔除源库已删除的记录
+        AND subscription_status = 'ACTIVE' AND TO_DATE(start_at) <= '${bizdate_dash}' AND TO_DATE(expire_at) >= '${bizdate_dash}'
+      GROUP BY tenant_id
 ),
 src AS (                                                        -- 今日最新状态（与拉链字段一一对应）
   SELECT /*+ BROADCAST(region_dim, region_dim_2) */ 
@@ -65,7 +66,7 @@ src AS (                                                        -- 今日最新�
     region_dim_2.city_name                 AS city_name,        -- 城市名称
     tenant_config_max.v                    AS currency_code,    -- 结算币种
     tenant_config_max_2.v                  AS locale_code,      -- 默认语言
-    package_subscription_latest.package_id AS package_id,       -- 当前生效套餐ID｜待确认：ods_opr_package_subscription_di.package_id 取生效中最新一笔
+    package_subscription_latest.package_id AS package_id,  -- 当前生效套餐ID｜口径：快照日处于生效期的订购中，生效时间最晚的一笔
     package_subscription_latest.expire_at  AS package_expire_time  -- 当前套餐到期时间
   FROM tenant_src
   LEFT JOIN region_dim                                          -- 关联「地区维度」，取 国家名称

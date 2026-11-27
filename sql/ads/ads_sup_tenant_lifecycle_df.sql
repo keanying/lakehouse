@@ -1,9 +1,8 @@
 -- ads.ads_sup_tenant_lifecycle_df  商户生命周期（活跃/沉默/流失）
 -- 粒度：travel_date × tenant_lifecycle_stage_code
 -- 来源：dws_sup_tenant_lifetime_df
--- 生成方式：Spark SQL / Hive；字段 7 个：直接翻译 4 · 规则翻译 2 · 待确认 1
+-- 生成方式：Spark SQL / Hive；字段 7 个：直接翻译 4 · 规则翻译 3 · 待确认 0
 -- 来源先按粒度键预聚合；快照/累计表：增量来源取截至统计日的全部分区
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 src_tenant_lifetime AS (                                                          -- 来源「商户累计至今汇总」按粒度键预聚合

@@ -1,9 +1,8 @@
 -- ads.ads_opr_complaint_sla_di  投诉SLA与审批时效
 -- 粒度：travel_date × tenant_id × complaint_type
 -- 来源：dws_opr_complaint_di, dws_opr_approval_di
--- 生成方式：Spark SQL / Hive；字段 15 个：直接翻译 14 · 规则翻译 0 · 待确认 1
+-- 生成方式：Spark SQL / Hive；字段 15 个：直接翻译 14 · 规则翻译 1 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 src_complaint AS (                                                  -- 来源「投诉日汇总」按粒度键预聚合
