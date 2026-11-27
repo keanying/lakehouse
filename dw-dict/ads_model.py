@@ -188,6 +188,7 @@ def build(sheets, chk, anchor=None):
         'ads_sup_tenant_trade_wk': '周报：日粒度 ADS 关联时间表 LW（上周）即可得到，建议下线',
         'ads_sup_tenant_trade_mo': '月报：日粒度 ADS 关联时间表 LM（上月）即可得到，建议下线',
         'ads_opr_package_revenue_mo': '套餐按自然月结算，保持月粒度',
+        'ads_fin_merchant_report_di': '财务报表：期初取区间首日、期末取区间末日（时点值），发生额求和；已按日粒度设计，无需改造',
     }
     SKIP_CODE = {'C032': '日环比 → 查询时派生「环比增长率」（D1）', 'C033': '周同比 → 查询时派生「周同比增长率」',
                  'C034': '月环比 → 查询时派生「环比增长率」（LM）'}
