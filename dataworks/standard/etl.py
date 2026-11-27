@@ -9,7 +9,7 @@
 """
 import collections, json, re
 
-import model, rules
+import model, rules, proc_model
 import etl_core
 
 P = "travel_date = '${bizdate}'"
@@ -288,6 +288,7 @@ CORE = {
                                       "        WHERE o.travel_date = '${bizdate}' AND o.test_flag = 0\n    ) t")},
         'note': ['资源中心订单 = 标准订单明细 ∩ 资源中心采购关系（采购商 + 票），不再单独从业务库拉一遍订单（旧 dwd_resource_center_order_d_f 重算订单）',
                  '名称 / 账号 / 省市等冗余维度属性不在明细计算，查询时关联 dim_sup_member_df、dim_prd_scenic_df']},
+    **proc_model.core(),
     'dim_opr_region_f': {'branches': [
         ('ods_opr_region_area_df', {'region_code': 'area_code', 'region_name': 'area_name', 'parent_code': 'parent_code', 'region_level': 'level', 'area_code': 'area_code',
                                     'zip_code': 'zip_code', 'lng': 'lng', 'lat': 'lat', 'city_code': 'city_code'})],
@@ -405,7 +406,7 @@ def gen_mapped(tb, fl, OF, ods_names):
             w.append(core['where'])
         ev = (core or {}).get('event_date', {}).get(src)
         if is_di and not src_di and ev:
-            w.append(f"DATE_FORMAT({ev}, 'yyyyMMdd') = '${{bizdate}}'   -- 全量快照取当日事件")
+            w.append((f"{ev} = '${{bizdate}}'" if '(' in ev else f"DATE_FORMAT({ev}, 'yyyyMMdd') = '${{bizdate}}'") + '   -- 全量快照取当日事件')
         dedup = ''
         if src_di and 'id' in sc:
             upd = next((c for c in UPD if c in sc), None)
@@ -487,8 +488,9 @@ SRC = {
     'card': ('dwd.dwd_ord_annual_card_trade_di', [P], {}, '年卡交易'),
     'park': ('dwd.dwd_opr_parking_record_di', [P], {'stat_hour': 'HOUR(inout_time)'}, '停车进出（5 厂商已在 DWD 归一）'),
     'retail': ('dwd.dwd_opr_retail_order_di', [P], {}, '零售订单（3 系统已在 DWD 归一）'),
-    'hotel': ('ods.ods_opr_hotel_lvyun_hotel_master_df', [P, "TO_DATE(arr) <= " + BIZ_DAY, "TO_DATE(dep) > " + BIZ_DAY],
-              {}, '绿云在住订单：入住日 ≤ bizdate < 离店日（ODS 全量快照）'),
+    'hotel': ('dwd.dwd_opr_hotel_order_df', [P, "arrive_date <= " + BIZ_DAY, "depart_date > " + BIZ_DAY],
+              {}, '绿云在住订单：到店日 ≤ bizdate < 离店日（酒店订单明细，全量快照）'),
+    'aio': ('dwd.dwd_ord_allinone_card_trade_di', [P, proc_model.AIO_WHERE], {'aio_pay_type': 'pay_type'}, '一卡通有效流水：卡操作 + 已支付消费 + 成功退款'),
     'journal': ('dwd.dwd_fin_trade_journal_di', [P], {}, '账户流水'),
     'login': ('dwd.dwd_sup_member_login_di', [P], {}, '商户登录'),
     'relation': ('dim.dim_sup_member_relation_zip', [], {'member_id': 'supplier_id'}, '分销关系拉链（当前快照）'),
@@ -533,7 +535,8 @@ R = {
     'park_minute_qty': {'park': "SUM(IF(inout_type = 'OUT', (UNIX_TIMESTAMP(inout_time) - UNIX_TIMESTAMP(in_time)) DIV 60, 0))"},
     'retail_order_qty': {'retail': 'COUNT(DISTINCT IF(refund_flag = 0, order_no, NULL))'}, 'retail_item_qty': {'retail': 'SUM(IF(refund_flag = 0, COALESCE(item_qty, 0), 0))'},
     'retail_sale_amt': {'retail': 'SUM(IF(refund_flag = 0, sale_amt, 0))'}, 'retail_refund_amt': {'retail': 'SUM(IF(refund_flag = 1, sale_amt, 0))'},
-    'hotel_room_night_qty': {'hotel': 'SUM(CAST(rmnum AS BIGINT))'}, 'hotel_revenue_amt': {'hotel': 'SUM(CAST(real_rate AS DECIMAL(18,2)) * CAST(rmnum AS BIGINT))'},
+    'hotel_room_night_qty': {'hotel': 'SUM(room_qty)'}, 'hotel_revenue_amt': {'hotel': 'SUM(room_rate_amt * room_qty)'},
+    'aio_trade_qty': {'aio': 'COUNT(1)'}, 'aio_trade_amt': {'aio': 'SUM(trade_amt)'}, 'aio_principal_amt': {'aio': 'SUM(principal_amt)'}, 'aio_bonus_amt': {'aio': 'SUM(bonus_amt)'},
     'account_income_amt': {'journal': 'SUM(IF(trade_amt > 0, trade_amt, 0))'}, 'account_expense_amt': {'journal': 'SUM(IF(trade_amt < 0, -trade_amt, 0))'},
     'account_balance_amt': {'journal': 'MAX_BY(balance_amt, trade_time)'},
     'login_member_qty': {'login': 'BITMAP_UNION(TO_BITMAP(member_id))'},
@@ -556,7 +559,7 @@ DWS_SRC = {
     'dws_ord_scenic_ticket_trade_di': ['ord', 'trk', 'vfy', 'card', 'inout'], 'dws_ord_scenic_ticket_trade_hrs': ['ord', 'trk', 'vfy'],
     'dws_ord_scenic_traveler_profile_di': ['trv_book', 'trv_verify'], 'dws_ord_scenic_pre_booking_di': ['ord_play'],
     'dws_ord_package_sub_ticket_di': ['pkg', 'pkg_vfy'], 'dws_trf_scenic_inout_hrs': ['inout'], 'dws_ord_annual_card_di': ['card', 'vfy'],
-    'dws_opr_parking_hrs': ['park'], 'dws_opr_retail_di': ['retail'], 'dws_opr_hotel_di': ['hotel'], 'dws_fin_account_trans_di': ['journal'],
+    'dws_opr_parking_hrs': ['park'], 'dws_opr_retail_di': ['retail'], 'dws_opr_hotel_di': ['hotel'], 'dws_ord_allinone_card_di': ['aio'], 'dws_fin_account_trans_di': ['journal'],
     'dws_sup_member_di': ['login', 'relation', 'ticketdim', 'module'], 'dws_sup_contract_di': ['contract'], 'dws_prd_resource_center_di': ['resource'],
     'dws_trf_page_view_di': ['pv'],
 }

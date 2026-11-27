@@ -94,8 +94,8 @@ METRICS += [
     ('L172', 'resource_order_qty', '资源中心订单数', 'prd', '原子指标', '经资源中心产品产生的订单数', '资源中心订单数 = COUNT(DISTINCT 订单号) 条件：资源中心采购商品', '单', 'BIGINT', 'dwd_prd_resource_order_di', 'order_num'),
     ('L181', 'page_pv', '页面浏览量', 'trf', '原子指标', '微商城 / 资源中心页面访问次数', '页面浏览量 = COUNT(访问记录)', '次', 'BIGINT', 'dwd_trf_page_view_di', 'pv'),
     ('L182', 'page_uv_qty', '页面访客数', 'trf', '原子指标', '访问用户去重人数，日存位图，任意周期 BITMAP_UNION_COUNT', '页面访客数 = COUNT(DISTINCT 游客ID)；日存位图，任意周期 BITMAP_UNION_COUNT', '人', 'BITMAP', 'dwd_trf_page_view_di', 'uv'),
-    ('L191', 'hotel_room_night_qty', '酒店间夜数', 'opr', '原子指标', '绿云酒店系统统计日入住间夜', '间夜数 = SUM(入住间夜)', '间夜', 'BIGINT', 'ods_opr_hotel_lvyun_hotel_master_df', 'room_nights'),
-    ('L192', 'hotel_revenue_amt', '酒店营收', 'opr', '原子指标', '统计日客房营收', '酒店营收 = SUM(客房收入)', '元', 'DECIMAL(18,2)', 'ods_opr_hotel_lvyun_hotel_master_df', 'revenue'),
+    ('L191', 'hotel_room_night_qty', '酒店间夜数', 'opr', '原子指标', '绿云酒店系统统计日入住间夜', '间夜数 = SUM(入住间夜)', '间夜', 'BIGINT', 'dwd_opr_hotel_order_df', 'room_nights'),
+    ('L192', 'hotel_revenue_amt', '酒店营收', 'opr', '原子指标', '统计日客房营收', '酒店营收 = SUM(客房收入)', '元', 'DECIMAL(18,2)', 'dwd_opr_hotel_order_df', 'revenue'),
     ('L204', 'order_avg_ticket_price', '预订票均价', 'ord', '计算指标', '预订金额 / 预订票数', '预订票均价 = 预订金额/预订票数', '元', 'DECIMAL(18,2)', 'dws_ord_scenic_ticket_trade_di', 'ticket_avg_price / mo_ticket_avg_price'),
     ('L205', 'pay_avg_ticket_price', '支付票均价', 'ord', '计算指标', '支付金额 / 支付票数', '支付票均价 = 支付金额/支付票数', '元', 'DECIMAL(18,2)', 'dws_ord_scenic_ticket_trade_di', 'avg_price'),
     ('L206', 'verify_avg_ticket_price', '验证票均价', 'ord', '计算指标', '验证金额 / 验证票数', '验证票均价 = 验证金额/验证票数', '元', 'DECIMAL(18,2)', 'dws_ord_scenic_ticket_trade_di', 'verify_avg_price'),
@@ -429,6 +429,11 @@ t('dwd_sup_customer_visit_di', '客户拜访 / 接待明细', '1行=1次客户�
 t('dwd_sup_service_merchant_di', '服务商户明细', '1行=1个服务商户×1个服务项目', 'ods_sup_member_df、ods_sup_cooperation_other_df', '平台服务的商户与合作项目',
   ('union', ['member_id']), ['dwd_service_business_d_f', 'dwd_service_business_d_f_v3', 'dwd_company_cooperation_other_d_f'])
 
+# 业务过程补齐（消费清单倒推：在用但旧系统没有最细粒度事实表的业务过程）
+import proc_model  # noqa: E402
+import sys as _sys  # noqa: E402
+proc_model.register(t, F, _sys.modules[__name__])
+
 # ======================= DWS =======================
 t('dws_ord_scenic_ticket_trade_di', '景区门票交易日汇总', '1行=1天×景区×门票×供应商×分销商×下单渠道×支付方式×主子单×团散',
   'dwd_ord_order_di、dwd_ord_order_track_di、dwd_ord_verify_di、dwd_ord_order_distribution_di',
@@ -455,16 +460,17 @@ t('dws_trf_scenic_inout_hrs', '景区出入园小时汇总', '1行=1小时×景�
   dims('scenic_id', 'gate_group_id', 'terminal_no', 'stat_hour') + mets('enter_qty', 'exit_qty', 'in_park_qty'),
   [r'^dws_scenic_inout_', r'^dws_(daily|hourly|monthly|yearly)_terminal_pass', r'^dws_(daily|hourly|monthly|yearly)_report_terminal_pass', r'^dws_(daily|monthly|yearly)_report_(ticket_)?branch_terminal',
    'dws_tps_sup_trf_tourist_di', 'dws_tps_sup_trf_tourist_min', 'dws_trf_tourist_in_out_1d_qty_di'], part='travel_date')
-t('dws_ord_annual_card_di', '年卡 / 一卡通日汇总', '1行=1天×景区×年卡产品', 'dwd_ord_annual_card_trade_di、dwd_ord_verify_di', '售卡、激活、核销；一卡通并入',
+t('dws_ord_annual_card_di', '年卡日汇总', '1行=1天×景区×年卡产品', 'dwd_ord_annual_card_trade_di、dwd_ord_verify_di', '售卡、激活、核销；园区一卡通见 dws_ord_allinone_card_di',
   dims('scenic_id', 'card_product_id') + mets('card_sale_qty', 'card_sale_amt', 'card_active_qty', 'card_verify_qty'),
-  [r'^dws_(daily|monthly|yearly)_report_annual_card', r'^dws_tps_aioc_summary_'])
+  [r'^dws_(daily|monthly|yearly)_report_annual_card'])
+proc_model.register_dws(t, _sys.modules[__name__])
 t('dws_opr_parking_hrs', '停车小时汇总', '1行=1小时×景区×停车场×厂商', 'dwd_opr_parking_record_di', '入场 / 出场车次、收费、停车时长',
   dims('scenic_id', 'parking_lot_code', 'parking_vendor', 'stat_hour') + mets('park_entry_qty', 'park_exit_qty', 'park_fee_amt', 'park_minute_qty'),
   [r'^dws_scenic_park_'], part='travel_date')
 t('dws_opr_retail_di', '零售日汇总', '1行=1天×景区×门店×零售系统×商品×支付方式', 'dwd_opr_retail_order_di', '二消零售销售与退货；替代 3 个零售系统 × 日 / 月 / 年 的 21 张表',
   dims('scenic_id', 'shop_code', 'retail_vendor', 'goods_code', 'pay_mode') + mets('retail_order_qty', 'retail_item_qty', 'retail_sale_amt', 'retail_refund_amt'),
   [r'^dws_(prd|sup)_xisland_retail_summary_'])
-t('dws_opr_hotel_di', '酒店日汇总', '1行=1天×酒店', 'ods_opr_hotel_lvyun_hotel_master_df', '绿云酒店间夜与营收', dims('hotel_code') + mets('hotel_room_night_qty', 'hotel_revenue_amt'),
+t('dws_opr_hotel_di', '酒店日汇总', '1行=1天×酒店', 'dwd_opr_hotel_order_df', '绿云酒店在住间夜与客房营收（来自酒店订单明细）', dims('hotel_code') + mets('hotel_room_night_qty', 'hotel_revenue_amt'),
   ['dws_sup_hotel_summary_di'])
 t('dws_fin_account_trans_di', '账户收支日汇总', '1行=1天×账户×科目', 'dwd_fin_trade_journal_di', '财务平衡：收入、支出、日终余额', dims('account_id', 'subject_code') + mets('account_income_amt', 'account_expense_amt', 'account_balance_amt'), [])
 t('dws_sup_member_di', '商户经营日汇总', '1行=1天×商户', 'dwd_sup_member_login_di、dim_sup_member_relation_zip、dim_prd_ticket_df、dwd_opr_module_open_di',

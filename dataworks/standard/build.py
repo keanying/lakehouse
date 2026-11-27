@@ -13,6 +13,7 @@ import parse, catalog, audit  # noqa: E402
 import rules, model, names, exports  # noqa: E402
 import etl as etl_mod  # noqa: E402
 import src_ddl  # noqa: E402
+import domains  # noqa: E402
 
 sh = catalog.sh
 LAYER_CN = {'ODS': '原始数据层', 'DIM': '维度层', 'DWD': '明细层', 'DWS': '汇总层', 'ADS': '应用层'}
@@ -813,6 +814,16 @@ def main():
     print('导出模型补全：', {k: len(v) for k, v in added.items()}, '仍缺：', {k: len(v) for k, v in gaps2.items()})
     findings, stats = audit.analyse(nodes)
     sh_ = sheets(tables, fields, mrows, findings)
+    # 业务域 × 数据域 × 业务过程：消费清单倒推最细模型
+    cons, used_ods = domains.consumption(nodes, C, mrows, ods_of_source, tables, cover)
+    pc, bm = domains.process_rows(tables, used_ods, cons['rows'])
+    sh_['消费清单'], sh_['业务过程'], sh_['业务过程总线矩阵'], sh_['ODS去向'] = cons, pc, bm, domains.ods_rows(tables, used_ods)
+    print('消费清单', len(cons['rows']), collections.Counter(r[0] for r in cons['rows']), '结论', collections.Counter(r[16].split('；')[0] for r in cons['rows']), '待补口径字段', sum(r[14] or 0 for r in cons['rows']))
+    print('ODS 去向', collections.Counter(r[3] for r in sh_['ODS去向']['rows']), '未被在用', sum(1 for r in sh_['ODS去向']['rows'] if not r[5]))
+    miss = sorted({s_ for p_ in domains.PROC for s_ in p_[6] if '*' not in s_} - {t['name'] for t in tables}
+                  | {s_ for v in domains.DIM_SRC.values() for s_ in v} - {t['name'] for t in tables})
+    if miss:
+        print('业务过程 / 维度来源里不存在的 ODS：', miss)
     D_ = sh_['DWS口径']
     D_['cols'] = D_['cols'] + ['旧系统口径差异']
     for r in D_['rows']:
@@ -850,7 +861,7 @@ def main():
     sys.path.insert(0, str(ROOT.parent / 'dw-dict'))
     import checks, ads_model, etl_gen
     import datetime
-    disp = {k: v for k, v in sh_.items() if k not in ('旧表映射', '现状问题', '导出模型覆盖', '口径统一')}
+    disp = {k: v for k, v in sh_.items() if k not in ('旧表映射', '现状问题', '导出模型覆盖', '口径统一', '消费清单', '业务过程', '业务过程总线矩阵', 'ODS去向')}
     res = checks.run(disp, None)
     res['mclass'].update(res0['mclass'])
     res['verify'], res['after'] = [], None
@@ -885,7 +896,27 @@ def main():
                   'cover': '<div style="font-weight:600;color:var(--text)">导出模型覆盖</div><div>客户导出到 MySQL / Oracle / SelectDB 等的应用层模型，每个字段对到标准指标与标准 ADS：已覆盖 / 时间表派生（年 / 月 / 周、累计列）/ 已补全。</div>',
                   'unify': '<div style="font-weight:600;color:var(--text)">口径统一</div><div>同一个指标在旧系统有多种算法时逐个列出（Vn），说明与标准口径的差异；标准口径见「指标口径 · 口径字典」。</div>',
                   'nodes': '<div style="font-weight:600;color:var(--text)">旧节点清单</div><div>导出包里的全部节点（同步、SQL、Python），可按工作空间、类型、处理方式筛选。</div>'},
-         'reportHref': '../docs/问题清单.md'}
+         'reportHref': '../docs/问题清单.md',
+         'extra': [
+             {'k': 'consume', 'label': '消费清单', 'cols': sh_['消费清单']['cols'], 'rows': [[str(x) for x in r] for r in sh_['消费清单']['rows']], 'filters': [0, 7, 8, 16],
+              'links': ['标准表'], 'ph': '搜索旧节点 / 旧表 / 目标库表 / 标准表…',
+              'pills': {'覆盖结论': {'已承接（': 'g', '已承接到标准表；': 'o', '已承接到标准表（': 'b', '已承接；源表': 'o', '未映射': 'r'}},
+              'note': f"排除下线 / 纯同步后仍给业务用的数据：导出回流 {sum(1 for r in sh_['消费清单']['rows'] if r[0] == '导出回流')} 个 + 末端 ADS（BI 直读）"
+                      f"{sum(1 for r in sh_['消费清单']['rows'] if r[0] != '导出回流')} 个；沿血缘追到业务库源表 → ODS → 业务过程，标注业务域 / 数据域与字段口径覆盖",
+              'tip': '<div style="font-weight:600;color:var(--text)">消费清单</div><div>业务在用的旧表（导出到 MySQL / Oracle / SelectDB 等，或 BI 直读的末端 ADS），每个都追到业务过程与标准表；「待补口径字段」是导出字段里还没逐一对到标准指标的数量。</div>'},
+             {'k': 'proc', 'label': '业务过程', 'cols': sh_['业务过程']['cols'], 'rows': [[str(x) for x in r] for r in sh_['业务过程']['rows']], 'filters': [1, 2, 6],
+              'links': ['标准 DWD（原子事实表）'], 'ph': '搜索业务过程 / DWD / ODS…', 'pills': {'状态': {'新增': 'o', '已有': 'g'}},
+              'note': f"业务域（给哪块业务用）× 数据域（是什么数据）× 业务过程（不可再拆的业务动作）：{len(domains.PROC)} 个业务过程，每个一张最细粒度 DWD（粒度 = 业务库一行事件），"
+                      f"其中 {sum(1 for p_ in domains.PROC if p_[9])} 个为本次按消费清单补齐",
+              'tip': '<div style="font-weight:600;color:var(--text)">业务过程</div><div>按业务实际在用的数据倒推：每个业务过程一张原子事实表，DWS / ADS 都从这里汇总，不再直接读 ODS 或报表库预计算表。</div>'},
+             {'k': 'bus2', 'label': '业务过程总线矩阵', 'cols': sh_['业务过程总线矩阵']['cols'], 'rows': [[str(x) for x in r] for r in sh_['业务过程总线矩阵']['rows']], 'filters': [1],
+              'links': ['事实表'], 'ph': '搜索业务过程…', 'note': '行 = 业务过程（事实表），列 = 一致性维度；✓ 表示该事实表带有此维度外键，可与其他业务过程按此维度对齐分析',
+              'tip': '<div style="font-weight:600;color:var(--text)">业务过程总线矩阵</div><div>Kimball 总线矩阵：同一维度在所有事实表里含义一致，跨业务过程分析（如 下单 × 核销 × 出入园）按共有维度关联。</div>'},
+             {'k': 'odsrole', 'label': 'ODS 去向', 'cols': sh_['ODS去向']['cols'], 'rows': [[str(x) for x in r] for r in sh_['ODS去向']['rows']], 'filters': [2, 3, 6],
+              'links': ['ODS 表'], 'ph': '搜索 ODS / 去向…',
+              'pills': {'角色': {'业务过程': 'g', '维度': 'b', '属性关联': 'b', '未在用': '', '报表库预计算': 'o', '外部数据': '', '项目专用': '', '运营日志': ''}, '是否在用': {'在用': 'g', '未被': ''}},
+              'note': f"{sum(1 for r in sh_['ODS去向']['rows'])} 张 ODS 每张的角色：业务过程来源 / 维度来源 / 属性关联 / 报表库预计算（只供对数）/ 外部 / 项目专用 / 未在用（保留同步暂不建模）",
+              'tip': '<div style="font-weight:600;color:var(--text)">ODS 去向</div><div>每张业务库同步表进了哪个业务过程或维度；未被在用链路使用的标出原因，需求来了再按业务过程补 DWD。</div>'}]}
     meta = {'mode': 'legacy', 'xlsx': xlsx.name, 'built': datetime.date.today().isoformat(), 'dict2': xlsx.name,
             'desc': '客户现有 DataWorks 按 PFT3.0 标准重构后的统一数仓：分层、业务域、口径与旧表映射',
             'downloads': [[xlsx.name, '标准化字典（Excel，含旧表映射）'], ['ADS指标体系.xlsx', 'ADS 指标体系（Excel）']],

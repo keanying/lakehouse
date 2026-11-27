@@ -1,19 +1,16 @@
 -- ================================================================================================
--- dws.dws_ord_annual_card_di  年卡 / 一卡通日汇总
+-- dws.dws_ord_annual_card_di  年卡日汇总
 -- 粒度：1行=1天×景区×年卡产品
 -- 分区：travel_date（YYYYMMDD）
 -- 调度：每日，依赖上游 DWD 当日分区
 -- 上游：dwd_ord_annual_card_trade_di、dwd_ord_verify_di
--- 替代旧任务 9 个（上线对数一致后下线）：
+-- 替代旧任务 6 个（上线对数一致后下线）：
 --   · 业务工厂/报表数据/年卡特权/年卡特权报表统计工作流/dws_daily_report_annual_card_ticket_summary_d_i（EMR_SPARK_SQL，cron 00 26 00 * * ?）
 --   · 业务工厂/报表数据/年卡特权/年卡特权报表统计工作流/dws_daily_report_annual_card_ticket_verify_summary_d_i（EMR_SPARK_SQL，cron 00 26 00 * * ?）
 --   · 业务工厂/报表数据/年卡特权/年卡特权报表统计工作流/dws_monthly_report_annual_card_ticket_summary_d_i（EMR_SPARK_SQL，cron 00 26 00 * * ?）
 --   · 业务工厂/报表数据/年卡特权/年卡特权报表统计工作流/dws_monthly_report_annual_card_ticket_verify_summary_d_i（EMR_SPARK_SQL，cron 00 26 00 * * ?）
 --   · 业务工厂/报表数据/年卡特权/年卡特权报表统计工作流/dws_yearly_report_annual_card_ticket_summary_d_i（EMR_SPARK_SQL，cron 00 26 00 * * ?）
 --   · 业务工厂/报表数据/年卡特权/年卡特权报表统计工作流/dws_yearly_report_annual_card_ticket_verify_summary_d_i（EMR_SPARK_SQL，cron 00 26 00 * * ?）
---   · 数据平台/平台湖仓工作流/一卡通/dws_tps_aioc_summary_di（SERVERLESS_SPARK_SQL，cron 00 00 07 * * ?）
---   · 数据平台/平台湖仓工作流/一卡通/dws_tps_aioc_summary_mo（SERVERLESS_SPARK_SQL，cron 00 00 07 * * ?）
---   · 数据平台/平台湖仓工作流/一卡通/dws_tps_aioc_summary_yr（SERVERLESS_SPARK_SQL，cron 00 00 07 * * ?）
 -- 性能：
 --   · 同一来源的指标在一个子查询里预聚合（一次扫描），各来源 UNION ALL 后按粒度汇总，不做明细级 JOIN
 --   · 来源：card = dwd.dwd_ord_annual_card_trade_di（年卡交易）；vfy = dwd.dwd_ord_verify_di（核销：验证日分区 = bizdate）
