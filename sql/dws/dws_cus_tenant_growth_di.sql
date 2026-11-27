@@ -1,25 +1,26 @@
 -- dws.dws_cus_tenant_growth_di  商户×注册渠道 游客增长日汇总
 -- 粒度：travel_date × tenant_id × register_channel_id
 -- 来源：dwd_cus_customer_register_di, dwd_cus_credential_register_di, dim_cus_customer_zip, dws_cus_customer_lifetime_df, dwd_cus_identity_bind_di
--- 生成方式：Spark SQL / Hive；字段 14 个：直接翻译 3 · 规则翻译 6 · 待确认 5
+-- 生成方式：Spark SQL / Hive；字段 14 个：直接翻译 3 · 规则翻译 11 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 src_customer_register AS (                                            -- 来源「游客注册明细」按粒度键预聚合
   SELECT
     register_tenant_id AS tenant_id,                                  -- 租户ID
     register_channel_id AS register_channel_id,                       -- 注册渠道ID
-    COUNT(CASE WHEN 1 = 1 THEN customer_id END) AS new_customer_qty,  -- 新注册游客数｜待确认：kind='REAL'
+    COUNT(CASE WHEN customer_type = 'REAL' THEN customer_id END) AS new_customer_qty,  -- 新注册游客数｜口径：只计真人注册账号，剔除商户代下单占位买家（customer_type = TENANT_DEFAULT）
     NULL AS certified_customer_qty,
     NULL AS face_register_qty,
     NULL AS first_pay_customer_qty,
-    COUNT(CASE WHEN 1 = 1 THEN customer_id END) AS register_pay_customer_qty,  -- 注册当期下单新客数｜待确认：register_date and first_pay_date in 周期
+    COUNT(CASE WHEN customer_type = 'REAL' AND fp.fp_first_pay_date = '${bizdate_dash}' THEN customer_id END) AS register_pay_customer_qty,  -- 注册当期下单新客数｜口径：当日注册且当日首次支付的真人游客（首次支付日取 dws_cus_customer_lifetime_df）
     NULL AS repeat_buyer_qty,
     CAST(NULL AS BINARY) AS repeat_buyer_bitmap,
     CAST(NULL AS BINARY) AS pay_buyer_bitmap,
     NULL AS identity_bind_qty
-  FROM dwd.dwd_cus_customer_register_di s                             -- 来源表「游客注册明细」
+  FROM dwd.dwd_cus_customer_register_di s  -- 来源表「游客注册明细」
+  LEFT JOIN (SELECT buyer_customer_id AS fp_customer_id, MIN(first_pay_date) AS fp_first_pay_date FROM dws.dws_cus_customer_lifetime_df
+             WHERE travel_date = '${bizdate}' GROUP BY buyer_customer_id) fp ON fp.fp_customer_id = s.customer_id
   WHERE s.travel_date = '${bizdate}'                                  -- 只取当日分区
   GROUP BY register_tenant_id, register_channel_id                    -- 按粒度键汇总
 ),
@@ -28,7 +29,7 @@ src_customer AS (                                                     -- 来源�
     register_tenant_id AS tenant_id,                                  -- 租户ID
     register_channel_id AS register_channel_id,                       -- 注册渠道ID
     NULL AS new_customer_qty,
-    COUNT(CASE WHEN 1 = 1 THEN customer_id END) AS certified_customer_qty,  -- 新增实名认证游客数｜待确认：auth_status 变为 PERSON_CERTIFIED
+    COUNT(CASE WHEN auth_status = 'PERSON_CERTIFIED' AND start_date = '${bizdate_dash}' AND COALESCE(pv.pv_auth_status, '') <> 'PERSON_CERTIFIED' THEN customer_id END) AS certified_customer_qty,  -- 新增实名认证游客数｜口径：今日新开拉链版本为已实名、上一版本不是已实名
     NULL AS face_register_qty,
     NULL AS first_pay_customer_qty,
     NULL AS register_pay_customer_qty,
@@ -36,7 +37,9 @@ src_customer AS (                                                     -- 来源�
     CAST(NULL AS BINARY) AS repeat_buyer_bitmap,
     CAST(NULL AS BINARY) AS pay_buyer_bitmap,
     NULL AS identity_bind_qty
-  FROM dim.dim_cus_customer_zip s                                     -- 来源表「游客维度」
+  FROM dim.dim_cus_customer_zip s  -- 来源表「游客维度」
+  LEFT JOIN (SELECT customer_id AS pv_key, auth_status AS pv_auth_status FROM dim.dim_cus_customer_zip
+             WHERE travel_date = '${bizdate}' AND end_date = '${bizdate_prev_dash}') pv ON pv.pv_key = s.customer_id
   WHERE s.travel_date = '${bizdate}' AND s.end_date = '9999-12-31'    -- 取当日分区里的拉链当前有效版本
   GROUP BY register_tenant_id, register_channel_id                    -- 按粒度键汇总
 ),

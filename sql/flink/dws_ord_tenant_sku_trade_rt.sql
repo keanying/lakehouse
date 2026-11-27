@@ -1,9 +1,8 @@
 -- dws.dws_ord_tenant_sku_trade_rt  商户×SKU 分钟级交易
 -- 粒度：seller_tenant_id × sku_id × channel_id × operator_type × 窗口
 -- 来源：dwd_ord_order_rt + dwd_fin_payment_rt + dwd_ord_refund_rt
--- 生成方式：Flink SQL（1 分钟滚动窗口聚合 → StarRocks 主键模型表）；字段 19 个：直接翻译 5 · 规则翻译 6 · 待确认 8
+-- 生成方式：Flink SQL（1 分钟滚动窗口聚合 → StarRocks 主键模型表）；字段 19 个：直接翻译 5 · 规则翻译 14 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 INSERT INTO dws.dws_ord_tenant_sku_trade_rt                                       -- 写入 StarRocks 目标表
 WITH
@@ -17,17 +16,17 @@ src_order AS (                                                                  
     channel_id AS channel_id,                                                     -- 入口渠道ID
     operator_type AS operator_type,                                               -- 操作人类型
     SUM(CASE WHEN pay_time IS NOT NULL THEN unit_price_amt*buy_ticket_qty END) AS pay_amt,  -- 支付金额（GMV）
-    COUNT(DISTINCT CASE WHEN 1 = 1 THEN order_no END) AS pay_order_qty,           -- 支付子单数｜待确认：after_status='PAID'
+    COUNT(DISTINCT CASE WHEN order_status = 'PAID' AND pay_time IS NOT NULL THEN order_no END) AS pay_order_qty,  -- 支付子单数｜口径：当前状态已支付
     SUM(CASE WHEN pay_time IS NOT NULL THEN buy_ticket_qty END) AS pay_ticket_qty,  -- 支付票数
-    COUNT(DISTINCT CASE WHEN 1 = 1 THEN buyer_customer_id END) AS pay_buyer_qty,  -- 支付买家数｜待确认：buyer_customer_id>0 and kind='REAL'
+    COUNT(DISTINCT CASE WHEN pay_time IS NOT NULL AND buyer_customer_id > 0 AND buyer_type = 'CUSTOMER' THEN buyer_customer_id END) AS pay_buyer_qty,  -- 支付买家数｜口径：口径说明：实时窗口内不关联游客维表，占位买家在当日离线结果中剔除
     NULL AS refund_amt,
     NULL AS refund_ticket_qty,
-    COUNT(DISTINCT CASE WHEN 1 = 1 THEN order_no END) AS order_qty,               -- 下单子单数｜待确认：combo 子项除外
+    COUNT(DISTINCT CASE WHEN parent_order_no = '' THEN order_no END) AS order_qty,  -- 下单子单数｜口径：不含套票子项
     SUM(buy_ticket_qty) AS order_ticket_qty,                                      -- 下单票数
     SUM(unit_price_amt*buy_ticket_qty) AS order_amt,                              -- 下单金额
-    COUNT(DISTINCT CASE WHEN 1 = 1 THEN order_no END) AS cancel_order_qty,        -- 取消子单数｜待确认：after_status='CANCELLED'
+    COUNT(DISTINCT CASE WHEN order_status = 'CANCELLED' THEN order_no END) AS cancel_order_qty,  -- 取消子单数｜口径：当前状态已取消
     COUNT(CASE WHEN operator_type='TENANT_STAFF' THEN order_no END) AS staff_order_qty,  -- 员工代下单数
-    NULL AS staff_pay_amt                                                         -- 待确认：sum(pay_amt) where operator_type='TENANT_STAFF'（与离线同一口径 A043）
+    SUM(CASE WHEN operator_type = 'TENANT_STAFF' AND pay_time IS NOT NULL THEN unit_price_amt * buy_ticket_qty END) AS staff_pay_amt  -- 员工代下单支付金额｜口径：员工代下单的支付金额
   FROM TABLE(TUMBLE(TABLE dwd.dwd_ord_order_rt, DESCRIPTOR(event_time), INTERVAL '1' MINUTE)) s  -- 按事件时间切 1 分钟滚动窗口
   GROUP BY window_start, window_end, travel_date, seller_tenant_id, sku_id, channel_id, operator_type  -- 按粒度键汇总
 ),
@@ -45,7 +44,7 @@ src_refund AS (                                                                 
     NULL AS pay_ticket_qty,
     NULL AS pay_buyer_qty,
     SUM(CASE WHEN refund_status = 'COMPLETED' THEN refund_amt END) AS refund_amt,  -- 退款金额
-    NULL AS refund_ticket_qty,                                                    -- 待确认：count(distinct ticket_no) of completed refunds（与离线同一口径 A024）
+    SUM(CASE WHEN refund_status = 'COMPLETED' THEN refund_ticket_qty END) AS refund_ticket_qty,  -- 退款票数｜口径：退款完成的票数
     NULL AS order_qty,
     NULL AS order_ticket_qty,
     NULL AS order_amt,

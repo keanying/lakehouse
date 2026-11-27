@@ -1,9 +1,8 @@
 -- dwd.dwd_trf_distribution_settle_di  分销采购链明细
 -- 粒度：1行=1张票在分销链上的1个层级
 -- 来源：dwd_fin_payment_di（batch_no 依赖链展开）+ dwd_fin_frozen_di
--- 生成方式：Spark SQL / Hive；字段 22 个：直接翻译 19 · 规则翻译 0 · 待确认 3
+-- 生成方式：Spark SQL / Hive；字段 22 个：直接翻译 19 · 规则翻译 3 · 待确认 0
 -- 每个 WITH 逻辑块只取用到的列并先过滤分区
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 payment_dtl AS (                                              -- 主表「支付明细」，只取用到的列
@@ -19,7 +18,7 @@ ticket_dtl AS (                                               -- 「票明细（
   WHERE travel_date = '${bizdate}'                            -- 只取当日分区
 ),
 distribution_relation_cur AS (                                -- 「分销关系维度」当前有效版本，只取用到的列
-  SELECT relation_id, relation_no
+  SELECT relation_no, supplier_tenant_id AS rel_supplier_id, distributor_tenant_id AS rel_distributor_id
   FROM dim.dim_trf_distribution_relation_zip
   WHERE travel_date = '${bizdate}' AND end_date = '9999-12-31'  -- 取当日分区里的拉链当前有效版本
 ),
@@ -36,8 +35,8 @@ SELECT
   payment_dtl.batch_no                  AS batch_no,          -- 支付批次号
   payment_dtl.item_no                   AS item_no,           -- 支付批次内明细号
   payment_dtl.payment_no                AS payment_no,        -- 支付记录号
-  payment_dtl.depend_on_item_no         AS chain_level_no,    -- 分销链层级｜待确认：dwd_fin_payment_di.depend_on_item_no 递归计算
-  distribution_relation_cur.relation_no AS relation_no,       -- 分销关系编号｜待确认：dim_trf_distribution_relation_zip.relation_no 按付款方/收款方租户匹配
+  (1 + IF(d1.item_no IS NULL, 0, 1) + IF(d2.item_no IS NULL, 0, 1) + IF(d3.item_no IS NULL, 0, 1)) AS chain_level_no,  -- 分销链层级｜口径：同一批量支付内沿 depend_on_item 往前数：游客付款 = 1，之后每级采购 +1
+  distribution_relation_cur.relation_no AS relation_no,  -- 分销关系编号｜口径：按 收款方 = 供应商、付款方 = 分销商 匹配当前有效分销关系
   payment_dtl.payee_tenant_id           AS supplier_tenant_id,  -- 本级供应商（收款方）租户ID
   payment_dtl.payer_tenant_id           AS distributor_tenant_id,  -- 本级分销商（付款方）租户ID
   payment_dtl.payer_account_no          AS payer_account_no,  -- 付款账户号
@@ -52,9 +51,12 @@ SELECT
   payment_dtl.tenant_id                 AS tenant_id,         -- 租户ID（分库维度）
   CURRENT_TIMESTAMP()                   AS etl_time           -- ETL 加载时间
 FROM payment_dtl
-LEFT JOIN ticket_dtl                                          -- 关联「票明细（出票）」，取 子单号、SKU ID
+LEFT JOIN payment_dtl d1 ON d1.batch_no = payment_dtl.batch_no AND d1.item_no = payment_dtl.depend_on_item_no   -- 依赖的上一笔支付  -- 关联「票明细（出票）」，取 子单号、SKU ID
+LEFT JOIN payment_dtl d2 ON d2.batch_no = d1.batch_no AND d2.item_no = d1.depend_on_item_no
+LEFT JOIN payment_dtl d3 ON d3.batch_no = d2.batch_no AND d3.item_no = d2.depend_on_item_no
+LEFT JOIN ticket_dtl
   ON ticket_dtl.ticket_no = payment_dtl.ticket_no             -- 按 ticket_no 关联
 LEFT JOIN distribution_relation_cur                           -- 关联「分销关系维度」，取 分销关系编号
-  ON distribution_relation_cur.relation_id = payment_dtl.id   -- 按 id→relation_id 关联｜待确认：关联键
+  ON distribution_relation_cur.rel_supplier_id = payment_dtl.payee_tenant_id AND distribution_relation_cur.rel_distributor_id = payment_dtl.payer_tenant_id
 LEFT JOIN frozen_dtl                                          -- 关联「冻结/解冻明细」，取 冻结类型
   ON frozen_dtl.ticket_no = payment_dtl.ticket_no AND frozen_dtl.account_no = payment_dtl.payer_account_no;  -- 按 ticket_no、payer_account_no→account_no 关联

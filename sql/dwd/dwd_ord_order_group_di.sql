@@ -1,9 +1,8 @@
 -- dwd.dwd_ord_order_group_di  聚合单明细
 -- 粒度：1行=1个聚合单（order_group_no）
 -- 来源：ods_ord_order_group_di
--- 生成方式：Spark SQL / Hive；字段 29 个：直接翻译 25 · 规则翻译 2 · 待确认 2
+-- 生成方式：Spark SQL / Hive；字段 29 个：直接翻译 25 · 规则翻译 4 · 待确认 0
 -- 主表增量先去重再关联；每个 WITH 逻辑块只取用到的列并先过滤分区；小维表广播关联
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 order_group_rn AS (                                                            -- 「聚合单」当日增量，同一主键按 binlog 时间倒序编号
@@ -25,28 +24,30 @@ order_group_latest AS (                                                        -
     AND binlog_op_type <> 'DELETE'                                             -- 剔除源库已删除的记录
 ),
 payment_record_rn AS (                                                         -- 「支付记录」当日增量，同一主键按 binlog 时间倒序编号
-  SELECT id, order_group_no, pay_time, binlog_op_type,
+  SELECT id, order_group_no, pay_time, pay_direction, pay_status, binlog_op_type,
          ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn   -- 同一主键多次变更，按 binlog 时间倒序编号
   FROM ods.ods_fin_payment_record_di
-  WHERE travel_date = '${bizdate}'                                             -- 只取当日分区
+  WHERE travel_date >= DATE_FORMAT(DATE_SUB(TO_DATE('${bizdate}', 'yyyyMMdd'), 400), 'yyyyMMdd')   -- 支付可能早于聚合单今天的变更，取近 400 天  -- 只取当日分区
 ),
 payment_record_latest AS (                                                     -- 「支付记录」每个主键只保留最新一条，剔除已删除记录
-  SELECT id, order_group_no, pay_time
+  SELECT order_group_no, MIN(CASE WHEN pay_direction = 'INBOUND' AND pay_status IN ('PAID', 'PARTIAL_REFUNDED', 'REFUNDED') THEN pay_time END) AS first_pay_time
   FROM payment_record_rn
   WHERE rn = 1
-    AND binlog_op_type <> 'DELETE'                                             -- 剔除源库已删除的记录
+    AND binlog_op_type <> 'DELETE'  -- 剔除源库已删除的记录
+      GROUP BY order_group_no
 ),
 order_rn AS (                                                                  -- 「子单」当日增量，同一主键按 binlog 时间倒序编号
   SELECT id, order_group_no, quantity, binlog_op_type,
          ROW_NUMBER() OVER (PARTITION BY id ORDER BY binlog_time DESC) AS rn   -- 同一主键多次变更，按 binlog 时间倒序编号
   FROM ods.ods_ord_order_di
-  WHERE travel_date = '${bizdate}'                                             -- 只取当日分区
+  WHERE travel_date >= DATE_FORMAT(DATE_SUB(TO_DATE('${bizdate}', 'yyyyMMdd'), 400), 'yyyyMMdd')   -- 子单随聚合单创建，聚合单后续变更时需回看  -- 只取当日分区
 ),
 order_latest AS (                                                              -- 「子单」每个主键只保留最新一条，剔除已删除记录
-  SELECT id, order_group_no, quantity
+  SELECT order_group_no, SUM(quantity) AS order_ticket_qty
   FROM order_rn
   WHERE rn = 1
-    AND binlog_op_type <> 'DELETE'                                             -- 剔除源库已删除的记录
+    AND binlog_op_type <> 'DELETE'  -- 剔除源库已删除的记录
+      GROUP BY order_group_no
 ),
 order_count AS (                                                               -- 「子单」按 order_group_no 预聚合
   SELECT order_group_no, COUNT(order_no) AS v
@@ -85,8 +86,8 @@ SELECT  /*+ BROADCAST(channel_dim) */
   order_group_latest.create_time                          AS create_time,      -- 创建时间
   order_group_latest.update_time                          AS update_time,      -- 更新时间
   DATE_FORMAT(order_group_latest.create_time, 'yyyyMMdd') AS order_date,       -- 下单日期
-  payment_record_latest.pay_time                          AS first_pay_time,   -- 首次支付成功时间｜待确认：ods_fin_payment_record_di.pay_time 按 order_group_no 取 INBOUND 且 PAID 的最小值
-  order_latest.quantity                                   AS order_ticket_qty,  -- 聚合单内购买票数合计｜待确认：ods_ord_order_di.quantity 按 order_group_no 汇总
+  payment_record_latest.first_pay_time AS first_pay_time,  -- 首次支付成功时间｜口径：近 400 天支付记录中，收款（INBOUND）且已支付的最早支付时间
+  order_latest.order_ticket_qty AS order_ticket_qty,  -- 聚合单内购买票数合计｜口径：聚合单下子单购买数量合计
   COALESCE(order_count.v, 0)                              AS sub_order_qty,    -- 聚合单内子单数（套票子项单除外）
   channel_dim.channel_type                                AS channel_type,     -- 入口渠道类型
   CURRENT_TIMESTAMP()                                     AS etl_time          -- ETL 加载时间

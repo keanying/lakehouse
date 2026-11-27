@@ -1,9 +1,8 @@
 -- dwd.dwd_fin_fund_flow_di  资金流水明细
 -- 粒度：1行=1条流水（flow_no）
 -- 来源：ods_fin_fund_flow_di
--- 生成方式：Spark SQL / Hive；字段 19 个：直接翻译 18 · 规则翻译 0 · 待确认 1
+-- 生成方式：Spark SQL / Hive；字段 19 个：直接翻译 18 · 规则翻译 1 · 待确认 0
 -- 主表增量先去重再关联；每个 WITH 逻辑块只取用到的列并先过滤分区；小维表广播关联
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 fund_flow_rn AS (                                                        -- 「资金流水」当日增量，同一主键按 binlog 时间倒序编号
@@ -43,7 +42,7 @@ SELECT  /*+ BROADCAST(account_dim) */
   fund_flow_latest.update_time                    AS update_time,        -- 更新时间
   account_dim.account_type                        AS account_type,       -- 账户类型
   account_dim.subject_id                          AS subject_id,         -- 账户主体ID
-  fund_flow_latest.amount                         AS flow_direction_type,  -- 资金方向｜待确认：ods_fin_fund_flow_di.amount 正负判定
+  CASE WHEN fund_flow_latest.amount >= 0 THEN 1 ELSE 2 END AS flow_direction_type,  -- 资金方向｜口径：变动金额 ≥ 0 为入账（1），< 0 为出账（2）
   fund_flow_latest.create_time                    AS flow_time,          -- 流水发生时间
   CURRENT_TIMESTAMP()                             AS etl_time            -- ETL 加载时间
 FROM fund_flow_latest

@@ -1,9 +1,8 @@
 -- ads.ads_trf_distributor_rank_di  分销商业绩排行
 -- 粒度：travel_date × supplier_tenant_id × distributor_tenant_id
 -- 来源：dws_trf_distributor_trade_di, dws_trf_distributor_credit_df
--- 生成方式：Spark SQL / Hive；字段 13 个：直接翻译 11 · 规则翻译 0 · 待确认 2
+-- 生成方式：Spark SQL / Hive；字段 13 个：直接翻译 11 · 规则翻译 2 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 src_distributor_trade AS (                                              -- 来源「分销商×供应商×SKU×层级 分销日汇总」按粒度键预聚合

@@ -1,16 +1,15 @@
 -- dws.dws_opr_device_di  设备日汇总
 -- 粒度：travel_date × tenant_id × device_id
 -- 来源：dwd_opr_device_status_log_di, dwd_ord_verify_di
--- 生成方式：Spark SQL / Hive；字段 7 个：直接翻译 2 · 规则翻译 3 · 待确认 2
+-- 生成方式：Spark SQL / Hive；字段 7 个：直接翻译 2 · 规则翻译 5 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 src_device_status_log AS (                          -- 来源「设备状态变更明细」按粒度键预聚合
   SELECT
     tenant_id AS tenant_id,                         -- 租户ID
     device_id AS device_id,                         -- 设备ID
-    NULL AS online_minute_qty,                      -- 待确认：sum(状态区间分钟) where ACTIVE
+    SUM(CASE WHEN before_status = 'ACTIVE' THEN status_minute_qty END) AS online_minute_qty,  -- 设备在线时长｜口径：状态日志每条记前一状态持续分钟数，前一状态为有效（在线）的累加；当前未结束的区间次日补记
     COUNT(CASE WHEN after_status='OFFLINE' THEN 1 END) AS offline_times_qty,  -- 设备离线次数
     NULL AS verify_entitlement_qty,
     NULL AS device_total_qty,
@@ -25,7 +24,7 @@ src_verify AS (                                     -- 来源「核销明细（�
     device_id AS device_id,                         -- 设备ID
     NULL AS online_minute_qty,
     NULL AS offline_times_qty,
-    COUNT(CASE WHEN 1 = 1 THEN verify_no END) AS verify_entitlement_qty,  -- 核销权益次数｜待确认：verify_result='SUCCESS'
+    COUNT(CASE WHEN verify_result_type='SUCCESS' THEN verify_no END) AS verify_entitlement_qty,  -- 核销权益次数
     NULL AS device_total_qty,
     COUNT(CASE WHEN verify_type='OFFLINE' and verify_result_type = 'SUCCESS' THEN verify_no END) AS offline_verify_qty  -- 离线核销次数
   FROM dwd.dwd_ord_verify_di s                      -- 来源表「核销明细（权益级）」

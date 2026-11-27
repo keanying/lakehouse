@@ -1,9 +1,8 @@
 -- dwd.dwd_ord_verify_rt  实时核销明细
 -- 粒度：1行=1次核销（verify_no）
 -- 来源：ods_ord_verify_record_rt + ods_ord_entitlement_rt
--- 生成方式：Flink SQL（CDC 源表 → StarRocks 主键模型表；维表 Lookup Join）；字段 29 个：直接翻译 24 · 规则翻译 4 · 待确认 1
+-- 生成方式：Flink SQL（CDC 源表 → StarRocks 主键模型表；维表 Lookup Join）；字段 29 个：直接翻译 24 · 规则翻译 5 · 待确认 0
 -- 源表 ods.*_rt 为 Flink CDC 表（含 proc_time AS PROCTIME()），目标表在 StarRocks catalog 中
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 INSERT INTO dwd.dwd_ord_verify_rt                                                 -- 写入 StarRocks 目标表
 SELECT
@@ -31,7 +30,7 @@ SELECT
   j4.device_type                                               AS device_type,    -- 设备类型
   a.create_time                                                AS verify_time,    -- 核销时间
   HOUR(a.create_time)                                          AS verify_hour_no,  -- 核销小时
-  NULL                                                         AS verify_person_qty,  -- 本次核销人数｜待确认：dwd_ord_entitlement_binding_di 按 ticket_no+entitlement_no 计人数，开放模式记 1
+  1 AS verify_person_qty,  -- 本次核销人数｜口径：口径说明：实时按 1 人计；绑定多人的共享权益以离线人数为准
   1                                                            AS verify_qty,     -- 核销次数
   j1.unit_price_amt / NULLIF(j2.max_qty, 0)                    AS verify_amt,     -- 核销金额（元
   CASE WHEN a.verify_result='DUPLICATE' AND a.verify_type ='OFFLINE' THEN 1 ELSE 0 END AS offline_conflict_type,  -- 是否离线冲突

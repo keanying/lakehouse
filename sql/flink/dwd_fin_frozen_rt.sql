@@ -26,7 +26,7 @@ SELECT
   j2.sku_id                                                    AS sku_id,         -- SKU ID
   a.create_time                                                AS freeze_time,    -- 冻结时间
   CASE WHEN a.frozen_status = 'RELEASED' THEN a.binlog_time END AS release_time,  -- 解冻时间
-  (CASE WHEN a.frozen_status = 'RELEASED' THEN a.binlog_time END) - (a.create_time) AS freeze_hour_qty,  -- 冻结时长（小时）
+  TIMESTAMPDIFF(HOUR, a.create_time, CASE WHEN a.frozen_status = 'RELEASED' THEN a.binlog_time END) AS freeze_hour_qty,  -- 冻结时长（小时）
   CURRENT_TIMESTAMP                                            AS event_time      -- 事件时间（binlog 时间）
 FROM ods.ods_fin_frozen_record_rt a                                               -- 主表「冻结记录 binlog 流」
 LEFT JOIN dim.dim_fin_account_df FOR SYSTEM_TIME AS OF a.proc_time AS j1          -- 关联「账户维度」，取 账户类型、账户主体ID

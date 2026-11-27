@@ -1,9 +1,8 @@
 -- dim.dim_cus_customer_zip  游客维度
 -- 粒度：1行=1个游客×1个有效区间
 -- 来源：ods_cus_customer_di
--- 生成方式：Spark SQL / Hive（拉链表）；字段 17 个：直接翻译 14 · 规则翻译 2 · 待确认 1
+-- 生成方式：Spark SQL / Hive（拉链表）；字段 17 个：直接翻译 14 · 规则翻译 3 · 待确认 0
 -- 拉链：比对今日源数据与昨日拉链的行哈希，变化的旧版本闭链、新版本开链；源为增量表，未出现的主键保持不变
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 customer_rn AS (                                                                  -- 「C端游客主账号」当日增量，同一主键按 binlog 时间倒序编号
@@ -41,7 +40,7 @@ src AS (                                                                        
     customer_latest.create_time                                  AS create_time,  -- 创建时间
     customer_latest.update_time                                  AS update_time,  -- 更新时间
     channel_dim.channel_id                                       AS register_channel_id,  -- 注册渠道ID
-    customer_latest.birthday                                     AS age_band_code,  -- 年龄段｜待确认：ods_cus_customer_di.birthday 计算
+    CASE WHEN FLOOR(MONTHS_BETWEEN(TO_DATE('${bizdate_dash}'), TO_DATE(customer_latest.birthday)) / 12) IS NULL THEN 'UNKNOWN' WHEN FLOOR(MONTHS_BETWEEN(TO_DATE('${bizdate_dash}'), TO_DATE(customer_latest.birthday)) / 12) < 18 THEN '0_17' WHEN FLOOR(MONTHS_BETWEEN(TO_DATE('${bizdate_dash}'), TO_DATE(customer_latest.birthday)) / 12) <= 25 THEN '18_25' WHEN FLOOR(MONTHS_BETWEEN(TO_DATE('${bizdate_dash}'), TO_DATE(customer_latest.birthday)) / 12) <= 35 THEN '26_35' WHEN FLOOR(MONTHS_BETWEEN(TO_DATE('${bizdate_dash}'), TO_DATE(customer_latest.birthday)) / 12) <= 45 THEN '36_45' WHEN FLOOR(MONTHS_BETWEEN(TO_DATE('${bizdate_dash}'), TO_DATE(customer_latest.birthday)) / 12) <= 60 THEN '46_60' ELSE '60_PLUS' END AS age_band_code,  -- 年龄段｜口径：按生日算统计日年龄后分段
     CASE WHEN customer_latest.wechat_unionid IS NOT NULL AND customer_latest.wechat_unionid <> '' THEN 1 ELSE 0 END AS wechat_bind_type,  -- 是否绑定微信
     CASE WHEN customer_latest.alipay_user_id IS NOT NULL AND customer_latest.alipay_user_id <> '' THEN 1 ELSE 0 END AS alipay_bind_type  -- 是否绑定支付宝
   FROM customer_latest

@@ -704,7 +704,7 @@ FROM dwd_fin_frozen_rt WHERE frozen_status = 'RELEASED' AND release_event_type =
 
 INSERT INTO sr_dwd_fin_merchant_order_fund_rt
 SELECT DATE_FORMAT(CAST(e.event_time AS TIMESTAMP), 'yyyyMMdd') AS travel_date,
-       CONCAT_WS(':', e.source_no, CAST(COALESCE(e.merchant_tenant_id, s.merchant_tenant_id) AS STRING), r.measure_code) AS fund_event_id,
+       CONCAT_WS(':', e.source_no, e.ticket_no, CAST(COALESCE(e.merchant_tenant_id, s.merchant_tenant_id) AS STRING), r.report_code, r.measure_code) AS fund_event_id,
        e.event_time, COALESCE(e.merchant_tenant_id, s.merchant_tenant_id) AS merchant_tenant_id, r.report_code, r.measure_code,
        COALESCE(e.amt, IF(r.direction_type = 'IN', s.sale_unit_price_amt, s.buy_unit_price_amt)) AS event_amt,
        COALESCE(e.amt, IF(r.direction_type = 'IN', s.sale_unit_price_amt, s.buy_unit_price_amt)) * r.sign_qty AS balance_effect_amt,
@@ -767,6 +767,7 @@ b AS (
 y AS (SELECT * FROM ads.ads_fin_merchant_report_di WHERE travel_date = DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 1 DAY), '%Y%m%d')),
 k AS (SELECT merchant_tenant_id FROM d UNION SELECT merchant_tenant_id FROM b UNION SELECT merchant_tenant_id FROM y)
 SELECT
+    DATE_FORMAT(NOW(), '%Y%m%d')                                                             AS travel_date,
     k.merchant_tenant_id,
     COALESCE(y.adv_receipt_close_amt, 0)                                                     AS adv_receipt_open_amt,
     COALESCE(d.adv_receipt_receive_amt, 0)                                                   AS adv_receipt_receive_amt,
@@ -800,7 +801,6 @@ SELECT
     COALESCE(b.expense_income_amt, 0)                                                        AS expense_income_amt,
     COALESCE(b.expense_out_amt, 0)                                                           AS expense_out_amt,
     COALESCE(b.unclassified_flow_qty, 0)                                                     AS unclassified_flow_qty,
-    DATE_FORMAT(NOW(), '%Y%m%d')                                                             AS travel_date,
     NOW()                                                                                    AS update_time
 FROM k
 LEFT JOIN d ON d.merchant_tenant_id = k.merchant_tenant_id
@@ -919,14 +919,18 @@ def apply(S):
                 fl = [f for f in fl if f[0] != 'travel_date'] + [('update_time', 'STRING', 'ETL', '最近一次刷新时间，格式 yyyy-MM-dd HH:mm:ss', '物化视图刷新', '')]
                 fl = [('travel_date', 'STRING', '分区', '数据日期，格式 YYYYMMDD（= 今日）', '当日', '')] + fl
             else:
-                fl = [('travel_date', 'STRING', '分区', '数据日期，格式 YYYYMMDD；取事件时间日期', '事件时间', '')] + fl + [('event_time', 'STRING', 'ETL', '事件时间（binlog 时间），用于窗口计算与乱序处理', 'binlog', '')]
+                fl = [('travel_date', 'STRING', '分区', '数据日期，格式 YYYYMMDD；取事件时间日期', '事件时间', '')] + fl
+                if not any(f[0] == 'event_time' for f in fl):
+                    fl.append(('event_time', 'STRING', 'ETL', '事件时间（binlog 时间），用于窗口计算与乱序处理', 'binlog', ''))
+        new_rows = []
         for i, f in enumerate(fl, 1):
             r = [''] * len(F_['cols'])
             for k, v in (('分层', x['layer']), ('表名（库.表）', x['name']), ('表中文名', x['cn']), ('序号', i), ('字段名', f[0]), ('类型', f[1]), ('字段类别', f[2]),
                          ('字段注释', f[3]), ('加工 / 来源', f[4]), ('上游字段', f[5])):
                 r[fi[k]] = v
-            F_['rows'].append(r)
-        fields_of[x['name']] = []
+            new_rows.append(r)
+        F_['rows'].extend(new_rows)
+        fields_of[x['name']] = new_rows   # 后面的实时表 @copy 要用到
     # 调度
     wi = {c: i for i, c in enumerate(W_['cols'])}
 

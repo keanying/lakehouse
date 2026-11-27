@@ -52,7 +52,7 @@ SELECT  /*+ BROADCAST(account_dim) */
   ticket_dtl.sku_id                                            AS sku_id,         -- SKU ID
   frozen_record_latest.create_time                             AS freeze_time,    -- 冻结时间
   CASE WHEN frozen_record_latest.frozen_status = 'RELEASED' THEN frozen_record_latest.binlog_time END AS release_time,  -- 解冻时间
-  (CASE WHEN frozen_record_latest.frozen_status = 'RELEASED' THEN frozen_record_latest.binlog_time END) - (frozen_record_latest.create_time) AS freeze_hour_qty,  -- 冻结时长（小时）
+  ROUND((UNIX_TIMESTAMP(CASE WHEN frozen_record_latest.frozen_status = 'RELEASED' THEN frozen_record_latest.binlog_time END) - UNIX_TIMESTAMP(frozen_record_latest.create_time)) / 3600, 2) AS freeze_hour_qty,  -- 冻结时长（小时）
   CURRENT_TIMESTAMP()                                          AS etl_time        -- ETL 加载时间
 FROM frozen_record_latest
 LEFT JOIN account_dim                                                             -- 关联「账户维度」，取 账户类型、账户主体ID

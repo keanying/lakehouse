@@ -9,30 +9,30 @@
 --   · 分销关系、在途快照均按 (商户, 对方) 预聚合后 FULL JOIN
 -- ================================================================================================
 
-WITH rel AS (   -- 分销关系日终已用授信（只取授信模式）
+WITH rel AS (                                                                     -- 分销关系日终已用授信（只取授信模式）
     SELECT r.supplier_tenant_id, r.distributor_tenant_id, SUM(c.credit_used_amt) AS credit_used_amt
     FROM (SELECT relation_no, credit_used_amt FROM dws.dws_trf_distributor_credit_df WHERE travel_date = '${bizdate}') c
     JOIN (SELECT relation_no, supplier_tenant_id, distributor_tenant_id FROM dim.dim_trf_distribution_relation_zip
           WHERE payment_mode_type = 'CREDIT' AND start_date <= '${bizdate}' AND end_date > '${bizdate}') r ON r.relation_no = c.relation_no
-    GROUP BY r.supplier_tenant_id, r.distributor_tenant_id
+    GROUP BY r.supplier_tenant_id, r.distributor_tenant_id                        -- 按粒度键汇总
 ),
 used AS (
     SELECT supplier_tenant_id AS merchant_tenant_id, distributor_tenant_id AS counterparty_tenant_id, 'AR' AS report_code, credit_used_amt FROM rel
     UNION ALL
     SELECT distributor_tenant_id, supplier_tenant_id, 'AP', credit_used_amt FROM rel
 ),
-uns AS (   -- 授信在途：收侧对方 = 付款方（下级），付侧对方 = 收款方（上级）
+uns AS (                                                                          -- 授信在途：收侧对方 = 付款方（下级），付侧对方 = 收款方（上级）
     SELECT merchant_tenant_id, IF(report_code = 'CREDIT_IN', payer_tenant_id, payee_tenant_id) AS counterparty_tenant_id,
-           IF(report_code = 'CREDIT_IN', 'AR', 'AP') AS report_code, SUM(unsettled_amt) AS credit_unsettled_amt
+           IF(report_code = 'CREDIT_IN', 'AR', 'AP') AS report_code, SUM(unsettled_amt) AS credit_unsettled_amt  -- 授信在途
     FROM dws.dws_fin_merchant_unsettled_df
-    WHERE travel_date = '${bizdate}' AND report_code IN ('CREDIT_IN', 'CREDIT_OUT')
-    GROUP BY 1, 2, 3
+    WHERE travel_date = '${bizdate}' AND report_code IN ('CREDIT_IN', 'CREDIT_OUT')  -- 只取当日分区，并按条件过滤
+    GROUP BY 1, 2, 3                                                              -- 按粒度键汇总
 ),
-adds AS (   -- 本期核销记应收 / 应付
+adds AS (                                                                         -- 本期核销记应收 / 应付
     SELECT merchant_tenant_id, IF(report_code = 'AR', payer_tenant_id, payee_tenant_id) AS counterparty_tenant_id, report_code, SUM(event_amt) AS add_amt
     FROM dwd.dwd_fin_merchant_order_fund_di
-    WHERE travel_date = '${bizdate}' AND report_code IN ('AR', 'AP')
-    GROUP BY 1, 2, 3
+    WHERE travel_date = '${bizdate}' AND report_code IN ('AR', 'AP')              -- 只取当日分区，并按条件过滤
+    GROUP BY 1, 2, 3                                                              -- 按粒度键汇总
 ),
 prev AS (
     SELECT merchant_tenant_id, counterparty_tenant_id, report_code, close_amt AS open_amt
@@ -46,18 +46,18 @@ k AS (
 ),
 v AS (
     SELECT k.*, COALESCE(u.credit_used_amt, 0) AS credit_used_amt, COALESCE(n.credit_unsettled_amt, 0) AS credit_unsettled_amt,
-           COALESCE(p.open_amt, 0) AS open_amt, COALESCE(a.add_amt, 0) AS add_amt,
-           COALESCE(u.credit_used_amt, 0) - COALESCE(n.credit_unsettled_amt, 0) AS close_amt
+           COALESCE(p.open_amt, 0) AS open_amt, COALESCE(a.add_amt, 0) AS add_amt,  -- 本期增加
+           COALESCE(u.credit_used_amt, 0) - COALESCE(n.credit_unsettled_amt, 0) AS close_amt  -- 期末应收 / 应付
     FROM k
     LEFT JOIN used u ON u.merchant_tenant_id = k.merchant_tenant_id AND u.counterparty_tenant_id = k.counterparty_tenant_id AND u.report_code = k.report_code
     LEFT JOIN uns  n ON n.merchant_tenant_id = k.merchant_tenant_id AND n.counterparty_tenant_id = k.counterparty_tenant_id AND n.report_code = k.report_code
     LEFT JOIN adds a ON a.merchant_tenant_id = k.merchant_tenant_id AND a.counterparty_tenant_id = k.counterparty_tenant_id AND a.report_code = k.report_code
     LEFT JOIN prev p ON p.merchant_tenant_id = k.merchant_tenant_id AND p.counterparty_tenant_id = k.counterparty_tenant_id AND p.report_code = k.report_code
 )
-INSERT OVERWRITE TABLE dws.dws_fin_merchant_credit_df PARTITION (travel_date = '${bizdate}')
+INSERT OVERWRITE TABLE dws.dws_fin_merchant_credit_df PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
 SELECT merchant_tenant_id, counterparty_tenant_id, report_code, credit_used_amt, credit_unsettled_amt, open_amt, add_amt,
-       open_amt + add_amt - close_amt                                  AS settle_amt,
-       close_amt,
-       DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time
+       open_amt + add_amt - close_amt                                  AS settle_amt,  -- 本期还款（推算）
+       close_amt,                                                                 -- 期末应收 / 应付
+       DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time        -- ETL 加载时间
 FROM v
 WHERE ABS(open_amt) + ABS(add_amt) + ABS(close_amt) + ABS(credit_used_amt) > 0;

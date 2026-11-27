@@ -1,9 +1,8 @@
 -- dwd.dwd_opr_complaint_di  投诉工单明细
 -- 粒度：1行=1个投诉工单
 -- 来源：ods_opr_complaint_di
--- 生成方式：Spark SQL / Hive；字段 19 个：直接翻译 15 · 规则翻译 2 · 待确认 2
+-- 生成方式：Spark SQL / Hive；字段 19 个：直接翻译 15 · 规则翻译 4 · 待确认 0
 -- 主表增量先去重再关联；每个 WITH 逻辑块只取用到的列并先过滤分区
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 complaint_rn AS (                                                                 -- 「投诉工单」当日增量，同一主键按 binlog 时间倒序编号
@@ -41,10 +40,10 @@ SELECT
   complaint_latest.create_time                                 AS create_time,    -- 创建时间
   complaint_latest.update_time                                 AS update_time,    -- 更新时间
   order_group_dtl.seller_tenant_id                             AS seller_tenant_id,  -- 被投诉的卖家租户ID
-  complaint_latest.create_time                                 AS create_time_hour_no,  -- 投诉提交小时｜待确认：ods_opr_complaint_di.create_time 取小时
+  HOUR(complaint_latest.create_time) AS create_time_hour_no,  -- 投诉提交小时｜口径：投诉提交时间取小时
   CASE WHEN complaint_latest.complaint_status IN ('RESOLVED', 'CLOSED') THEN complaint_latest.binlog_time END AS resolve_time,  -- 处理完成时间
-  (CASE WHEN complaint_latest.complaint_status IN ('RESOLVED', 'CLOSED') THEN complaint_latest.binlog_time END) - (complaint_latest.create_time) AS resolve_hour_qty,  -- 处理时长（小时）
-  NULL                                                         AS sla_timeout_type,  -- 是否超 SLA｜待确认：resolve_time 或当前时间晚于 sla_deadline
+  ROUND((UNIX_TIMESTAMP(CASE WHEN complaint_latest.complaint_status IN ('RESOLVED', 'CLOSED') THEN complaint_latest.binlog_time END) - UNIX_TIMESTAMP(complaint_latest.create_time)) / 3600, 2) AS resolve_hour_qty,  -- 处理时长（小时）
+  CASE WHEN COALESCE(CASE WHEN complaint_latest.complaint_status IN ('RESOLVED', 'CLOSED') THEN complaint_latest.binlog_time END, CURRENT_TIMESTAMP()) > complaint_latest.sla_deadline THEN 1 ELSE 0 END AS sla_timeout_type,  -- 是否超 SLA｜口径：解决时间（未解决取当前时间）晚于 SLA 截止
   1                                                            AS complaint_qty,  -- 投诉数
   CURRENT_TIMESTAMP()                                          AS etl_time        -- ETL 加载时间
 FROM complaint_latest

@@ -1,9 +1,8 @@
 -- dwd.dwd_opr_approval_di  审批实例明细
 -- 粒度：1行=1个审批实例
 -- 来源：ods_opr_approval_instance_di
--- 生成方式：Spark SQL / Hive；字段 20 个：直接翻译 17 · 规则翻译 1 · 待确认 2
+-- 生成方式：Spark SQL / Hive；字段 20 个：直接翻译 17 · 规则翻译 3 · 待确认 0
 -- 主表增量先去重再关联；每个 WITH 逻辑块只取用到的列并先过滤分区；小维表广播关联
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 approval_instance_rn AS (                                                         -- 「审批实例」当日增量，同一主键按 binlog 时间倒序编号
@@ -42,9 +41,9 @@ SELECT  /*+ BROADCAST(approval_flow_dim) */
   approval_instance_latest.update_time                         AS update_time,    -- 更新时间
   approval_flow_dim.flow_name                                  AS flow_name,      -- 审批流名称
   approval_instance_latest.create_time                         AS apply_time,     -- 发起时间
-  approval_instance_latest.instance_status                     AS finish_time,    -- 审批结束时间｜待确认：ods_opr_approval_instance_di.instance_status 终态的 binlog_time
-  (approval_instance_latest.instance_status) - (approval_instance_latest.create_time) AS approval_minute_qty,  -- 审批耗时（分钟）
-  NULL                                                         AS timeout_type,   -- 是否超时｜待确认：finish_time 晚于 timeout_at 或进行中已超时
+  CASE WHEN approval_instance_latest.instance_status IN ('APPROVED', 'REJECTED', 'CANCELLED') THEN approval_instance_latest.update_time END AS finish_time,  -- 审批结束时间｜口径：状态为终态（通过 / 拒绝 / 取消）时的最后更新时间
+  ROUND((UNIX_TIMESTAMP(CASE WHEN approval_instance_latest.instance_status IN ('APPROVED', 'REJECTED', 'CANCELLED') THEN approval_instance_latest.update_time END) - UNIX_TIMESTAMP(approval_instance_latest.create_time)) / 60, 2) AS approval_minute_qty,  -- 审批耗时（分钟）
+  CASE WHEN COALESCE(CASE WHEN approval_instance_latest.instance_status IN ('APPROVED', 'REJECTED', 'CANCELLED') THEN approval_instance_latest.update_time END, CURRENT_TIMESTAMP()) > approval_instance_latest.timeout_at THEN 1 ELSE 0 END AS timeout_type,  -- 是否超时｜口径：结束时间（进行中取当前时间）晚于节点截止时间
   1                                                            AS approval_qty,   -- 审批实例数
   CURRENT_TIMESTAMP()                                          AS etl_time        -- ETL 加载时间
 FROM approval_instance_latest

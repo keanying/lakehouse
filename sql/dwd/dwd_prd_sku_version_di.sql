@@ -1,9 +1,8 @@
 -- dwd.dwd_prd_sku_version_di  SKU版本变更明细
 -- 粒度：1行=1次SKU版本变更
 -- 来源：ods_prd_sku_version_snapshot_di
--- 生成方式：Spark SQL / Hive；字段 15 个：直接翻译 11 · 规则翻译 2 · 待确认 2
+-- 生成方式：Spark SQL / Hive；字段 15 个：直接翻译 11 · 规则翻译 4 · 待确认 0
 -- 流水/状态变更类：保留每条变更记录；每个 WITH 逻辑块只取用到的列并先过滤分区
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 sku_version_snapshot_chg AS (                                                     -- 主表「SKU版本快照」：保留每条变更记录，只取用到的列
@@ -28,10 +27,10 @@ SELECT
   sku_version_snapshot_chg.tenant_id                           AS tenant_id,      -- 租户ID（分库维度）
   sku_version_snapshot_chg.create_time                         AS create_time,    -- 创建时间
   sku_version_snapshot_chg.update_time                         AS update_time,    -- 更新时间
-  sku_cur.version_no                                           AS new_version_no,  -- 变更后版本号｜待确认：dim_prd_sku_zip.version_no 当前值
-  GET_JSON_OBJECT(sku_version_snapshot_chg.snapshot_data, '$.priceChangeLog') AS old_price_amt,  -- 变更前价格（元）
-  GET_JSON_OBJECT(sku_version_snapshot_chg.snapshot_data, '$.priceChangeLog') AS new_price_amt,  -- 变更后价格（元）
-  NULL                                                         AS price_change_type,  -- 本次是否改价｜待确认：old_price_amt 与 new_price_amt 比较
+  sku_version_snapshot_chg.version + 1 AS new_version_no,  -- 变更后版本号｜口径：快照记录的是变更前版本号，变更后 = 变更前 + 1
+  ROUND(CAST(GET_JSON_OBJECT(sku_version_snapshot_chg.snapshot_data, '$.priceChangeLog.oldPrice') AS DECIMAL(18,2)) / 100, 2) AS old_price_amt,  -- 变更前价格（元）
+  ROUND(CAST(GET_JSON_OBJECT(sku_version_snapshot_chg.snapshot_data, '$.priceChangeLog.newPrice') AS DECIMAL(18,2)) / 100, 2) AS new_price_amt,  -- 变更后价格（元）
+  CASE WHEN COALESCE(GET_JSON_OBJECT(sku_version_snapshot_chg.snapshot_data, '$.priceChangeLog.oldPrice'), '') <> COALESCE(GET_JSON_OBJECT(sku_version_snapshot_chg.snapshot_data, '$.priceChangeLog.newPrice'), '') THEN 1 ELSE 0 END AS price_change_type,  -- 本次是否改价｜口径：变更前后价格不同即改价
   sku_version_snapshot_chg.create_time                         AS change_time,    -- 变更时间
   CURRENT_TIMESTAMP()                                          AS etl_time        -- ETL 加载时间
 FROM sku_version_snapshot_chg

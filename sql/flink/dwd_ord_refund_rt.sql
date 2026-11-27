@@ -25,8 +25,8 @@ SELECT
   j1.channel_id                                                AS channel_id,     -- 入口渠道ID
   a.create_time                                                AS apply_time,     -- 退款申请时间
   CASE WHEN a.refund_status = 'COMPLETED' THEN a.binlog_time END AS finish_time,  -- 退款完成时间
-  (CASE WHEN a.refund_status = 'COMPLETED' THEN a.binlog_time END) - (a.create_time) AS process_hour_qty,  -- 退款处理时长
-  GET_JSON_OBJECT(a.refund_items, '$.ticketNos')               AS refund_ticket_qty,  -- 退款票数
+  TIMESTAMPDIFF(HOUR, a.create_time, CASE WHEN a.refund_status = 'COMPLETED' THEN a.binlog_time END) AS process_hour_qty,  -- 退款处理时长
+  CAST((CHAR_LENGTH(JSON_QUERY(a.refund_items, '$[*].ticketNos[*]' WITH UNCONDITIONAL ARRAY WRAPPER)) - CHAR_LENGTH(REPLACE(JSON_QUERY(a.refund_items, '$[*].ticketNos[*]' WITH UNCONDITIONAL ARRAY WRAPPER), '"', ''))) / 2 AS INT)            AS refund_ticket_qty,  -- 退款票数
   CURRENT_TIMESTAMP                                            AS event_time      -- 事件时间（binlog 时间）
 FROM ods.ods_ord_refund_order_rt a                                                -- 主表「退款单 binlog 流」
 LEFT JOIN dwd.dwd_ord_order_group_di j1                                           -- 关联「聚合单明细」，取 卖家租户ID、入口渠道ID

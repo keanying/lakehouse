@@ -9,9 +9,9 @@
 --   · 码表，几十行，下游 BROADCAST
 -- ================================================================================================
 
-INSERT OVERWRITE TABLE dim.dim_fin_report_rule_f
+INSERT OVERWRITE TABLE dim.dim_fin_report_rule_f                            -- 整表覆盖写入
 SELECT rule_code, source_type, flow_type, fee_item_code, direction_type, pay_method_group_type, frozen_event_type, report_code, measure_code, sign_qty, rule_desc, confirm_status,
-       DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time
+       DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time  -- ETL 加载时间
 FROM VALUES
         ('FR01', 'PAYMENT', '', '', 'IN', 'CASH', '', 'ADV_RECEIPT', 'RECEIVE', 1, '下级现款支付（本方为收款方）：钱已收、未提供 → 预收 +（需求 5.2-1）', 'CONFIRMED'),
         ('FR02', 'PAYMENT', '', '', 'OUT', 'CASH', '', 'ADV_PAYMENT', 'PAY', 1, '向上级现款采购（本方为采购付款方）：钱已付、未取得 → 预付 +（5.2-4）', 'CONFIRMED'),

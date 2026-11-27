@@ -1,9 +1,8 @@
 -- dws.dws_opr_complaint_rt  投诉实时处理
 -- 粒度：tenant_id × complaint_type
 -- 来源：dwd_opr_complaint_rt
--- 生成方式：Flink SQL（持续聚合（快照类，按主键更新） → StarRocks 主键模型表）；字段 6 个：直接翻译 3 · 规则翻译 1 · 待确认 2
+-- 生成方式：Flink SQL（持续聚合（快照类，按主键更新） → StarRocks 主键模型表）；字段 6 个：直接翻译 3 · 规则翻译 3 · 待确认 0
 -- 来源先按粒度键预聚合
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 INSERT INTO dws.dws_opr_complaint_rt               -- 写入 StarRocks 目标表
 WITH
@@ -13,8 +12,8 @@ src_complaint AS (                                 -- 来源「实时投诉工�
     tenant_id AS tenant_id,                        -- 租户ID
     complaint_type AS complaint_type,              -- 投诉类型
     COUNT(complaint_no) AS complaint_qty,          -- 投诉数
-    COUNT(CASE WHEN 1 = 1 THEN 1 END) AS complaint_resolved_qty,  -- 投诉解决数｜待确认：status in ('RESOLVED','CLOSED')
-    COUNT(CASE WHEN 1 = 1 THEN 1 END) AS complaint_overdue_qty  -- 投诉超SLA数｜待确认：解决时间>sla_deadline
+    COUNT(CASE WHEN complaint_status IN ('RESOLVED', 'CLOSED') THEN complaint_no END) AS complaint_resolved_qty,  -- 投诉解决数｜口径：已解决或已关闭
+    COUNT(CASE WHEN sla_timeout_type = 1 THEN complaint_no END) AS complaint_overdue_qty  -- 投诉超SLA数｜口径：超 SLA
   FROM dwd.dwd_opr_complaint_rt s                  -- 来源表「实时投诉工单」
   GROUP BY travel_date, tenant_id, complaint_type  -- 按粒度键汇总
 )

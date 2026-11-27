@@ -1,9 +1,8 @@
 -- dim.dim_sup_staff_zip  员工维度
 -- 粒度：1行=1个员工×1个有效区间
 -- 来源：ods_sup_tenant_staff_df + ods_sup_sys_user_role_df + ods_sup_sys_role_df, dim_sup_org_df, dim_sup_position_df, dim_sup_role_df
--- 生成方式：Spark SQL / Hive（拉链表）；字段 18 个：直接翻译 14 · 规则翻译 0 · 待确认 4
+-- 生成方式：Spark SQL / Hive（拉链表）；字段 18 个：直接翻译 14 · 规则翻译 4 · 待确认 0
 -- 拉链：比对今日源数据与昨日拉链的行哈希，变化的旧版本闭链、新版本开链；源为全量快照，消失的主键闭链
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 tenant_staff_src AS (                                -- 主表「B端员工」，只取用到的列
@@ -32,7 +31,14 @@ sys_user_role_src AS (                               -- 「员工-角色绑定�
   FROM ods.ods_sup_sys_user_role_df
   WHERE travel_date = '${bizdate}'                   -- 只取当日分区
 ),
-role_dim AS (                                        -- 「角色维度」当日数据，只取用到的列
+staff_role_agg AS (   -- 员工绑定的角色（去重排序拼接）  -- 「角色维度」当日数据，只取用到的列
+  SELECT ur.user_id, CONCAT_WS(',', SORT_ARRAY(COLLECT_SET(r.role_code))) AS role_code_list,
+         CONCAT_WS(',', SORT_ARRAY(COLLECT_SET(r.role_name))) AS role_name_list
+  FROM (SELECT user_id, role_id FROM ods.ods_sup_sys_user_role_df WHERE travel_date = '${bizdate}') ur
+  JOIN (SELECT id, role_code, role_name FROM ods.ods_sup_sys_role_df WHERE travel_date = '${bizdate}') r ON r.id = ur.role_id
+  GROUP BY ur.user_id
+),
+role_dim AS (
   SELECT role_id, role_name
   FROM dim.dim_sup_role_df
   WHERE travel_date = '${bizdate}'                   -- 只取当日分区
@@ -52,19 +58,19 @@ src AS (                                             -- 今日最新状态（与
     org_dim.org_name              AS org_name,       -- 所属部门名称
     org_dim.org_path_desc         AS org_path_desc,  -- 部门完整路径
     position_dim.position_name    AS position_name,  -- 岗位名称
-    sys_role_src.role_code        AS role_code_list_desc,  -- 角色编码列表｜待确认：ods_sup_sys_role_df.role_code 经 ods_sup_sys_user_role_df.role_id 聚合
-    role_dim.role_name            AS role_name_list_desc  -- 角色名称列表｜待确认：dim_sup_role_df.role_name 聚合
+    sra.role_code_list AS role_code_list_desc,  -- 角色编码列表｜口径：员工绑定的角色编码，去重排序后逗号拼接
+    sra.role_name_list AS role_name_list_desc  -- 角色名称列表｜口径：员工绑定的角色名称，去重排序后逗号拼接
   FROM tenant_staff_src
   LEFT JOIN org_dim                                  -- 关联「部门维度」，取 所属部门名称、部门完整路径
     ON org_dim.org_id = tenant_staff_src.org_id      -- 按 org_id 关联
   LEFT JOIN position_dim                             -- 关联「岗位维度」，取 岗位名称
     ON position_dim.position_id = tenant_staff_src.position_id  -- 按 position_id 关联
-  LEFT JOIN sys_role_src                             -- 关联「RBAC角色」，取 角色编码列表
-    ON sys_role_src.id = tenant_staff_src.id         -- 按 id 关联｜待确认：关联键
-  LEFT JOIN sys_user_role_src                        -- 关联「员工-角色绑定」
-    ON sys_user_role_src.id = tenant_staff_src.id    -- 按 id 关联｜待确认：关联键
-  LEFT JOIN role_dim                                 -- 关联「角色维度」，取 角色名称列表
-    ON role_dim.role_id = sys_user_role_src.role_id  -- 按 role_id 关联
+  LEFT JOIN staff_role_agg sra  -- 关联「RBAC角色」，取 角色编码列表
+    ON sra.user_id = tenant_staff_src.id
+  
+    
+  
+    
 ),
 src_hash AS (                                        -- 今日状态的行哈希（比较是否变化）
   SELECT s.*, MD5(CONCAT_WS('|', CAST(staff_no AS STRING), CAST(tenant_id AS STRING), CAST(org_id AS STRING), CAST(position_id AS STRING), CAST(staff_name AS STRING), CAST(phone_no AS STRING), CAST(staff_status AS STRING), CAST(create_time AS STRING), CAST(update_time AS STRING), CAST(org_name AS STRING), CAST(org_path_desc AS STRING), CAST(position_name AS STRING), CAST(role_code_list_desc AS STRING), CAST(role_name_list_desc AS STRING))) AS row_hash

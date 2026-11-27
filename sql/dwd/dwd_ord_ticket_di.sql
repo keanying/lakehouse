@@ -1,9 +1,8 @@
 -- dwd.dwd_ord_ticket_di  票明细（出票）
 -- 粒度：1行=1张票（ticket_no）
 -- 来源：ods_ord_ticket_di + dwd_ord_order_di
--- 生成方式：Spark SQL / Hive；字段 27 个：直接翻译 21 · 规则翻译 4 · 待确认 2
+-- 生成方式：Spark SQL / Hive；字段 27 个：直接翻译 21 · 规则翻译 6 · 待确认 0
 -- 主表增量先去重再关联；每个 WITH 逻辑块只取用到的列并先过滤分区
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 ticket_rn AS (                                                                 -- 「票」当日增量，同一主键按 binlog 时间倒序编号
@@ -27,9 +26,10 @@ order_dtl AS (                                                                 -
   WHERE travel_date = '${bizdate}'                                             -- 只取当日分区
 ),
 verify_dtl AS (                                                                -- 「核销明细（权益级）」当日数据，只取用到的列
-  SELECT create_time, ticket_no
+  SELECT ticket_no, MIN(create_time) AS first_verify_time
   FROM dwd.dwd_ord_verify_di
-  WHERE travel_date = '${bizdate}'                                             -- 只取当日分区
+  WHERE travel_date >= DATE_FORMAT(DATE_SUB(TO_DATE('${bizdate}', 'yyyyMMdd'), 400), 'yyyyMMdd') AND verify_result_type = 'SUCCESS'  -- 只取当日分区
+    GROUP BY ticket_no
 )
 INSERT OVERWRITE TABLE dwd.dwd_ord_ticket_di PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
 SELECT
@@ -56,8 +56,8 @@ SELECT
   GET_JSON_OBJECT(ticket_latest.metadata, '$.schedule')  AS schedule_time,     -- 场次/班次时间
   order_dtl.unit_price_amt                               AS unit_price_amt,    -- 票分摊单价（元）
   1                                                      AS ticket_qty,        -- 票数
-  ticket_latest.valid_start                              AS delay_active_type,  -- 是否延迟激活｜待确认：ods_ord_ticket_di.valid_start 为空判定
-  verify_dtl.create_time                                 AS first_verify_time,  -- 首次核销时间｜待确认：dwd_ord_verify_di.create_time 按 ticket_no 取最小
+  CASE WHEN ticket_latest.valid_start IS NULL OR ticket_latest.valid_start = '' OR ticket_latest.valid_start LIKE '1970-01-01%' THEN 1 ELSE 0 END AS delay_active_type,  -- 是否延迟激活｜口径：有效期起始为空或默认值（首次核销时回填）即延迟激活
+  verify_dtl.first_verify_time AS first_verify_time,  -- 首次核销时间｜口径：近 400 天核销成功记录的最早时间
   ticket_latest.create_time                              AS issue_time,        -- 出票时间
   CURRENT_TIMESTAMP()                                    AS etl_time           -- ETL 加载时间
 FROM ticket_latest

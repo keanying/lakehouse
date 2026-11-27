@@ -1,9 +1,8 @@
 -- dws.dws_sup_tenant_trade_di  商户经营日汇总
 -- 粒度：travel_date × seller_tenant_id
 -- 来源：dws_ord_tenant_sku_channel_trade_di, dws_ord_tenant_sku_verify_di, dws_ord_tenant_refund_di, dwd_cus_customer_register_di, dws_cus_customer_lifetime_df
--- 生成方式：Spark SQL / Hive；字段 21 个：直接翻译 2 · 规则翻译 17 · 待确认 2
+-- 生成方式：Spark SQL / Hive；字段 21 个：直接翻译 2 · 规则翻译 19 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 src_tenant_sku_channel_trade AS (                        -- 来源「商户×SKU×渠道 交易日汇总」按粒度键预聚合
@@ -85,7 +84,7 @@ src_customer_register AS (                               -- 来源「游客注�
     NULL AS verify_ticket_qty,
     NULL AS verify_amt,
     CAST(NULL AS BINARY) AS pay_buyer_bitmap,
-    COUNT(CASE WHEN 1 = 1 THEN customer_id END) AS new_customer_qty,  -- 新注册游客数｜待确认：kind='REAL'
+    COUNT(CASE WHEN customer_type = 'REAL' THEN customer_id END) AS new_customer_qty,  -- 新注册游客数｜口径：只计真人注册账号，剔除占位买家
     NULL AS on_sale_sku_qty,
     NULL AS cost_amt,
     NULL AS sold_sku_qty,

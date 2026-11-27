@@ -1,9 +1,8 @@
 -- ads.ads_fin_account_fund_df  账户资金看板
 -- 粒度：travel_date × account_no
 -- 来源：dws_fin_account_balance_df, dws_trf_distributor_credit_df, dws_fin_account_flow_di
--- 生成方式：Spark SQL / Hive；字段 13 个：直接翻译 12 · 规则翻译 0 · 待确认 1
+-- 生成方式：Spark SQL / Hive；字段 13 个：直接翻译 12 · 规则翻译 1 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总；快照/累计表：增量来源取截至统计日的全部分区
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 src_account_balance AS (                                          -- 来源「账户余额日快照」按粒度键预聚合

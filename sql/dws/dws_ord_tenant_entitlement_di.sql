@@ -1,9 +1,8 @@
 -- dws.dws_ord_tenant_entitlement_di  商户×权益类型 权益使用日汇总
 -- 粒度：travel_date × seller_tenant_id × sku_id × entitlement_type × binding_type
 -- 来源：dwd_ord_entitlement_di, dwd_ord_entitlement_binding_di, dwd_ord_verify_di, dwd_ord_ticket_status_log_di
--- 生成方式：Spark SQL / Hive；字段 16 个：直接翻译 4 · 规则翻译 1 · 待确认 11
+-- 生成方式：Spark SQL / Hive；字段 16 个：直接翻译 4 · 规则翻译 12 · 待确认 0
 -- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 src_entitlement AS (                                        -- 来源「权益明细」按粒度键预聚合
@@ -13,9 +12,9 @@ src_entitlement AS (                                        -- 来源「权益�
     entitlement_type AS entitlement_type,                   -- 权益类型
     CAST(NULL AS STRING) AS binding_type,
     COUNT(entitlement_no) AS entitlement_issue_qty,         -- 发放权益数
-    NULL AS entitlement_used_qty,                           -- 待确认：sum(used_count)
-    NULL AS entitlement_total_qty,                          -- 待确认：sum(max_count)
-    SUM(CASE WHEN 1 = 1 THEN quota_amt END) AS quota_total_amt,  -- 额度型权益总额度｜待确认：type='QUOTA'
+    SUM(used_qty) AS entitlement_used_qty,                  -- 权益已用次数
+    SUM(max_qty) AS entitlement_total_qty,  -- 权益可用总次数｜口径：计次 / 选择型权益的最大可用次数合计
+    SUM(CASE WHEN entitlement_type = 'QUOTA' THEN quota_amt END) AS quota_total_amt,  -- 额度型权益总额度｜口径：额度型权益的额度合计（元）
     NULL AS activate_ticket_qty,
     NULL AS activate_delay_day_qty,
     NULL AS pending_activate_ticket_qty
@@ -33,10 +32,12 @@ src_ticket_status_log AS (                                  -- 来源「票状�
     NULL AS entitlement_used_qty,
     NULL AS entitlement_total_qty,
     NULL AS quota_total_amt,
-    COUNT(CASE WHEN 1 = 1 THEN ticket_no END) AS activate_ticket_qty,  -- 激活票数｜待确认：valid_start 由默认值变为实际时间
-    NULL AS activate_delay_day_qty,                         -- 待确认：sum(datediff(activate_date, pay_date))
+    COUNT(DISTINCT CASE WHEN tk.tk_delay = 1 AND s.before_status = 'AVAILABLE' AND s.after_status IN ('PARTIALLY_USED', 'USED') THEN s.ticket_no END) AS activate_ticket_qty,  -- 激活票数｜口径：延迟激活票首次使用即激活：状态由可用变为部分使用 / 已使用
+    SUM(CASE WHEN tk.tk_delay = 1 AND s.before_status = 'AVAILABLE' AND s.after_status IN ('PARTIALLY_USED', 'USED') THEN DATEDIFF(TO_DATE(s.change_time), TO_DATE(tk.tk_issue_time)) END) AS activate_delay_day_qty,  -- 激活延迟天数合计｜口径：激活日 − 出票日（出票即支付完成），求平均激活延迟用
     NULL AS pending_activate_ticket_qty
-  FROM dwd.dwd_ord_ticket_status_log_di s                   -- 来源表「票状态流转明细」
+  FROM dwd.dwd_ord_ticket_status_log_di s  -- 来源表「票状态流转明细」
+  LEFT JOIN (SELECT ticket_no AS tk_no, MAX(delay_active_type) AS tk_delay, MIN(issue_time) AS tk_issue_time, MIN(first_verify_time) AS tk_first_verify_time
+             FROM dwd.dwd_ord_ticket_di WHERE travel_date >= DATE_FORMAT(DATE_SUB(TO_DATE('${bizdate}', 'yyyyMMdd'), 400), 'yyyyMMdd') GROUP BY ticket_no) tk ON tk.tk_no = s.ticket_no
   WHERE s.travel_date = '${bizdate}'                        -- 只取当日分区
   GROUP BY seller_tenant_id, sku_id                         -- 按粒度键汇总
 ),
@@ -52,7 +53,7 @@ src_ticket AS (                                             -- 来源「票明�
     NULL AS quota_total_amt,
     NULL AS activate_ticket_qty,
     NULL AS activate_delay_day_qty,
-    COUNT(CASE WHEN 1 = 1 THEN ticket_no END) AS pending_activate_ticket_qty  -- 待激活票数｜待确认：延迟激活 and valid_start='1970-01-01'
+    COUNT(CASE WHEN delay_active_type = 1 AND first_verify_time IS NULL AND ticket_status = 'AVAILABLE' THEN ticket_no END) AS pending_activate_ticket_qty  -- 待激活票数｜口径：延迟激活且尚未首次核销的可用票
   FROM dwd.dwd_ord_ticket_di s                              -- 来源表「票明细（出票）」
   WHERE s.travel_date = '${bizdate}'                        -- 只取当日分区
   GROUP BY seller_tenant_id, sku_id                         -- 按粒度键汇总

@@ -9,22 +9,22 @@
 -- ================================================================================================
 
 -- Flink SQL：ods_fin_fund_flow_rt（MySQL CDC）→ StarRocks dwd.dwd_fin_fund_flow_rt
-INSERT INTO sr_dwd_fin_fund_flow_rt
+INSERT INTO sr_dwd_fin_fund_flow_rt                                               -- 写入 StarRocks 目标表
 SELECT
-    DATE_FORMAT(f.create_time, 'yyyyMMdd')                           AS travel_date,
-    f.id                                                             AS flow_id,
+    DATE_FORMAT(f.create_time, 'yyyyMMdd')                           AS travel_date,  -- 数据日期
+    f.id                                                             AS flow_id,  -- 资金流水ID（源表主键 id）
     f.flow_no, f.account_no, f.flow_type,
-    CAST(f.amount AS DECIMAL(18,2)) / 100                            AS change_amt,
-    CAST(f.balance_before AS DECIMAL(18,2)) / 100                    AS balance_before_amt,
-    CAST(f.balance_after AS DECIMAL(18,2)) / 100                     AS balance_after_amt,
-    f.related_no, f.payment_batch_no, f.fee_item                     AS fee_item_code,
+    CAST(f.amount AS DECIMAL(18,2)) / 100                            AS change_amt,  -- 变动金额（元
+    CAST(f.balance_before AS DECIMAL(18,2)) / 100                    AS balance_before_amt,  -- 变动前余额（元）
+    CAST(f.balance_after AS DECIMAL(18,2)) / 100                     AS balance_after_amt,  -- 变动后余额（元）
+    f.related_no, f.payment_batch_no, f.fee_item                     AS fee_item_code,  -- 费用项（短信费/提现手续费等）
     f.tenant_id, a.account_type, a.subject_id,
-    IF(f.amount >= 0, 1, 2)                                          AS flow_direction_type,
-    CAST(f.create_time AS STRING)                                    AS flow_time,
-    COALESCE(r.report_code, 'UNCLASSIFIED')                          AS report_code,
-    f.proc_time                                                      AS event_time
+    IF(f.amount >= 0, 1, 2)                                          AS flow_direction_type,  -- 资金方向
+    CAST(f.create_time AS STRING)                                    AS flow_time,  -- 流水发生时间
+    COALESCE(r.report_code, 'UNCLASSIFIED')                          AS report_code,  -- 归属
+    f.proc_time                                                      AS event_time  -- 事件时间（binlog 时间）
 FROM ods_fin_fund_flow_rt f
 LEFT JOIN dim_fin_account_lookup FOR SYSTEM_TIME AS OF f.proc_time AS a ON a.account_no = f.account_no
 LEFT JOIN dim_fin_report_rule_lookup FOR SYSTEM_TIME AS OF f.proc_time AS r
-       ON r.source_type = 'FUND_FLOW' AND r.flow_type = f.flow_type AND r.direction_type = IF(f.amount >= 0, 'IN', 'OUT')
+       ON r.source_type = 'FUND_FLOW' AND r.flow_type = f.flow_type AND r.direction_type = IF(f.amount >= 0, 'IN', 'OUT')  -- 按 flow_type 关联
 WHERE f.op_type = 'I';

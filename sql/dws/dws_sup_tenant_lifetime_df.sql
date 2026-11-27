@@ -1,48 +1,38 @@
 -- dws.dws_sup_tenant_lifetime_df  商户累计至今汇总
 -- 粒度：travel_date（快照日）× seller_tenant_id
--- 来源：dws_sup_tenant_trade_di
--- 生成方式：Spark SQL / Hive；字段 8 个：直接翻译 1 · 规则翻译 2 · 待确认 5
--- 多来源：每个来源先按粒度键预聚合，UNION ALL 后再汇总；快照/累计表：增量来源取截至统计日的全部分区
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
+-- 来源：dws_sup_tenant_lifetime_df（T-1）+ dws_sup_tenant_trade_di
+-- 生成方式：手写（结构不适合按字段自动翻译）；业务规则：
+--   · 字典原写来源为游客交易汇总，商户口径应取商户经营日汇总 dws_sup_tenant_trade_di（同一份订单，粒度更合适）
+--   · 累计用「昨日快照 + 今日」滚动；近 30 天读 30 个日分区；动销 = 当日支付金额 > 0
+-- 性能：
+--   · 只读 T-1 快照 + 30 个日分区
 
-WITH
-src_customer_trade AS (                                          -- 来源「游客×商户 交易日汇总」按粒度键预聚合
-  SELECT
-    seller_tenant_id AS seller_tenant_id,                        -- 卖家租户ID
-    NULL AS first_pay_date,                                      -- 待确认：min(pay_date)
-    NULL AS last_pay_date,                                       -- 待确认：max(pay_date)
-    NULL AS active_tenant_qty,
-    CAST(NULL AS BINARY) AS active_tenant_bitmap
-  FROM dws.dws_cus_customer_trade_di s                           -- 来源表「游客×商户 交易日汇总」
-  WHERE s.travel_date <= '${bizdate}'                            -- 累计口径：取截至统计日的全部分区
-  GROUP BY seller_tenant_id                                      -- 按粒度键汇总
+WITH today AS (
+    SELECT seller_tenant_id, SUM(pay_amt) AS pay_amt
+    FROM dws.dws_sup_tenant_trade_di WHERE travel_date = '${bizdate}' AND pay_amt > 0
+    GROUP BY seller_tenant_id                                                     -- 按粒度键汇总
 ),
-src_tenant_trade AS (                                            -- 来源「商户经营日汇总」按粒度键预聚合
-  SELECT
-    seller_tenant_id AS seller_tenant_id,                        -- 卖家租户ID
-    NULL AS first_pay_date,
-    NULL AS last_pay_date,
-    COUNT(DISTINCT CASE WHEN pay_amt>0 THEN seller_tenant_id END) AS active_tenant_qty,  -- 动销商户数
-    BITMAP_UNION(TO_BITMAP(CASE WHEN pay_amt>0 THEN seller_tenant_id END)) AS active_tenant_bitmap  -- 动销商户数去重位图
-  FROM dws.dws_sup_tenant_trade_di s                             -- 来源表「商户经营日汇总」
-  WHERE s.travel_date <= '${bizdate}'                            -- 累计口径：取截至统计日的全部分区
-  GROUP BY seller_tenant_id                                      -- 按粒度键汇总
+prev AS (
+    SELECT seller_tenant_id, first_pay_date, last_pay_date, total_pay_amt
+    FROM dws.dws_sup_tenant_lifetime_df WHERE travel_date = DATE_FORMAT(DATE_SUB(TO_DATE('${bizdate}', 'yyyyMMdd'), 1), 'yyyyMMdd')
 ),
-all_src AS (                                                     -- 各来源字段已对齐，UNION ALL 合并（比多表 FULL JOIN 少 shuffle）
-  SELECT * FROM src_customer_trade
-  UNION ALL
-  SELECT * FROM src_tenant_trade
+d30 AS (
+    SELECT seller_tenant_id, SUM(pay_amt) AS pay_30d_amt, COUNT(DISTINCT IF(pay_amt > 0, travel_date, NULL)) AS active_day_30d_qty
+    FROM dws.dws_sup_tenant_trade_di
+    WHERE travel_date BETWEEN DATE_FORMAT(DATE_SUB(TO_DATE('${bizdate}', 'yyyyMMdd'), 29), 'yyyyMMdd') AND '${bizdate}'
+    GROUP BY seller_tenant_id                                                     -- 按粒度键汇总
 )
 INSERT OVERWRITE TABLE dws.dws_sup_tenant_lifetime_df PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
 SELECT
-  u.seller_tenant_id,                                            -- 卖家租户ID
-  MIN(u.first_pay_date) AS first_pay_date,                       -- 首次支付日期
-  MAX(u.last_pay_date) AS last_pay_date,                         -- 最近支付日期
-  NULL AS total_pay_amt,                                         -- 待确认：sum(pay_amt) 全历史
-  NULL AS pay_30d_amt,                                           -- 待确认：sum(pay_amt) 近30天
-  NULL AS active_day_30d_qty,                                    -- 待确认：count(distinct travel_date) where pay_amt>0 近30天
-  SUM(u.active_tenant_qty) AS active_tenant_qty,                 -- 动销商户数
-  BITMAP_UNION(u.active_tenant_bitmap) AS active_tenant_bitmap,  -- 动销商户数去重位图
-  CURRENT_TIMESTAMP() AS etl_time                                -- ETL 加载时间
-FROM all_src u
-GROUP BY u.seller_tenant_id;                                     -- 按粒度键汇总
+    COALESCE(t.seller_tenant_id, p.seller_tenant_id)                                  AS seller_tenant_id,  -- 卖家租户ID
+    COALESCE(p.first_pay_date, IF(t.seller_tenant_id IS NOT NULL, '${bizdate_dash}', NULL)) AS first_pay_date,  -- 首次支付日期
+    IF(t.seller_tenant_id IS NOT NULL, '${bizdate_dash}', p.last_pay_date)            AS last_pay_date,  -- 最近支付日期
+    COALESCE(p.total_pay_amt, 0) + COALESCE(t.pay_amt, 0)                             AS total_pay_amt,  -- 累计支付金额
+    COALESCE(d.pay_30d_amt, 0)                                                        AS pay_30d_amt,  -- 近30天支付金额
+    COALESCE(d.active_day_30d_qty, 0)                                                 AS active_day_30d_qty,  -- 近30天动销天数
+    IF(t.seller_tenant_id IS NOT NULL, 1, 0)                                          AS active_tenant_qty,  -- 动销商户数
+    TO_BITMAP(t.seller_tenant_id)                                                     AS active_tenant_bitmap,  -- 动销商户数去重位图
+    CURRENT_TIMESTAMP() AS etl_time                                               -- ETL 加载时间
+FROM today t
+FULL OUTER JOIN prev p ON p.seller_tenant_id = t.seller_tenant_id
+LEFT JOIN d30 d ON d.seller_tenant_id = COALESCE(t.seller_tenant_id, p.seller_tenant_id);

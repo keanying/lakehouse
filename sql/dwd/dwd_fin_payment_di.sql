@@ -70,7 +70,7 @@ SELECT  /*+ BROADCAST(account_dim, account_dim_2) */
   account_dim.subject_id                                       AS payer_tenant_id,  -- 付款方租户ID
   account_dim_2.subject_id                                     AS payee_tenant_id,  -- 收款方租户ID
   ticket_dtl.sku_id                                            AS sku_id,         -- SKU ID（按票关联）
-  GET_JSON_OBJECT(payment_record_latest.freeze_instructions, '$.freezeType') AS freeze_type,  -- 冻结类型
+  GET_JSON_OBJECT(payment_record_latest.freeze_instructions, '$[0].freezeType') AS freeze_type,  -- 冻结类型
   ROUND(payment_record_latest.amount - payment_record_latest.settle_amount /100, 2) AS profit_amt,  -- 本级利润（元）= 支付金额 - 结算金额
   DATE_FORMAT(payment_record_latest.pay_time, 'yyyyMMdd')      AS pay_date,       -- 支付日期
   CURRENT_TIMESTAMP()                                          AS etl_time        -- ETL 加载时间

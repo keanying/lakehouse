@@ -1,9 +1,8 @@
 -- dwd.dwd_inv_pool_change_di  库存池变动明细
 -- 粒度：1行=1次库存池数量变化
 -- 来源：ods_inv_inventory_pool_di（binlog 前后镜像）
--- 生成方式：Spark SQL / Hive；字段 20 个：直接翻译 10 · 规则翻译 8 · 待确认 2
+-- 生成方式：Spark SQL / Hive；字段 20 个：直接翻译 10 · 规则翻译 10 · 待确认 0
 -- 流水/状态变更类：保留每条变更记录；每个 WITH 逻辑块只取用到的列并先过滤分区
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 inventory_pool_chg AS (                                                           -- 主表「库存池」：保留每条变更记录，只取用到的列
@@ -34,8 +33,8 @@ SELECT
   inventory_pool_chg.tenant_id                                 AS tenant_id,      -- 租户ID（分库维度）
   inventory_pool_chg.create_time                               AS create_time,    -- 创建时间
   inventory_pool_chg.update_time                               AS update_time,    -- 更新时间
-  inventory_pool_chg.frozen_quantity                           AS change_type,    -- 变动类型｜待确认：ods_inv_inventory_pool_di.frozen_quantity 与 ods_inv_inventory_pool_di.available_quantity 前后变化方向判定
-  inventory_unit_latest.order_no                               AS order_no,       -- 引起变动的子单号｜待确认：ods_inv_inventory_unit_di.order_no 或库存流水关联
+  CASE WHEN (inventory_pool_chg.frozen_quantity - LAG(inventory_pool_chg.frozen_quantity) OVER (PARTITION BY inventory_pool_chg.id ORDER BY inventory_pool_chg.binlog_time)) > 0 AND (inventory_pool_chg.available_quantity - LAG(inventory_pool_chg.available_quantity) OVER (PARTITION BY inventory_pool_chg.id ORDER BY inventory_pool_chg.binlog_time)) < 0 THEN 'PRE_DEDUCT' WHEN (inventory_pool_chg.frozen_quantity - LAG(inventory_pool_chg.frozen_quantity) OVER (PARTITION BY inventory_pool_chg.id ORDER BY inventory_pool_chg.binlog_time)) < 0 AND (inventory_pool_chg.available_quantity - LAG(inventory_pool_chg.available_quantity) OVER (PARTITION BY inventory_pool_chg.id ORDER BY inventory_pool_chg.binlog_time)) > 0 THEN 'ROLLBACK' WHEN (inventory_pool_chg.frozen_quantity - LAG(inventory_pool_chg.frozen_quantity) OVER (PARTITION BY inventory_pool_chg.id ORDER BY inventory_pool_chg.binlog_time)) < 0 AND COALESCE((inventory_pool_chg.available_quantity - LAG(inventory_pool_chg.available_quantity) OVER (PARTITION BY inventory_pool_chg.id ORDER BY inventory_pool_chg.binlog_time)), 0) = 0 THEN 'CONFIRM' ELSE 'ADJUST' END AS change_type,  -- 变动类型｜口径：冻结增、可售减 = 预扣；冻结减、可售增 = 回滚；冻结减、可售不变 = 确认（转已售）；其余 = 人工调整
+  CAST(NULL AS STRING) AS order_no,  -- 引起变动的子单号｜口径：源端缺口：库存池变更没有记录引起变动的订单（数量型库存池无法回溯），已登记待确认事项
   GET_JSON_OBJECT(inventory_pool_chg.dimension_key, '$.date')  AS play_date,      -- 库存日期
   GET_JSON_OBJECT(inventory_pool_chg.dimension_key, '$.roomType') AS room_type_code,  -- 房型编码（酒店）
   GET_JSON_OBJECT(inventory_pool_chg.dimension_key, '$.showTime') AS show_time,   -- 场次时间（演出）
@@ -47,5 +46,5 @@ SELECT
   inventory_pool_chg.binlog_time                               AS change_time,    -- 变动时间
   CURRENT_TIMESTAMP()                                          AS etl_time        -- ETL 加载时间
 FROM inventory_pool_chg
-LEFT JOIN inventory_unit_latest                                                   -- 关联「UNIT池资源（座位/房间/舱位）」，取 引起变动的子单号
-  ON inventory_unit_latest.pool_no = inventory_pool_chg.pool_no;                  -- 按 pool_no 关联
+
+  ;

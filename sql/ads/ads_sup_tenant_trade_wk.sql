@@ -1,9 +1,8 @@
 -- ads.ads_sup_tenant_trade_wk  商户经营周报
 -- 粒度：自然周 × seller_tenant_id
 -- 来源：dws_sup_tenant_trade_di
--- 生成方式：Spark SQL / Hive；字段 13 个：直接翻译 5 · 规则翻译 7 · 待确认 1
+-- 生成方式：Spark SQL / Hive；字段 13 个：直接翻译 5 · 规则翻译 8 · 待确认 0
 -- 来源按粒度键预聚合后按公式计算；周/月区间可改为关联时间表 dim_opr_period_f（LW/LM）
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 src_tenant_trade AS (                               -- 来源「商户经营日汇总」按粒度键预聚合
@@ -35,9 +34,13 @@ merged AS (                                         -- 按粒度键汇总，计�
     u.refund_ticket_qty * 100 / NULLIF(u.pay_ticket_qty, 0) AS refund_1w_rate,  -- 本周退票率
     u.pay_amt - u.cost_amt AS gross_profit_1w_amt,  -- 本周毛利额
     u.pay_amt / NULLIF(u.pay_buyer_qty, 0) AS per_customer_1w_amt,  -- 本周客单价
-    NULL AS pay_amt_wow_rate,                       -- 待确认：支付金额周同比 = (本期支付金额-上期支付金额)*100/上期支付金额；日表：本期=统计日，上期=上周同一天；周报：本期=本周，上期=上周；保留 6 位小数；分母为 0 时结果为空（需上一周期的值：关联时间表 prev_* 区间计算）
+    ROUND((u.pay_amt - p.p_pay_amt) * 100 / NULLIF(p.p_pay_amt, 0), 6) AS pay_amt_wow_rate,  -- 支付金额周同比｜口径：（本周 − 上一周）÷ 上一周 × 100；上一周为 0 时为空
     CURRENT_TIMESTAMP() AS etl_time                 -- ETL 加载时间
   FROM src_tenant_trade u
+    LEFT JOIN (SELECT seller_tenant_id AS p_tenant_id, SUM(pay_amt) AS p_pay_amt FROM dws.dws_sup_tenant_trade_di
+               WHERE travel_date BETWEEN DATE_FORMAT(DATE_SUB(TO_DATE('${last_week_start}', 'yyyyMMdd'), 7), 'yyyyMMdd')
+                                     AND DATE_FORMAT(DATE_SUB(TO_DATE('${last_week_end}', 'yyyyMMdd'), 7), 'yyyyMMdd')
+               GROUP BY seller_tenant_id) p ON p.p_tenant_id = u.seller_tenant_id   -- 上一周（同长度区间）支付金额
 ),
 tenant_cur AS (                                     -- 「租户（商户/供应商/分销商）维度」当前有效版本，只取名称类字段
   SELECT tenant_id, tenant_name

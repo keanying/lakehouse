@@ -1,29 +1,35 @@
 -- dwd.dwd_opr_device_status_log_di  设备状态变更明细
 -- 粒度：1行=1次设备状态/心跳变化
--- 来源：ods_opr_device_df（相邻快照/binlog）
--- 生成方式：Spark SQL / Hive；字段 12 个：直接翻译 9 · 规则翻译 1 · 待确认 2
--- 流水/状态变更类：保留每条变更记录；每个 WITH 逻辑块只取用到的列并先过滤分区
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
+-- 来源：ods_opr_device_df（今日、昨日两个日快照）
+-- 生成方式：手写（结构不适合按字段自动翻译）；业务规则：
+--   · 设备表是日全量快照：今日状态与昨日不同（或新设备）即记一条变更；变更前 = 昨日状态，变更后 = 今日状态
+--   · 前一状态持续时长 = 本次变更时间 − 上一次变更时间（取历史变更明细，没有则取设备创建时间）
+--   · 口径说明：日快照只能看到日终状态，一天内多次切换只记最终一次
+-- 性能：
+--   · 只读两个快照分区 + 近 400 天变更明细的每设备最大变更时间
 
-WITH
-device_chg AS (                                                                   -- 主表「设备」：保留每条变更记录，只取用到的列
-  SELECT device_group_id, device_no, device_status, device_type, id, last_heartbeat, poi_id, tenant_id,
-         update_time
-  FROM ods.ods_opr_device_df
-  WHERE travel_date = '${bizdate}'                                                -- 只取当日分区
+WITH t AS (
+    SELECT id, device_no, tenant_id, device_type, device_group_id, poi_id, device_status, last_heartbeat, update_time, create_time
+    FROM ods.ods_opr_device_df WHERE travel_date = '${bizdate}'
+),
+y AS (
+    SELECT id, device_status FROM ods.ods_opr_device_df WHERE travel_date = DATE_FORMAT(DATE_SUB(TO_DATE('${bizdate}', 'yyyyMMdd'), 1), 'yyyyMMdd')
+),
+last_chg AS (
+    SELECT device_id, MAX(change_time) AS last_change_time
+    FROM dwd.dwd_opr_device_status_log_di WHERE travel_date >= DATE_FORMAT(DATE_SUB(TO_DATE('${bizdate}', 'yyyyMMdd'), 400), 'yyyyMMdd') AND travel_date < '${bizdate}'
+    GROUP BY device_id                                                            -- 按粒度键汇总
 )
 INSERT OVERWRITE TABLE dwd.dwd_opr_device_status_log_di PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
 SELECT
-  device_chg.id                                                AS device_id,      -- 设备ID
-  device_chg.device_no                                         AS device_no,      -- 设备编号
-  device_chg.tenant_id                                         AS tenant_id,      -- 租户ID
-  device_chg.device_type                                       AS device_type,    -- 设备类型
-  device_chg.device_group_id                                   AS device_group_id,  -- 设备分组ID
-  device_chg.poi_id                                            AS poi_id,         -- 所属 POI ID
-  device_chg.device_status                                     AS before_status,  -- 变更前状态｜待确认：ods_opr_device_df.device_status 昨日快照
-  device_chg.device_status                                     AS after_status,   -- 变更后状态｜待确认：ods_opr_device_df.device_status 今日快照
-  device_chg.last_heartbeat                                    AS last_heartbeat_time,  -- 最后心跳时间
-  device_chg.update_time                                       AS change_time,    -- 状态变更时间
-  (UNIX_TIMESTAMP(device_chg.update_time) - UNIX_TIMESTAMP(LAG(device_chg.update_time) OVER (PARTITION BY device_chg.id ORDER BY device_chg.update_time))) / 60 AS status_minute_qty,  -- 前一状态持续时长（分钟）
-  CURRENT_TIMESTAMP()                                          AS etl_time        -- ETL 加载时间
-FROM device_chg;
+    t.id AS device_id, t.device_no, t.tenant_id, t.device_type, t.device_group_id, t.poi_id,
+    y.device_status                                               AS before_status,  -- 变更前状态
+    t.device_status                                               AS after_status,  -- 变更后状态
+    t.last_heartbeat                                              AS last_heartbeat_time,  -- 最后心跳时间
+    t.update_time                                                 AS change_time,  -- 状态变更时间
+    ROUND((UNIX_TIMESTAMP(t.update_time) - UNIX_TIMESTAMP(COALESCE(lc.last_change_time, t.create_time))) / 60, 2) AS status_minute_qty,  -- 前一状态持续时长（分钟）
+    CURRENT_TIMESTAMP() AS etl_time                                               -- ETL 加载时间
+FROM t
+LEFT JOIN y ON y.id = t.id
+LEFT JOIN last_chg lc ON lc.device_id = t.id
+WHERE y.id IS NULL OR y.device_status <> t.device_status;

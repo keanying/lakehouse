@@ -1,9 +1,8 @@
 -- dim.dim_opr_currency_f  币种维度
 -- 粒度：1行=1个币种
 -- 来源：ods_opr_i18n_currency_df
--- 生成方式：Spark SQL / Hive；字段 11 个：直接翻译 10 · 规则翻译 0 · 待确认 1
+-- 生成方式：Spark SQL / Hive；字段 11 个：直接翻译 10 · 规则翻译 1 · 待确认 0
 -- 每个 WITH 逻辑块只取用到的列并先过滤分区
--- 标「待确认」的字段：加工说明是业务描述，这里给出近似写法，上线前需人工核对
 
 WITH
 i18n_currency_src AS (                                          -- 主表「支持币种」，只取用到的列
@@ -23,6 +22,6 @@ SELECT
   i18n_currency_src.currency_status      AS currency_status,    -- 状态
   i18n_currency_src.create_time          AS create_time,        -- 创建时间
   i18n_currency_src.update_time          AS update_time,        -- 更新时间
-  NULL                                   AS decimal_digit_qty,  -- 金额小数位数｜待确认：常量映射（JPY=0，其余=2）
+  CASE WHEN i18n_currency_src.currency_code IN ('JPY', 'KRW') THEN 0 ELSE 2 END AS decimal_digit_qty,  -- 金额小数位数｜口径：ISO 4217：日元、韩元无小数，其余 2 位
   CURRENT_TIMESTAMP()                    AS etl_time            -- ETL 加载时间
 FROM i18n_currency_src;
