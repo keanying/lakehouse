@@ -99,9 +99,9 @@ mark{background:#ffe98a;padding:0 1px;border-radius:2px}
 .sec h3{margin:0 0 10px;font-size:14px}
 .sec h3 small{color:var(--muted);font-weight:400;margin-left:6px}
 .bars{display:grid;gap:7px}
-.brow{display:grid;grid-template-columns:44px 1fr 64px;gap:10px;align-items:center;font-size:12.5px;cursor:pointer}
+.brow{display:grid;grid-template-columns:64px 1fr 64px;gap:10px;align-items:center;font-size:12.5px;cursor:pointer}
 .brow:hover .bt{filter:brightness(.92)}
-.bk{font-family:var(--mono);color:var(--sub)}
+.bk{color:var(--sub);white-space:nowrap}
 .bg{height:16px;background:#eff1f6;border-radius:4px;overflow:hidden;display:flex}
 .bt{height:100%;background:var(--brand)}
 .bn{text-align:right;color:var(--muted)}
@@ -413,7 +413,7 @@ function vOverview(v){
     <a class="btn" href="ADS指标体系.xlsx" download style="display:inline-flex;align-items:center;text-decoration:none">ADS 指标体系（Excel）</a>
     <span style="color:var(--muted);font-size:12px">加工 SQL 在仓库 sql/ 目录，与调度工作流「执行」列路径一致</span></div>
   <div class="grid5">${LAY.map(l=>{const r=LINFO[l];const all=cnt(l),rt=all.filter(t=>t.rt).length;return`<div class="card lc" style="--c:var(--${l})" data-l="${l}"><div class="k">${l} · ${esc(r[1])}</div><div class="n">${all.length-rt}<small>张离线${rt?` + ${rt} 实时`:''}</small></div><div class="d">${esc(r[3])}</div><div class="x">${esc(r[4])}</div></div>`}).join('')}</div>
-  <div class="two"><div class="card sec"><h3>业务域分布<small>点击域名筛选表清单</small></h3><div class="bars">${dk.map(d=>{const tot=Object.values(dom[d]).reduce((x,y)=>x+y,0);return`<div class="brow" data-d="${d}"><span class="bk">${d}</span><div class="bg" style="width:${tot/mx*100}%">${LAY.filter(l=>dom[d][l]).map(l=>`<div class="bt" style="flex:${dom[d][l]};background:var(--${l})" title="${l} ${dom[d][l]}"></div>`).join('')}</div><span class="bn">${tot} 张</span></div>`}).join('')}</div></div>
+  <div class="two"><div class="card sec"><h3>业务域分布<small>点击域名筛选表清单</small></h3><div class="bars">${dk.map(d=>{const tot=Object.values(dom[d]).reduce((x,y)=>x+y,0);return`<div class="brow" data-d="${d}"><span class="bk" title="${esc(d)}">${esc(domCN(d))}</span><div class="bg" style="width:${tot/mx*100}%">${LAY.filter(l=>dom[d][l]).map(l=>`<div class="bt" style="flex:${dom[d][l]};background:var(--${l})" title="${l} ${dom[d][l]}"></div>`).join('')}</div><span class="bn">${tot} 张</span></div>`}).join('')}</div></div>
   <div class="card sec"><h3>业务域前缀说明</h3><div class="glos" style="grid-template-columns:1fr">${glossary('业务域前缀')}</div></div></div>
   <div class="card sec" style="margin-top:14px"><h3>修饰词<small>取值</small></h3><div class="glos" style="grid-template-columns:1fr">${glossary('修饰词')}</div></div>`;
   if(LEG){const b=v.querySelector('.banner');const L=LEGACY.summary;b.dataset.go='#/legacy';
@@ -430,6 +430,16 @@ function sections(){
     if(isHead){cur={title:r[0],head:[r[0],r[1]],rows:[]};out.push(cur)}else if(cur)cur.rows.push([r[0],r[1]]);
   });return out;
 }
+/* 业务域：代码 → 中文名（取「分层汇总 · 业务域前缀」，缺省用标准 9 域） */
+const DOMSTD={ord:'订单',fin:'财务',prd:'产品',inv:'库存',cus:'用户',sup:'供应商',trf:'流量渠道',opr:'运营',mkt:'营销',pub:'公共'};
+let _DOMCN=null;
+function domCN(d){
+  if(!d)return'';
+  if(!_DOMCN){_DOMCN={...DOMSTD};const s=sections().find(x=>x.title==='业务域前缀');
+    if(s)s.rows.forEach(([k,v])=>{const c=String(k).replace(/_$/,'').trim(),n=String(v||'').split(/[、，,（(]/)[0].trim();if(c&&n)_DOMCN[c]=n.replace(/^(.{2,4}).*$/,'$1')})}
+  return _DOMCN[d]||d;
+}
+const domLabel=d=>d?`${domCN(d)}`:'';
 function glossary(title){const s=sections().find(x=>x.title===title);if(!s)return'';return`<table>${s.rows.map(r=>`<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td></tr>`).join('')}</table>`}
 
 /* ---------- 表清单 ---------- */
@@ -437,10 +447,10 @@ const TS={q:'',layer:'',domain:'',rt:'',sel:null,tab:'info',fq:''};
 function vTables(v,a,b){
   if(a){if(/^(layer|domain|rt):/.test(a)){const[k,x]=a.split(':');TS.layer=k==='layer'?x:'';TS.domain=k==='domain'?x:'';TS.rt=k==='rt'?'1':'';TS.q='';TS.sel=null;history.replaceState(null,'','#/tables')}else if(TBM[a]){TS.sel=a;TS.tab=b||'info';TS.fq=''}}
   if(!TS.sel)TS.sel=null;
-  const doms=[...new Set(TB.map(t=>t.domain))].sort();
+  const doms=[...new Set(TB.map(t=>t.domain))].filter(Boolean).sort((a,b)=>domCN(a).localeCompare(domCN(b),'zh'));
   v.innerHTML=`<div class="bar"><input class="inp" id="tq" placeholder="搜索表名 / 中文名 / 来源 / 字段…" value="${esc(TS.q)}">
    <div class="chips" id="lc"><button class="chip ${!TS.layer?'on':''}" data-l="">全部<i>${TB.length}</i></button>${TLAY.map(l=>`<button class="chip ${TS.layer===l?'on':''}" data-l="${l}">${LNAME[l]||l}<i>${TB.filter(t=>t.b===l).length}</i></button>`).join('')}</div>
-   <select class="sel ${TS.domain?'act':''}" id="td"><option value="">业务域：全部</option>${doms.map(d=>`<option ${TS.domain===d?'selected':''}>${d}</option>`).join('')}</select>
+   <select class="sel ${TS.domain?'act':''}" id="td"><option value="">业务域：全部</option>${doms.map(d=>`<option value="${esc(d)}" ${TS.domain===d?'selected':''}>${esc(domCN(d))}</option>`).join('')}</select>
    <button class="chip ${TS.chg?'on':''}" id="tchg" style="${Object.keys(CHG).length?'':'display:none'}">只看改造<i>${Object.keys(CHG).length}</i></button>
    <select class="sel ${TS.rt?'act':''}" id="tr"><option value="">离线 + 实时</option><option value="0" ${TS.rt==='0'?'selected':''}>仅离线</option><option value="1" ${TS.rt==='1'?'selected':''}>仅实时</option></select>
    <span class="grow"></span><span class="cnt" id="tc"></span></div>
@@ -461,7 +471,7 @@ function vTables(v,a,b){
     const t=TBM[TS.sel],el=$('#td2');
     if(!t){el.innerHTML='<div class="empty" style="margin:auto">← 从左侧选择一张表，查看概览、字段与 DDL</div>';return}
     const tabs=[['info','概览'],['cols',`字段 (${t.fields.length})`]];tabs.push(['ddl','DDL']);const sch=SCHED(t.short),dq=DQ(t.short);if(ETL[t.short])tabs.splice(2,0,['etl','加工逻辑']);if(TS.tab==='etl'&&!ETL[t.short])TS.tab='info';if(TS.tab==='orig'||TS.tab==='met')TS.tab='info';if(sch.length)tabs.push(['sch','调度']);if(dq.length)tabs.push(['dq',`质量规则 (${dq.length})`]);if(TS.tab==='sch'&&!sch.length||TS.tab==='dq'&&!dq.length)TS.tab='info';
-    el.innerHTML=`<div class="dh"><h2>${ltag(t.layer)}${esc(t.name)}<button class="btn" id="cpn" style="margin-left:auto;height:26px">复制表名</button></h2><div class="cn">${esc(t.cn)} · <span class="pill">${esc(t.domain)}</span> ${t.b==='SRC'?'<span class="pill">MySQL 业务库</span>':t.rt?'<span class="pill o">实时</span>':'<span class="pill g">离线</span>'}${CHG[t.short]?` <span class="pill o">改造</span>`:''}</div><div class="tabs">${tabs.map(([k,l])=>`<a data-k="${k}" class="${TS.tab===k?'on':''}">${l}</a>`).join('')}</div></div><div class="db ${['info','met','sch','dq'].includes(TS.tab)?'':'flex'}" id="dbody"></div>`;
+    el.innerHTML=`<div class="dh"><h2>${ltag(t.layer)}${esc(t.name)}<button class="btn" id="cpn" style="margin-left:auto;height:26px">复制表名</button></h2><div class="cn">${esc(t.cn)} · <span class="pill" title="业务域 ${esc(t.domain)}">${esc(domCN(t.domain))}</span> ${t.b==='SRC'?'<span class="pill">MySQL 业务库</span>':t.rt?'<span class="pill o">实时</span>':'<span class="pill g">离线</span>'}${CHG[t.short]?` <span class="pill o">改造</span>`:''}</div><div class="tabs">${tabs.map(([k,l])=>`<a data-k="${k}" class="${TS.tab===k?'on':''}">${l}</a>`).join('')}</div></div><div class="db ${['info','met','sch','dq'].includes(TS.tab)?'':'flex'}" id="dbody"></div>`;
     $('#cpn').onclick=e=>copy(t.name,e.target);
     el.querySelector('.tabs').onclick=e=>{const a=e.target.closest('a');if(a){TS.tab=a.dataset.k;detail()}};
     const body=$('#dbody');
@@ -531,7 +541,8 @@ function vMetrics(v,a){
   if(tab==='dict'){
     const R=RAW['DWS口径'],c0=R.cols,ti=c0.indexOf('口径类型');
     const cols=[...c0.slice(0,ti+1),'跨区间聚合方式',...c0.slice(ti+1),'ADS 指标数'];
-    const rows=R.rows.map((r,k)=>{const m=CATALOG[k];return[...r.slice(0,ti+1),CLS[m.cls]?.[0]||'',...r.slice(ti+1),m.ads.length]});
+    const di0=c0.indexOf('业务域');
+    const rows=R.rows.map((r,k)=>{const m=CATALOG[k];const rr=di0>=0?r.map((x,i)=>i===di0?domCN(x):x):r;return[...rr.slice(0,ti+1),CLS[m.cls]?.[0]||'',...rr.slice(ti+1),m.ads.length]});
     const tcols=['落地 DWS 表','来源明细表','被哪些 ADS 表使用'];
     grid(h,{state:MS[tab],cols,rows,wide:true,filters:[ti,ti+1,cols.indexOf('业务域'),cols.indexOf('单位')],searchPh:'搜索口径编码 / 中文名 / 英文名 / 公式…',csvName:'口径字典',
       extra:`<div class="sub" style="margin:-2px 0 8px">${coverage('DWS')}</div>`,
@@ -570,7 +581,7 @@ function catDrawer(m){
   const A=RAW['ADS业务指标'],ac=A.cols,ag=n=>ac.indexOf(n);
   const sql=periodSQL(m,{s:'${start_date}',e:'${end_date}',kind:'range'});
   drawer(m.cn,m.code+' · '+m.en,`<div class="sub">业务口径</div><div class="formula" style="font-family:inherit">${esc(m.kou)}</div><div class="sub">计算公式</div><div class="formula">${esc(m.calc)}</div>`+
-   kvHtml([['口径类型',typePill(m.type)],['跨区间聚合',clsPill(m.cls)+` <span style="color:var(--sub)">${esc(CLS[m.cls]?.[1]||'')}</span>`],['业务域',esc(m.dom)],['单位',esc(m.unit)],['时间口径',esc(m.tcal)],['数据类型',esc(m.dt)],['精度/展示',esc(m.prec)],['来源明细表',linksHtml(m.src)],['落地 DWS 表',linksHtml(m.land)],['被哪些 ADS 表使用',linksHtml(m.used)]])+
+   kvHtml([['口径类型',typePill(m.type)],['跨区间聚合',clsPill(m.cls)+` <span style="color:var(--sub)">${esc(CLS[m.cls]?.[1]||'')}</span>`],['业务域',esc(domCN(m.dom))],['单位',esc(m.unit)],['时间口径',esc(m.tcal)],['数据类型',esc(m.dt)],['精度/展示',esc(m.prec)],['来源明细表',linksHtml(m.src)],['落地 DWS 表',linksHtml(m.land)],['被哪些 ADS 表使用',linksHtml(m.used)]])+
    `<div class="sub">任意时间区间的取数方式（ADS 指标体系）</div><pre class="code sm" style="margin-bottom:14px">${esc(sql)}</pre>`+
    `<div class="sub">该口径的 ADS 指标（${m.ads.length}）</div>`+(m.ads.length?`<table class="st"><thead><tr><th>编码</th><th>指标名</th><th>字段</th><th>周期</th><th>ADS 表</th></tr></thead><tbody>${m.ads.map(r=>`<tr><td class="mono">${esc(r[ag('指标编码')])}</td><td>${esc(r[ag('业务指标名')])}</td><td class="mono">${esc(r[ag('字段名')])}</td><td>${esc(r[ag('统计周期')])}</td><td>${linksHtml(r[ag('ADS表')])}</td></tr>`).join('')}</tbody></table>`:'<div class="empty" style="padding:12px">未被 ADS 使用</div>'));
 }
