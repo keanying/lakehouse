@@ -127,7 +127,7 @@ def build():
         landing = sorted({l for _, s in group for l in s['landing']})
         schema = next((SC[l] for l in landing if l in SC), None)
         tmap = {c: (ty, cm) for c, ty, cm in (schema['cols'] if schema else [])}
-        cn = next((s.get('comment') for _, s in group if s.get('comment')), '') or (schema or {}).get('comment', '') or rules.PINYIN.get(o['ltb'], ('', ''))[1] or table_cn(o['ltb'])
+        cn = SRCDDL.get(f"{o['lds']}:{o['ltb']}", {}).get('tcmt') or next((s.get('comment') for _, s in group if s.get('comment')), '') or (schema or {}).get('comment', '') or rules.PINYIN.get(o['ltb'], ('', ''))[1] or table_cn(o['ltb'])
         srcs = sorted({f'{ds}.{tb}' for (ds, tb), _ in group})
         sens = [c for c in cols if rules.SENSITIVE.search(c)]
         drop = [c for c in cols if rules.DROP.match(c)]
@@ -673,7 +673,7 @@ def legacy_src(C, logical, ods_of_source, fcols, tcols):
                 types.setdefault(c, (ty, cm))
         ods = sorted({ods_of_source[k] for k, _ in g if k in ods_of_source})
         targets = sorted({x for _, s in g for x in s['targets']})
-        cn = next((s.get('comment') for _, s in g if s.get('comment')), '') or (D or {}).get('comment') or rules.PINYIN.get(ltb, ('', ''))[1] or table_cn(ltb)
+        cn = (D or {}).get('tcmt') or next((s.get('comment') for _, s in g if s.get('comment')), '') or (D or {}).get('comment') or rules.PINYIN.get(ltb, ('', ''))[1] or table_cn(ltb)
         note = []
         if len(g) > 1:
             note.append('物理源：' + '、'.join(f'{a}.{b}' for (a, b), _ in g))
@@ -715,14 +715,17 @@ def legacy_src(C, logical, ods_of_source, fcols, tcols):
                 fr[fi['加工 / 来源']] = '同步配置有、DDL 没有：字段可能已删除或改名'
             frows.append(fr)
             lines.append(f'  {c:<32} {ty or "（类型以业务库为准）"}' + (f'  -- {cm}' if cm else ''))
-        ddl[name] = (f"-- 客户提供 DDL（{D['file']}{'，' + D['at'] + ' 录入' if D.get('at') else ''}）\n" + D['ddl'] if D else
+        ddl[name] = (f"-- 客户提供 DDL（{D['file']}{'，' + D['at'] + ' 录入' if D.get('at') else ''}）\n"
+                     + (f"-- 人工修改描述：{'、'.join(D['edited'])}（字段清单已按修改后的描述）\n" if D.get('edited') else '') + D['ddl'] if D else
                      '-- 字段来自 DataWorks 同步任务配置（读端列）；类型取数仓落地表\n' + f'{ltb} (\n' + '\n'.join(lines) + '\n)')
     # 业务库 DDL 补齐工具的表清单：字段为同步配置读取的列（用于和客户 DDL 比对）
-    cmt = {(r[fi['表名（库.表）']], r[fi['字段名']]): r[fi['字段注释']] for r in frows}
+    fx = {(r[fi['表名（库.表）']], r[fi['字段名']]): r for r in frows}
     for t, r in zip(tool, trows):
-        t['cn'] = r[ti['表中文名']]
+        t['cn'], t['note'] = r[ti['表中文名']], r[ti['备注']]
         for f in t['fields']:
-            f['c'] = cmt.get((t['name'], f['n']), '')
+            x = fx.get((t['name'], f['n']))
+            if x:
+                f.update({'t': '' if x[fi['类型']] == '—' else x[fi['类型']], 'c': x[fi['字段注释']] or '', 'k': x[fi['字段类别']], 's': x[fi['加工 / 来源']] or ''})
     (ROOT / 'ddl_tool' / 'src_tables.json').write_text(json.dumps({'tables': tool}, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
     return {'tables': trows, 'fields': frows, 'ddl': ddl, 'info': {}, 'ddlNote': '业务库表结构，取自同步任务配置', 'ddlDone': ddl_done}
 

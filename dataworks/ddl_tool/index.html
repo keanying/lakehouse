@@ -131,6 +131,18 @@ tr.add td:first-child { box-shadow: inset 3px 0 var(--warn) } tr.miss td:first-c
 .synced { font-size: 12.5px; color: var(--muted); margin-top: 12px; line-height: 1.8 }
 .synced code { background: var(--raised); border-radius: 4px; padding: 0 4px; margin-right: 2px }
 
+/* 当前结构 / 可编辑描述 */
+.sub2 { font-size: 12.5px; color: var(--muted); margin: 0 0 10px; line-height: 1.7 }
+.code { background: var(--raised); border: 1px solid var(--line2); border-radius: 8px; padding: 10px 12px; font: 12px/1.6 var(--mono); overflow: auto; max-height: 380px; white-space: pre; margin: 8px 0 0 }
+details.draft { margin-top: 12px } details.draft summary { cursor: pointer; color: var(--muted); font-size: 13px; width: fit-content }
+.tcm { display: flex; gap: 10px; align-items: center; margin-bottom: 12px } .tcm label { font-size: 13px; color: var(--muted); white-space: nowrap }
+.ci { width: 100%; min-width: 220px; height: 28px; border: 1px solid transparent; background: transparent; border-radius: 5px; padding: 0 7px; outline: none }
+.ci:hover { border-color: var(--line) } .ci:focus { border-color: var(--brand); background: var(--panel); box-shadow: 0 0 0 3px var(--focus) }
+.ci.chg { background: var(--warn-bg) } .tcm .ci { border-color: var(--line); height: 32px; max-width: 560px }
+.ci::placeholder { color: var(--faint); font-style: italic }
+td.ce { padding: 3px 6px }
+.edited { font-size: 11px; color: var(--warn); margin-left: 4px }
+
 /* 弹窗 */
 dialog { border: 1px solid var(--line); border-radius: 14px; padding: 0; background: var(--panel); color: var(--ink); box-shadow: var(--shadow); width: min(980px, calc(100vw - 32px)); max-height: calc(100vh - 48px) }
 dialog.small { width: min(480px, calc(100vw - 32px)) }
@@ -308,8 +320,10 @@ $('#list').onclick = e => {
   if (MULTI) { PICK.has(k) ? PICK.delete(k) : PICK.add(k); renderList(true); return }
   select(k);
 };
+let DRAFT = null, DIRTY = false;
 function select(k, scroll) {
-  SEL = k; TAB = null; renderList(true); renderDetail();
+  if (DIRTY && k !== SEL && !confirm('当前表的描述有修改还没保存，放弃修改并切换？')) return;
+  SEL = k; TAB = null; DRAFT = null; DIRTY = false; renderList(true); renderDetail();
   if (scroll) { const el = [...document.querySelectorAll('.it')].find(x => x.dataset.k === k); el && el.scrollIntoView({ block: 'nearest' }) }
 }
 $('#list').onkeydown = e => {
@@ -348,12 +362,13 @@ function renderDetail() {
   const R = $('#right');
   if (!SEL) {
     R.innerHTML = `<div class="empty"><div class="big">从左侧选一张表开始</div><div>查看字段比对、粘贴或修改 DDL，或把不再使用的表标记为弃用</div>
+      <div style="font-size:12.5px">点表后先看「当前结构」：同步任务现在读的字段、类型和描述；录入 DDL 后可在「字段比对」里直接改描述</div>
       <div style="font-size:12.5px">快捷键：<kbd>/</kbd> 搜索 · <kbd>↑</kbd><kbd>↓</kbd> 切换表 · <kbd>B</kbd> 批量粘贴 · <kbd>Ctrl</kbd>+<kbd>S</kbd> 保存</div>
       <button class="btn pri" id="goNext" style="margin-top:6px">从第一张未录入的表开始</button></div>`;
     $('#goNext').onclick = () => { const k = nextTodo(null); if (k) select(k, 1) }; return;
   }
   const k = SEL, t = tbl(k), e = E[k] || {}, p = e.ddl ? parsed(e.ddl) : null, d = p ? compare(t, p) : null, s = state(k);
-  TAB = TAB || (p ? 'cmp' : 'edit');
+  TAB = TAB || (p ? 'cmp' : 'cur');
   R.innerHTML = `<div class="card">
     <div class="dh"><div class="tt"><div class="nm">${esc(k)}</div><div class="sub"><span>${esc(t.cn || (p && p.comment) || '未命名')}</span><span class="tag ${ST[s][1]}">${ST[s][0]}</span>${e.at ? `<span>更新于 ${esc(e.at)}</span>` : ''}</div></div>
       <div class="act">${s === 'dep' ? '<button class="btn sm" id="undep">取消弃用</button>' : '<button class="btn sm dep" id="dep">标记弃用</button>'}<button class="btn sm ghost" id="nx" title="下一张未录入">下一张未录入 →</button></div></div>
@@ -366,7 +381,7 @@ function renderDetail() {
       <div><div class="v ${d && d.miss ? 'bad' : ''}">${d ? d.miss : '—'}</div><div class="l">同步有、DDL 无</div></div>
       <div><div class="v" style="font-size:14px;padding-top:3px">${p ? esc(p.pk.join('、') || '无') : '—'}</div><div class="l">主键</div></div>
     </div>
-    <div class="tabs" role="tablist"><button class="tab" role="tab" data-t="cmp" aria-selected="${TAB === 'cmp'}" ${p ? '' : 'disabled'}>字段比对</button><button class="tab" role="tab" data-t="edit" aria-selected="${TAB === 'edit'}">${p ? '编辑 DDL' : '录入 DDL'}</button></div>
+    <div class="tabs" role="tablist"><button class="tab" role="tab" data-t="cur" aria-selected="${TAB === 'cur'}">当前结构</button><button class="tab" role="tab" data-t="cmp" aria-selected="${TAB === 'cmp'}" ${p ? '' : 'disabled'} title="${p ? '' : '录入 DDL 后可比对'}">字段比对${p && (Object.keys(e.cmts || {}).length || e.tcmt) ? `<span class="edited">改 ${Object.keys(e.cmts || {}).length + (e.tcmt ? 1 : 0)}</span>` : ''}</button><button class="tab" role="tab" data-t="edit" aria-selected="${TAB === 'edit'}">${p ? '编辑 DDL' : '录入 DDL'}</button></div>
     <div class="pane" id="pane"></div></div>`;
   R.querySelector('.tabs').onclick = ev => { const b = ev.target.closest('.tab'); if (b && !b.disabled) { TAB = b.dataset.t; renderDetail() } };
   const dep = $('#dep'); if (dep) dep.onclick = () => openDep([k]);
@@ -374,12 +389,54 @@ function renderDetail() {
   const de = $('#depEdit'); if (de) de.onclick = () => openDep([k]);
   $('#nx').onclick = () => { const n = nextTodo(k); n ? select(n, 1) : toast('当前筛选下没有未录入的表了') };
   const P = $('#pane');
+  const known = new Map((t.fields || []).map(f => [f.n.toLowerCase(), f.c || '']));
+  if (TAB === 'cur') {
+    const F = t.fields || [], q1 = v => String(v || '').replace(/\\/g, '\\\\').replace(/'/g, "''");
+    if (!F.length) { P.innerHTML = '<div class="empty" style="padding:30px 0"><div>这张表不在同步任务读取的业务库表里，没有现有结构</div><div>可以在「录入 DDL」里粘贴它的建表语句</div></div>'; return }
+    const draft = `CREATE TABLE \`${t.table}\` (\n` + F.map(f => `  \`${f.n}\` ${f.t || 'varchar(255) /* 类型未知 */'} COMMENT '${q1(f.c)}'`).join(',\n') + `\n) COMMENT='${q1(t.cn)}';`;
+    P.innerHTML = `<p class="sub2">同步任务当前读取 <b>${F.length}</b> 列。类型取数仓落地表（没有的显示 —），描述取旧系统注释或字典补齐，带「待确认」的是按字段名推断的。${t.note ? '<br>表备注：' + esc(t.note) : ''}</p>
+      <div class="tw"><table><thead><tr><th>#</th><th>字段</th><th>类型</th><th>描述</th><th>类别</th><th>说明</th></tr></thead><tbody>${F.map((f, i) => `<tr><td style="color:var(--faint)">${i + 1}</td><td class="m">${esc(f.n)}</td><td class="m">${esc(f.t || '—')}</td><td>${esc(f.c || '—')}</td><td>${f.k ? `<span class="tag">${esc(f.k)}</span>` : ''}</td><td style="color:var(--muted)">${esc(f.s || '')}</td></tr>`).join('')}</tbody></table></div>
+      <details class="draft"><summary>按现有信息拼的建表草稿（仅供对照，以客户 DDL 为准）</summary><button class="btn sm" id="cpd" style="margin-top:8px">复制草稿</button><pre class="code">${esc(draft)}</pre></details>`;
+    $('#cpd').onclick = ev => { navigator.clipboard.writeText(draft).then(() => toast('已复制建表草稿'), () => toast('复制失败，请手动选中复制', 1)) };
+    return;
+  }
   if (TAB === 'cmp' && p) {
+    const cm = e.cmts || {}, orig = n => (p.cols.find(c => c.n === n) || {}).c || '';
+    const saved = n => n === '__t' ? (e.tcmt || p.comment || '') : (cm[n] ?? orig(n));
+    const cur = n => DRAFT && n in DRAFT ? DRAFT[n] : saved(n);
+    const base = n => n === '__t' ? (p.comment || '') : orig(n);
     const rows = d.rows.filter(r => !DIFFONLY || r.st !== 'same');
-    P.innerHTML = `<div class="bar2"><div class="chips"><button class="chip" data-d="0" aria-pressed="${!DIFFONLY}">全部字段<i>${d.rows.length}</i></button><button class="chip" data-d="1" aria-pressed="${DIFFONLY}">只看差异<i>${d.add + d.miss}</i></button></div>
-      <span style="font-size:12.5px;color:var(--muted)">表注释：${esc(p.comment || '—')}</span></div>
-      <div class="tw"><table><thead><tr><th>#</th><th>字段</th><th>DDL 类型</th><th>非空</th><th>注释</th><th>比对</th></tr></thead><tbody>${rows.length ? rows.map((r, i) => `<tr class="${r.st}"><td style="color:var(--faint)">${i + 1}</td><td class="m">${esc(r.n)}${r.pk ? ' <span class="tag">主键</span>' : ''}</td><td class="m">${esc(r.t || '—')}</td><td>${r.st === 'miss' ? '—' : r.nn ? '是' : ''}</td><td>${esc(r.c)}</td><td>${r.st === 'same' ? '<span class="tag ok">一致</span>' : r.st === 'add' ? '<span class="tag warn">DDL 有、未同步</span>' : '<span class="tag bad">同步有、DDL 无</span>'}</td></tr>`).join('') : '<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:24px">字段与同步配置完全一致</td></tr>'}</tbody></table></div>`;
-    P.querySelector('.chips').onclick = ev => { const b = ev.target.closest('.chip'); if (b) { DIFFONLY = b.dataset.d === '1'; renderDetail() } };
+    P.innerHTML = `<div class="tcm"><label for="tci">表描述</label><input class="ci" id="tci" data-c="__t" value="${esc(cur('__t'))}" placeholder="${esc(t.cn || '无描述')}" title="DDL 原描述：${esc(p.comment || '无')}"></div>
+      <div class="bar2"><div class="chips"><button class="chip" data-d="0" aria-pressed="${!DIFFONLY}">全部字段<i>${d.rows.length}</i></button><button class="chip" data-d="1" aria-pressed="${DIFFONLY}">只看差异<i>${d.add + d.miss}</i></button></div>
+        <span class="grow" style="flex:1"></span><button class="btn sm" id="cfill">空白描述用现有注释补全</button><button class="btn sm ghost" id="creset">全部恢复 DDL 原描述</button></div>
+      <div class="tw"><table><thead><tr><th>#</th><th>字段</th><th>DDL 类型</th><th>非空</th><th style="min-width:260px">描述（可直接修改）</th><th>比对</th></tr></thead><tbody>${rows.length ? rows.map((r, i) => `<tr class="${r.st}"><td style="color:var(--faint)">${i + 1}</td><td class="m">${esc(r.n)}${r.pk ? ' <span class="tag">主键</span>' : ''}</td><td class="m">${esc(r.t || '—')}</td><td>${r.st === 'miss' ? '—' : r.nn ? '是' : ''}</td>
+        ${r.st === 'miss' ? `<td style="color:var(--muted)">${esc(r.c)}</td>` : `<td class="ce"><input class="ci" data-c="${esc(r.n)}" value="${esc(cur(r.n))}" placeholder="${esc(known.get(r.n.toLowerCase()) ? '现有：' + known.get(r.n.toLowerCase()) : '无描述')}" title="DDL 原描述：${esc(orig(r.n) || '无')}"></td>`}
+        <td>${r.st === 'same' ? '<span class="tag ok">一致</span>' : r.st === 'add' ? '<span class="tag warn">DDL 有、未同步</span>' : '<span class="tag bad">同步有、DDL 无</span>'}</td></tr>`).join('') : '<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:24px">字段与同步配置完全一致</td></tr>'}</tbody></table></div>
+      <div class="foot"><span class="hint" id="chint" style="margin:0"></span><span class="grow"></span><button class="btn" id="cundo">撤销未保存的修改</button><button class="btn pri" id="csave" title="Ctrl+S">保存描述</button></div>`;
+    const inputs = [...P.querySelectorAll('input.ci')];
+    const refresh = () => {
+      let n = 0, chg = 0;
+      inputs.forEach(x => { const c = x.dataset.c; x.classList.toggle('chg', x.value.trim() !== base(c)); if (x.value.trim() !== base(c)) chg++; if (x.value !== saved(c)) n++ });
+      const hidden = DRAFT ? Object.keys(DRAFT).filter(c => !inputs.some(x => x.dataset.c === c) && DRAFT[c] !== saved(c)).length : 0;
+      DIRTY = n + hidden > 0; $('#csave').disabled = !DIRTY; $('#cundo').disabled = !DIRTY;
+      const h = $('#chint'); h.className = 'hint' + (DIRTY ? ' warn' : ''); h.textContent = DIRTY ? `有 ${n + hidden} 处修改未保存` : (Object.keys(cm).length || e.tcmt ? `已人工修改 ${Object.keys(cm).length + (e.tcmt ? 1 : 0)} 处描述（黄色底），保存在文件里，不改动客户原 DDL` : '直接点描述即可修改；修改单独记录，不改动客户原 DDL');
+      $('#cfill').disabled = !inputs.some(x => !x.value.trim() && known.get(x.dataset.c.toLowerCase()));
+    };
+    const set = (x, v) => { x.value = v; (DRAFT ??= {})[x.dataset.c] = v };
+    inputs.forEach((x, i) => {
+      x.oninput = () => { (DRAFT ??= {})[x.dataset.c] = x.value; refresh() };
+      x.onkeydown = ev => { if (ev.key === 'Enter') { ev.preventDefault(); (inputs[i + (ev.shiftKey ? -1 : 1)] || x).focus() } if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 's') { ev.preventDefault(); $('#csave').click() } };
+    });
+    $('#cfill').onclick = () => { let n = 0; inputs.forEach(x => { const k2 = known.get(x.dataset.c.toLowerCase()); if (!x.value.trim() && k2 && !/待确认/.test(k2)) { set(x, k2); n++ } }); refresh(); toast(n ? `已补全 ${n} 处（带「待确认」的推断描述不自动补）` : '没有可补全的空白描述') };
+    $('#creset').onclick = () => { inputs.forEach(x => set(x, base(x.dataset.c))); p.cols.forEach(c => { (DRAFT ??= {})[c.n] = c.c || '' }); DRAFT.__t = p.comment || ''; refresh() };
+    $('#cundo').onclick = () => { DRAFT = null; DIRTY = false; renderDetail() };
+    $('#csave').onclick = async () => {
+      const cmts = {}; p.cols.forEach(c => { const v = String(cur(c.n)).trim(); if (v && v !== (c.c || '')) cmts[c.n] = v });
+      const tv = String(cur('__t')).trim(), entry = { ...e, cmts, tcmt: tv && tv !== (p.comment || '') ? tv : '', at: now() };
+      if (await save({ [k]: entry }, null, `已保存 ${k} 的描述`)) { DRAFT = null; DIRTY = false; renderList(true); renderDetail() }
+    };
+    P.querySelector('.chips').onclick = ev => { const b2 = ev.target.closest('.chip'); if (b2) { DIFFONLY = b2.dataset.d === '1'; renderDetail() } };
+    refresh();
     return;
   }
   P.innerHTML = `<textarea id="dta" spellcheck="false" style="min-height:${p ? 340 : 260}px" placeholder="粘贴 ${esc(t.table)} 的 CREATE TABLE 语句"></textarea>
@@ -399,8 +456,9 @@ function renderDetail() {
   ta.oninput = check; check();
   const doSave = async next => {
     const x = check(); if (!x) { ta.focus(); return }
-    if (await save({ [k]: { ...e, ddl: x.ddl, at: now() } }, null, `已保存 ${k}`)) {
-      const n = next ? nextTodo(k) : null; TAB = null; if (n) select(n, 1); else { renderList(true); renderDetail() }
+    const keep = Object.fromEntries(Object.entries(e.cmts || {}).filter(([c]) => x.cols.some(y => y.n === c)));
+    if (await save({ [k]: { ...e, ddl: x.ddl, cmts: keep, at: now() } }, null, `已保存 ${k}`)) {
+      DRAFT = null; DIRTY = false; const n = next ? nextTodo(k) : null; TAB = null; if (n) select(n, 1); else { renderList(true); renderDetail() }
     }
   };
   $('#dsave').onclick = () => doSave(false); $('#dsaveNext').onclick = () => doSave(true);
@@ -443,6 +501,7 @@ $('#bsave').onclick = async () => {
 };
 document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('dialog').close());
 
+window.addEventListener('beforeunload', ev => { if (DIRTY) { ev.preventDefault(); ev.returnValue = '' } });
 // ---------------------------------------------------------------- 快捷键 / 启动
 document.addEventListener('keydown', e => {
   if (document.querySelector('dialog[open]')) return;

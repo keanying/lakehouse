@@ -4,6 +4,7 @@
     -- @table 数据源:表名        （未对上页面业务库表的，数据源为 ?）
     -- @at 录入时间
     -- @status 弃用 / @reason 原因 / @note 备注（标记弃用时才有）
+    -- @tcmt 表描述 / @cmt 字段名 描述（工具里人工修改的描述，覆盖 DDL 的 COMMENT）
     CREATE TABLE ... ;          （弃用表可以没有）
 没有 @table 标记的普通 DDL 文件也能读：按表名对到业务库表（同名多数据源时跳过并提示）。
 """
@@ -108,10 +109,19 @@ def load(src_names=()):
             parts = re.split(r'^--\s*@table\s+(\S+)\s*$', text, flags=re.M)
             for k in range(1, len(parts), 2):
                 body = parts[k + 1]
-                meta = {m: (re.search(rf'^--\s*@{m}\s+(.+)$', body, re.M) or [None, ''])[1].strip() for m in ('at', 'status', 'reason', 'note')}
+                meta = {m: (re.search(rf'^--\s*@{m}\s+(.+)$', body, re.M) or [None, ''])[1].strip() for m in ('at', 'status', 'reason', 'note', 'tcmt')}
+                cmts = dict(re.findall(r'^--\s*@cmt\s+(\S+)\s+(.+)$', body, re.M))
                 p = parse(body)
                 if p or meta['status']:
-                    res[parts[k]] = {**(p[0] if p else {'cols': [], 'pk': [], 'comment': '', 'ddl': ''}), **meta, 'file': f.name}
+                    e = {**(p[0] if p else {'cols': [], 'pk': [], 'comment': '', 'ddl': ''}), **meta, 'file': f.name, 'edited': []}
+                    # 工具里人工修改的描述（@tcmt 表描述、@cmt 字段 描述）覆盖 DDL 里的 COMMENT
+                    if meta['tcmt']:
+                        e['comment'] = meta['tcmt']
+                    for c in e['cols']:
+                        if c['n'] in cmts:
+                            c['c'] = cmts[c['n']].strip()
+                            e['edited'].append(c['n'])
+                    res[parts[k]] = e
         else:
             for p in parse(text):
                 c = by_tb.get(p['table'].lower(), [])
