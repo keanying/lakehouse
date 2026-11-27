@@ -644,7 +644,7 @@ def legacy_src(C, logical, ods_of_source, fcols, tcols):
     """业务库原始表（SRC）：DataWorks 同步任务读取的全部业务表；落地数仓的与 ODS 一一对应"""
     S, SC = C['sources'], C['schemas']
     ti, fi = {c: i for i, c in enumerate(tcols)}, {c: i for i, c in enumerate(fcols)}
-    trows, frows, ddl, ddl_done = [], [], {}, {}
+    trows, frows, ddl, ddl_done, tool = [], [], {}, {}, []
     groups = collections.OrderedDict()
     for (ds, tb), s in sorted(S.items()):
         groups.setdefault(rules.logical_source(ds, tb), []).append(((ds, tb), s))
@@ -652,6 +652,7 @@ def legacy_src(C, logical, ods_of_source, fcols, tcols):
         name = f'{lds}:{ltb}'
         cols = max((s['cols'] for _, s in g), key=len)
         D = SRCDDL.get(name)
+        tool.append({'name': name, 'ds': lds, 'table': ltb, 'fields': [{'n': c} for c in cols if re.fullmatch(r'\w+', c)]})
         synced = {c.lower() for c in cols}
         if D:   # 客户 DDL：字段以 DDL 为准（顺序、类型、注释、主键），同步配置有而 DDL 没有的排在后面
             dn = {x['n'].lower() for x in D['cols']}
@@ -705,6 +706,13 @@ def legacy_src(C, logical, ods_of_source, fcols, tcols):
             lines.append(f'  {c:<32} {ty or "（类型以业务库为准）"}' + (f'  -- {cm}' if cm else ''))
         ddl[name] = (f"-- 客户提供 DDL（{D['file']}{'，' + D['at'] + ' 录入' if D.get('at') else ''}）\n" + D['ddl'] if D else
                      '-- 字段来自 DataWorks 同步任务配置（读端列）；类型取数仓落地表\n' + f'{ltb} (\n' + '\n'.join(lines) + '\n)')
+    # 业务库 DDL 补齐工具的表清单：字段为同步配置读取的列（用于和客户 DDL 比对）
+    cmt = {(r[fi['表名（库.表）']], r[fi['字段名']]): r[fi['字段注释']] for r in frows}
+    for t, r in zip(tool, trows):
+        t['cn'] = r[ti['表中文名']]
+        for f in t['fields']:
+            f['c'] = cmt.get((t['name'], f['n']), '')
+    (ROOT / 'ddl_tool' / 'src_tables.json').write_text(json.dumps({'tables': tool}, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
     return {'tables': trows, 'fields': frows, 'ddl': ddl, 'info': {}, 'ddlNote': '业务库表结构，取自同步任务配置', 'ddlDone': ddl_done}
 
 
@@ -820,7 +828,6 @@ def main():
                   'map': '<div style="font-weight:600;color:var(--text)">旧表 → 标准表</div><div>每张旧 Hive 表与回流表归到哪张标准表：合并 / 改名 / 回流改造 / 移出数仓 / 下线。迁移时按此逐张切换并对数。</div>',
                   'cover': '<div style="font-weight:600;color:var(--text)">导出模型覆盖</div><div>客户导出到 MySQL / Oracle / SelectDB 等的应用层模型，每个字段对到标准指标与标准 ADS：已覆盖 / 时间表派生（年 / 月 / 周、累计列）/ 已补全。</div>',
                   'unify': '<div style="font-weight:600;color:var(--text)">口径统一</div><div>同一个指标在旧系统有多种算法时逐个列出（Vn），说明与标准口径的差异；标准口径见「指标口径 · 口径字典」。</div>',
-                  'ddl': '<div style="font-weight:600;color:var(--text)">业务库 DDL</div><div>把客户给的建表语句贴进来：按表名对到业务库表，并和现在的字段（来自同步任务配置）比对。录入只存在本机浏览器，点「导出文件」得到一个 .sql 文件，交给数仓放到 dataworks/input/ 后重新生成，字典里的业务库字段、类型、注释、主键就以 DDL 为准。</div>',
                   'nodes': '<div style="font-weight:600;color:var(--text)">旧节点清单</div><div>导出包里的全部节点（同步、SQL、Python），可按工作空间、类型、处理方式筛选。</div>'},
          'reportHref': '../docs/问题清单.md'}
     meta = {'mode': 'legacy', 'xlsx': xlsx.name, 'built': datetime.date.today().isoformat(), 'dict2': xlsx.name,

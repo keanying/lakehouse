@@ -225,3 +225,7 @@ __marimo__/
 # 数仓字典构建产物需要提交（双击即可打开）
 !dw-dict/dist/
 !dataworks/dist/
+
+# 业务库 DDL 补齐工具的临时 / 备份文件
+dataworks/input/*.tmp
+dataworks/input/*.bak

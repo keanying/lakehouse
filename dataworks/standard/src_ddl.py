@@ -1,4 +1,4 @@
-"""读取客户提供的业务库表 DDL（字典页「旧系统对照 · 业务库 DDL」导出的 .sql 文件）。
+"""读取客户提供的业务库表 DDL（业务库 DDL 补齐工具 dataworks/ddl_tool 写入的 src_ddl.sql）。
 
 文件放在 dataworks/input/src_ddl*.sql（多个文件按文件名排序，后面的覆盖前面的同名表）。格式：
     -- @table 数据源:表名        （未对上页面业务库表的，数据源为 ?）

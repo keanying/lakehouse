@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>业务库 DDL 补齐</title>
+<style>
+/* 左表右详情：左侧业务库表清单（筛选 / 状态），右侧批量粘贴 + 单表字段比对与编辑；保存即写文件 */
+:root {
+  --bg: #f3f5f8; --panel: #ffffff; --ink: #172235; --muted: #5d6b7f; --line: #e1e6ed; --soft: #f6f8fb;
+  --brand: #1f6fd1; --brand-soft: rgba(31, 111, 209, .12); --ok: #0f7a3a; --ok-bg: #e7f5ec; --warn: #9a5b00; --warn-bg: #fff3dc;
+  --bad: #b42318; --bad-bg: #fde9e7; --info-bg: #e8f0fb;
+  --sans: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+  --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Courier New", monospace;
+}
+@media (prefers-color-scheme: dark) { :root {
+  --bg: #0f141c; --panel: #161d28; --ink: #e6ebf2; --muted: #96a3b5; --line: #263244; --soft: #1b2431;
+  --brand: #4b93ea; --brand-soft: rgba(75, 147, 234, .18); --ok: #4cc27d; --ok-bg: #16301f; --warn: #f0b74a; --warn-bg: #352a12;
+  --bad: #f07167; --bad-bg: #3a1a18; --info-bg: #182a44; color-scheme: dark } }
+* { box-sizing: border-box }
+html, body { height: 100% }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.6 var(--sans); display: flex; flex-direction: column }
+header { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--line) }
+header h1 { font-size: 17px; margin: 0; font-weight: 700 }
+.prog { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted) }
+.bar { width: 160px; height: 6px; background: var(--soft); border-radius: 3px; overflow: hidden; border: 1px solid var(--line) }
+.bar i { display: block; height: 100%; background: var(--brand) }
+.file { margin-left: auto; font-size: 12.5px; color: var(--muted); display: flex; gap: 10px; align-items: center; min-width: 0 }
+.file code { font-family: var(--mono); background: var(--soft); padding: 2px 6px; border-radius: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 46vw }
+.saved { white-space: nowrap }
+.saved.err { color: var(--bad) }
+main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(300px, 380px) 1fr; gap: 0 }
+aside { border-right: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; min-height: 0 }
+.filters { padding: 12px; display: grid; gap: 8px; border-bottom: 1px solid var(--line) }
+.inp, .sel { height: 32px; border: 1px solid var(--line); border-radius: 6px; padding: 0 10px; background: var(--panel); color: var(--ink); font: inherit; outline: none; width: 100% }
+.inp:focus, .sel:focus, textarea:focus { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft) }
+.chips { display: flex; gap: 6px; flex-wrap: wrap }
+.chip { border: 1px solid var(--line); background: var(--panel); color: var(--muted); border-radius: 14px; height: 26px; padding: 0 10px; font: 12.5px var(--sans); cursor: pointer }
+.chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--panel) }
+.chip b { font-weight: 600; margin-left: 4px; font-variant-numeric: tabular-nums }
+.list { overflow: auto; flex: 1 }
+.item { display: grid; grid-template-columns: 10px 1fr auto; gap: 4px 10px; align-items: center; padding: 9px 14px; border-bottom: 1px solid var(--line); cursor: pointer }
+.item:hover { background: var(--soft) }
+.item[aria-selected="true"] { background: var(--info-bg) }
+.item .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); grid-row: span 2 }
+.item .dot.done { background: var(--ok) } .item .dot.diff { background: var(--warn) } .item .dot.un { background: var(--bad) }
+.item .n { font-family: var(--mono); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.item .c { grid-column: 2; font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.item .k { grid-row: span 2; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right }
+section.right { overflow: auto; padding: 18px 22px 40px; display: grid; gap: 16px; align-content: start; min-width: 0 }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; min-width: 0 }
+.card h2 { font-size: 15px; margin: 0 0 4px }
+.sub { color: var(--muted); font-size: 12.5px; margin: 0 0 10px }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap }
+.row .sel { width: auto; min-width: 220px }
+textarea { width: 100%; min-height: 150px; border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font: 12.5px/1.55 var(--mono); background: var(--panel); color: var(--ink); resize: vertical; outline: none }
+.btn { height: 32px; padding: 0 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); font: inherit; cursor: pointer; white-space: nowrap }
+.btn:hover { border-color: var(--brand); color: var(--brand) }
+.btn.pri { background: var(--brand); border-color: var(--brand); color: #fff }
+.btn.danger:hover { border-color: var(--bad); color: var(--bad) }
+.btn:focus-visible, .chip:focus-visible, .item:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px }
+.msg { font-size: 13px; line-height: 1.6 }
+.msg .ok { color: var(--ok) } .msg .warn { color: var(--warn) } .msg .bad { color: var(--bad) }
+.title { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap }
+.title code { font: 600 15px var(--mono) }
+.pill { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 10px; background: var(--soft); color: var(--muted) }
+.pill.ok { background: var(--ok-bg); color: var(--ok) } .pill.warn { background: var(--warn-bg); color: var(--warn) } .pill.bad { background: var(--bad-bg); color: var(--bad) }
+.stats { display: flex; gap: 22px; flex-wrap: wrap; margin: 10px 0 12px; font-size: 13px; color: var(--muted) }
+.stats b { color: var(--ink); font-variant-numeric: tabular-nums; font-size: 15px; margin-right: 3px }
+.tw { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; max-height: 420px; overflow-y: auto }
+table { border-collapse: collapse; width: 100%; font-size: 12.5px }
+th, td { padding: 6px 10px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap }
+th { position: sticky; top: 0; background: var(--soft); color: var(--muted); font-weight: 500 }
+td.m { font-family: var(--mono) }
+td.cm { white-space: normal; min-width: 200px }
+.empty { color: var(--muted); padding: 40px 0; text-align: center }
+@media (max-width: 860px) { main { grid-template-columns: 1fr } aside { max-height: 45vh; border-right: 0; border-bottom: 1px solid var(--line) } .file { margin-left: 0 } }
+</style>
+</head>
+<body>
+<header>
+  <h1>业务库 DDL 补齐</h1>
+  <div class="prog"><div class="bar"><i id="bar" style="width:0"></i></div><span id="prog">加载中…</span></div>
+  <div class="file">写入文件 <code id="file" title="">—</code><span class="saved" id="saved"></span></div>
+</header>
+<main>
+  <aside>
+    <div class="filters">
+      <input class="inp" id="q" placeholder="搜索表名 / 中文名" autocomplete="off">
+      <div class="chips" id="chips" role="group" aria-label="状态筛选"></div>
+      <select class="sel" id="fds" aria-label="数据源筛选"><option value="">数据源：全部</option></select>
+    </div>
+    <div class="list" id="list" role="listbox" aria-label="业务库表"></div>
+  </aside>
+  <section class="right">
+    <div class="card">
+      <h2>批量粘贴</h2>
+      <p class="sub">粘贴 <code>SHOW CREATE TABLE</code> 或 mysqldump 里的 <code>CREATE TABLE</code> 语句，可一次贴多张。按表名对到业务库表，保存后立即写入文件；同名表在多个数据源时先选数据源。</p>
+      <textarea id="bulk" placeholder="CREATE TABLE `uu_ss_order` (&#10;  `id` int(11) unsigned NOT NULL AUTO_INCREMENT COMMENT '表id',&#10;  ...&#10;) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='平台订单记录主表';"></textarea>
+      <div class="row" style="margin-top:8px">
+        <select class="sel" id="bds" aria-label="粘贴的数据源"><option value="">数据源：按表名自动匹配</option></select>
+        <button class="btn pri" id="bgo">解析并保存</button>
+        <div class="msg" id="bmsg"></div>
+      </div>
+    </div>
+    <div class="card" id="detail"><div class="empty">从左侧选一张表，查看字段比对、录入或修改它的 DDL</div></div>
+  </section>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+let TABLES = [], ENTRIES = {}, SEL = null, FILTER = 'all';
+const now = () => { const d = new Date(), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; };
+
+// ---------------------------------------------------------------- DDL 解析（与 dataworks/standard/src_ddl.py 同一规则）
+function splitTop(s) { const r = []; let d = 0, q = null, b = 0; for (let i = 0; i < s.length; i++) { const ch = s[i]; if (q) { if (ch === '\\') { i++; continue } if (ch === q) q = null; continue }
+  if (ch === "'" || ch === '"' || ch === '`') { q = ch; continue } if (ch === '(') d++; else if (ch === ')') d--; else if (ch === ',' && d === 0) { r.push(s.slice(b, i)); b = i + 1 } } r.push(s.slice(b)); return r }
+function parseDDL(text) {
+  const out = [], re = /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?((?:`[^`]+`|[\w$]+)(?:\s*\.\s*(?:`[^`]+`|[\w$]+))?)\s*\(/ig; let m; const st = [];
+  while ((m = re.exec(text))) st.push({ i: m.index, name: m[1], body: re.lastIndex });
+  st.forEach((x, k) => {
+    let d = 1, j = x.body, q = null;
+    for (; j < text.length && d > 0; j++) { const ch = text[j]; if (q) { if (ch === '\\') { j++; continue } if (ch === q) q = null; continue } if (ch === "'" || ch === '"' || ch === '`') q = ch; else if (ch === '(') d++; else if (ch === ')') d-- }
+    const inner = text.slice(x.body, j - 1), nxt = k + 1 < st.length ? st[k + 1].i : text.length; let end = text.indexOf(';', j); if (end < 0 || end > nxt) end = nxt;
+    const tail = text.slice(j, end), nm = x.name.replace(/[`\s]/g, '').split('.'); const cols = [], pk = [];
+    splitTop(inner).forEach(line => { const L = line.trim(); if (!L) return;
+      const p = L.match(/^PRIMARY\s+KEY\s*\(([^)]*)\)/i); if (p) { pk.push(...p[1].split(',').map(v => v.replace(/[`\s]/g, '').replace(/\(\d+\)$/, ''))); return }
+      if (/^(UNIQUE|KEY|INDEX|CONSTRAINT|FULLTEXT|SPATIAL|FOREIGN|CHECK)\b/i.test(L)) return;
+      const c = L.match(/^`?([^`\s]+)`?\s+(\w+(?:\s*\([^)]*\))?(?:\s+unsigned)?(?:\s+zerofill)?)([\s\S]*)$/i); if (!c) return;
+      const rest = c[3], cm = rest.match(/COMMENT\s+'((?:[^'\\]|\\.|'')*)'/i);
+      cols.push({ n: c[1], t: c[2].replace(/\s+/g, ' '), nn: /NOT\s+NULL/i.test(rest), c: cm ? cm[1].replace(/''/g, "'").replace(/\\'/g, "'") : '' });
+      if (/PRIMARY\s+KEY/i.test(rest)) pk.push(c[1]) });
+    const tc = tail.match(/COMMENT\s*=?\s*'((?:[^'\\]|\\.|'')*)'/i);
+    out.push({ db: nm.length > 1 ? nm[0] : '', table: nm[nm.length - 1], cols, pk, comment: tc ? tc[1] : '', ddl: text.slice(x.i, end).trim().replace(/;?$/, ';') }) });
+  return out;
+}
+
+// ---------------------------------------------------------------- 匹配与比对
+let IDX = {};
+function buildIdx() { IDX = {}; TABLES.forEach(t => (IDX[t.table.toLowerCase()] ??= []).push(t.name)); }
+function matchSrc(p, ds) {
+  const t = p.table.toLowerCase(); let c = IDX[t] || IDX[t.replace(/_(\d+|(19|20)\d{2,6})$/, '')] || [];
+  if (ds) c = c.filter(n => n.startsWith(ds + ':'));
+  else if (c.length > 1 && p.db) { const f = c.filter(n => { const d = n.split(':')[0].toLowerCase(), b = p.db.toLowerCase(); return d === b || d.endsWith('_' + b) }); if (f.length) c = f }
+  return c;
+}
+const TBY = {};
+function compare(t, p) {
+  const have = new Map((t ? t.fields : []).map(f => [f.n.toLowerCase(), f])), got = new Map(p.cols.map(c => [c.n.toLowerCase(), c]));
+  const rows = p.cols.map(c => ({ n: c.n, sync: have.has(c.n.toLowerCase()), t: c.t, c: c.c, pk: p.pk.includes(c.n), st: have.has(c.n.toLowerCase()) ? 'same' : 'add' }));
+  (t ? t.fields : []).forEach(f => { if (!got.has(f.n.toLowerCase())) rows.push({ n: f.n, sync: true, t: '', c: f.c, pk: false, st: 'miss' }) });
+  return { rows, add: rows.filter(r => r.st === 'add').length, miss: rows.filter(r => r.st === 'miss').length };
+}
+function statusOf(t) {
+  const e = ENTRIES[t.name]; if (!e) return 'todo';
+  const p = parseDDL(e.ddl)[0]; if (!p) return 'todo';
+  const d = compare(t, p); return d.add || d.miss ? 'diff' : 'done';
+}
+
+// ---------------------------------------------------------------- 保存（写文件）
+async function save(set, del) {
+  $('#saved').textContent = '保存中…'; $('#saved').className = 'saved';
+  try {
+    const r = await fetch('/api/entries', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ set: set || {}, del: del || [] }) });
+    const j = await r.json(); if (!r.ok || !j.ok) throw new Error(j.error || r.status);
+    ENTRIES = j.entries; $('#saved').textContent = `已写入 ${j.saved_at}`; return true;
+  } catch (e) { $('#saved').textContent = '写文件失败：' + e.message + '（检查工具窗口是否还开着）'; $('#saved').className = 'saved err'; return false; }
+}
+
+// ---------------------------------------------------------------- 左侧清单
+const STATES = [['all', '全部'], ['todo', '未录入'], ['done', '已录入·一致'], ['diff', '已录入·有差异'], ['un', '未对上']];
+function renderList() {
+  const q = $('#q').value.trim().toLowerCase(), ds = $('#fds').value;
+  const un = Object.keys(ENTRIES).filter(k => !TBY[k]).map(k => { const p = parseDDL(ENTRIES[k].ddl)[0] || {}; return { name: k, cn: p.comment || '', ds: k.split(':')[0], table: k.split(':').pop(), fields: [], un: 1 } });
+  const all = TABLES.concat(un), st = t => t.un ? 'un' : statusOf(t);
+  const cnt = {}; all.forEach(t => { const s = st(t); cnt[s] = (cnt[s] || 0) + 1 }); cnt.all = all.length;
+  $('#chips').replaceChildren(...STATES.map(([k, l]) => { const b = document.createElement('button'); b.className = 'chip'; b.setAttribute('aria-pressed', FILTER === k);
+    b.textContent = l; const x = document.createElement('b'); x.textContent = cnt[k] || 0; b.appendChild(x); b.onclick = () => { FILTER = k; renderList() }; return b }));
+  const rows = all.filter(t => (FILTER === 'all' || st(t) === FILTER) && (!ds || t.ds === ds) && (!q || t.name.toLowerCase().includes(q) || String(t.cn).toLowerCase().includes(q)));
+  const L = $('#list'); L.replaceChildren();
+  rows.slice(0, 600).forEach(t => {
+    const s = st(t), d = document.createElement('div'); d.className = 'item'; d.tabIndex = 0; d.setAttribute('role', 'option'); d.setAttribute('aria-selected', SEL === t.name);
+    d.innerHTML = `<span class="dot ${s === 'done' ? 'done' : s === 'diff' ? 'diff' : s === 'un' ? 'un' : ''}"></span><span class="n" title="${esc(t.name)}">${esc(t.name)}</span><span class="k">${t.un ? '' : t.fields.length + ' 列'}</span><span class="c">${esc(t.cn)}</span>`;
+    d.onclick = d.onkeydown = e => { if (e.type === 'keydown' && e.key !== 'Enter') return; SEL = t.name; renderList(); renderDetail() };
+    L.appendChild(d);
+  });
+  if (!rows.length) L.innerHTML = '<div class="empty">没有符合条件的表</div>';
+  const n = TABLES.filter(t => ENTRIES[t.name]).length;
+  $('#prog').textContent = `已录入 ${n} / ${TABLES.length} 张`; $('#bar').style.width = (TABLES.length ? n * 100 / TABLES.length : 0) + '%';
+}
+
+// ---------------------------------------------------------------- 右侧详情
+function renderDetail() {
+  const box = $('#detail');
+  if (!SEL) { box.innerHTML = '<div class="empty">从左侧选一张表，查看字段比对、录入或修改它的 DDL</div>'; return }
+  const t = TBY[SEL] || { name: SEL, cn: '', fields: [], un: 1 }, e = ENTRIES[SEL], p = e ? parseDDL(e.ddl)[0] : null, d = p ? compare(t, p) : null;
+  const s = t.un ? ['bad', '未对上业务库表'] : !e ? ['', '未录入'] : d.add || d.miss ? ['warn', '已录入 · 有差异'] : ['ok', '已录入 · 与同步配置一致'];
+  let h = `<div class="title"><code>${esc(t.name)}</code><span>${esc(t.cn || (p && p.comment) || '')}</span><span class="pill ${s[0]}">${s[1]}</span></div>`;
+  if (p) {
+    h += `<div class="stats"><span><b>${p.cols.length}</b>DDL 字段</span><span><b>${t.fields.length}</b>同步配置字段</span><span><b>${d.add}</b>DDL 有、未同步</span><span><b>${d.miss}</b>同步有、DDL 无</span><span>主键 <b style="font-size:13px">${esc(p.pk.join('、') || '—')}</b></span><span>录入 ${esc(e.at)}</span></div>`;
+    h += `<div class="tw"><table><thead><tr><th>字段</th><th>DDL 类型</th><th>注释</th><th>比对</th></tr></thead><tbody>${d.rows.map(r => `<tr><td class="m">${esc(r.n)}${r.pk ? ' <span class="pill">主键</span>' : ''}</td><td class="m">${esc(r.t || '—')}</td><td class="cm">${esc(r.c)}</td><td>${r.st === 'same' ? '<span class="pill ok">一致</span>' : r.st === 'add' ? '<span class="pill warn">DDL 有、未同步</span>' : '<span class="pill bad">同步有、DDL 无</span>'}</td></tr>`).join('')}</tbody></table></div>`;
+  } else if (t.fields.length) {
+    h += `<p class="sub" style="margin-top:10px">同步配置里读了 ${t.fields.length} 个字段：<span style="font-family:var(--mono)">${esc(t.fields.map(f => f.n).join('、'))}</span></p>`;
+  }
+  h += `<p class="sub" style="margin:14px 0 6px">${e ? '修改后保存（整段替换）' : '粘贴本表的 CREATE TABLE 语句'}</p><textarea id="dta" style="min-height:${e ? 260 : 180}px"></textarea>
+    <div class="row" style="margin-top:8px"><button class="btn pri" id="dsave">保存</button>${e ? '<button class="btn danger" id="ddel">删除本表</button>' : ''}<div class="msg" id="dmsg"></div></div>`;
+  box.innerHTML = h; $('#dta').value = e ? e.ddl : '';
+  $('#dsave').onclick = async () => {
+    const q = parseDDL($('#dta').value);
+    if (q.length !== 1) { $('#dmsg').innerHTML = `<span class="bad">需要且只能有一条 CREATE TABLE 语句（识别到 ${q.length} 条）</span>`; return }
+    if (!t.un && q[0].table.toLowerCase() !== t.table.toLowerCase()) $('#dmsg').innerHTML = `<span class="warn">注意：语句里的表名是 ${esc(q[0].table)}，与 ${esc(t.table)} 不同，仍按本表保存</span>`;
+    if (await save({ [SEL]: { ddl: q[0].ddl, at: now() } })) { renderList(); renderDetail() }
+  };
+  const del = $('#ddel'); if (del) del.onclick = async e2 => {
+    const b = e2.target; if (!b.dataset.c) { b.dataset.c = 1; b.textContent = '再点一次确认删除'; setTimeout(() => { delete b.dataset.c; b.textContent = '删除本表' }, 3000); return }
+    if (await save(null, [SEL])) { renderList(); renderDetail() }
+  };
+}
+
+// ---------------------------------------------------------------- 批量粘贴
+$('#bgo').onclick = async () => {
+  const text = $('#bulk').value; if (!text.trim()) return;
+  const ds = $('#bds').value, ps = parseDDL(text), set = {}, ok = [], amb = [], none = [], at = now();
+  ps.forEach(p => { const c = matchSrc(p, ds);
+    if (c.length === 1) { set[c[0]] = { ddl: p.ddl, at }; ok.push(c[0]) }
+    else if (c.length > 1) amb.push(`${p.table}（${c.map(x => x.split(':')[0]).join(' / ')}）`);
+    else { set[`${ds || '?'}:${p.table}`] = { ddl: p.ddl, at }; none.push(p.table) } });
+  if (!ps.length) { $('#bmsg').innerHTML = '<span class="bad">没有识别到 CREATE TABLE 语句</span>'; return }
+  const saved = Object.keys(set).length ? await save(set) : true;
+  $('#bmsg').innerHTML = (saved ? `<span class="ok">识别 ${ps.length} 张，已写入 ${ok.length} 张</span>` : '<span class="bad">写文件失败</span>')
+    + (amb.length ? `；<span class="warn">${amb.length} 张在多个数据源同名，选好数据源后再贴：${esc(amb.slice(0, 6).join('、'))}${amb.length > 6 ? ' …' : ''}</span>` : '')
+    + (none.length ? `；<span class="warn">${none.length} 张没对上业务库表（已保存，标为「未对上」）：${esc(none.slice(0, 6).join('、'))}${none.length > 6 ? ' …' : ''}</span>` : '');
+  if (saved) $('#bulk').value = amb.length ? ps.filter(p => matchSrc(p, ds).length > 1).map(p => p.ddl).join('\n\n') : '';
+  renderList(); if (SEL) renderDetail();
+};
+
+// ---------------------------------------------------------------- 启动
+(async () => {
+  try {
+    const j = await (await fetch('/api/state', { cache: 'no-store' })).json();
+    TABLES = j.tables || []; ENTRIES = j.entries || {}; TABLES.forEach(t => TBY[t.name] = t); buildIdx();
+    $('#file').textContent = j.file; $('#file').title = j.file;
+    $('#saved').textContent = j.updated ? '' : '';
+    const dss = [...new Set(TABLES.map(t => t.ds))].sort();
+    for (const id of ['#fds', '#bds']) dss.forEach(d => { const o = document.createElement('option'); o.textContent = d; $(id).appendChild(o) });
+    $('#q').oninput = renderList; $('#fds').onchange = renderList;
+    renderList();
+  } catch (e) {
+    document.body.innerHTML = `<div class="empty" style="padding:60px 20px">没连上工具服务：请用 <code>python3 dataworks/ddl_tool/server.py</code> 启动后，打开它提示的地址（不要直接双击 index.html）。</div>`;
+  }
+})();
+</script>
+</body>
+</html>
