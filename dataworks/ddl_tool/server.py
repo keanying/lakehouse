@@ -5,7 +5,7 @@
 
 启动时文件不存在就自动创建；页面上每次保存 / 删除都会整份重写该文件（先写临时文件再替换，上一版留在 .bak）。
 只用 Python 标准库，可以把 ddl_tool 目录单独拷到别的电脑运行（表清单在同目录 src_tables.json）。
-文件格式与 dataworks/standard/src_ddl.py 一致：每张表前一行「-- @table 数据源:表名」「-- @at 录入时间」，其后为 CREATE TABLE 语句。
+文件格式与 dataworks/standard/src_ddl.py 一致：每张表前为标记行 -- @table 数据源:表名、@at 录入时间、@status 弃用、@reason、@note，其后为 CREATE TABLE 语句（弃用表可以没有）。
 """
 import argparse, datetime, http.server, json, os, pathlib, re, shutil, socketserver, threading, webbrowser
 
@@ -19,33 +19,48 @@ def now():
     return datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
 
+META = ('at', 'status', 'reason', 'note')   # 每张表的标记行：-- @at / @status / @reason / @note
+
+
 def read_file(path):
-    """→ {key: {'ddl', 'at'}}"""
+    """→ {key: {'ddl', 'at', 'status', 'reason', 'note'}}"""
     if not path.exists():
         return {}
     text = path.read_text(encoding='utf-8-sig')
     parts = re.split(r'^--\s*@table\s+(\S+)\s*$', text, flags=re.M)
     out = {}
     for k in range(1, len(parts), 2):
-        body = parts[k + 1]
-        m = re.search(r'^--\s*@at\s+(.+)$', body, re.M)
-        ddl = re.sub(r'^--\s*@at.*$', '', body, count=1, flags=re.M).strip()
+        body, e = parts[k + 1], {}
+        for key in META:
+            m = re.search(rf'^--\s*@{key}\s+(.*)$', body, re.M)
+            if m and m.group(1).strip():
+                e[key] = m.group(1).strip()
+        ddl = re.sub(r'^--\s*@(' + '|'.join(META) + r')\b.*$\n?', '', body, flags=re.M).strip()
         if ddl:
-            out[parts[k]] = {'ddl': ddl, 'at': m.group(1).strip() if m else ''}
+            e['ddl'] = ddl
+        if e.get('ddl') or e.get('status'):
+            out[parts[k]] = e
     return out
 
 
 def write_file(path, entries):
     keys = sorted(entries)
-    matched = sum(1 for k in keys if not k.startswith('?:'))
-    head = ['-- 业务库表 DDL（dataworks/ddl_tool 业务库 DDL 补齐工具维护，请勿手工改动 @table / @at 标记行）',
+    ddl_n = sum(1 for k in keys if entries[k].get('ddl') and not k.startswith('?:'))
+    dep_n = sum(1 for k in keys if entries[k].get('status') == '弃用')
+    head = ['-- 业务库表 DDL（dataworks/ddl_tool 业务库 DDL 补齐工具维护，请勿手工改动 -- @ 开头的标记行）',
             f'-- 更新时间：{now()}',
-            f'-- 共 {len(keys)} 张：已对上业务库表 {matched} 张，未对上 {len(keys) - matched} 张',
-            '-- 格式：每张表前一行「-- @table 数据源:表名」（未对上的数据源为 ?），其后为原始 CREATE TABLE 语句', '']
-    body = '\n'.join(f"-- @table {k}\n-- @at {entries[k].get('at', '')}\n{entries[k]['ddl'].strip()}\n" for k in keys)
+            f'-- 共 {len(keys)} 张：已录入 DDL {ddl_n} 张，标记弃用 {dep_n} 张，未对上业务库表 {sum(1 for k in keys if k.startswith("?:"))} 张',
+            '-- 格式：每张表前为标记行 -- @table 数据源:表名 / @at 录入时间 / @status 弃用 / @reason 原因 / @note 备注，其后为原始 CREATE TABLE 语句（弃用表可以没有）', '']
+    blocks = []
+    for k in keys:
+        e = entries[k]
+        lines = [f'-- @table {k}'] + [f'-- @{m} {str(e[m]).replace(chr(10), " ").strip()}' for m in META if e.get(m)]
+        if e.get('ddl'):
+            lines.append(e['ddl'].strip())
+        blocks.append('\n'.join(lines) + '\n')
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + '.tmp')
-    tmp.write_text('\n'.join(head) + '\n' + body, encoding='utf-8')
+    tmp.write_text('\n'.join(head) + '\n' + '\n'.join(blocks), encoding='utf-8')
     if path.exists():
         shutil.copyfile(path, path.with_suffix(path.suffix + '.bak'))
     os.replace(tmp, path)
@@ -85,9 +100,15 @@ class H(http.server.SimpleHTTPRequestHandler):
             return self._json({'error': '请求格式不对'}, 400)
         with LOCK:
             E = STATE['entries']
-            for k, v in (req.get('set') or {}).items():
-                if isinstance(v, dict) and str(v.get('ddl', '')).strip():
-                    E[k] = {'ddl': v['ddl'].strip(), 'at': v.get('at') or now()}
+            for k, v in (req.get('set') or {}).items():      # 整条替换：没有 DDL 也没有状态的视为删除
+                if not isinstance(v, dict):
+                    continue
+                e = {m: str(v[m]).strip() for m in ('ddl', *META) if str(v.get(m) or '').strip()}
+                if e.get('ddl') or e.get('status'):
+                    e.setdefault('at', now())
+                    E[k] = e
+                else:
+                    E.pop(k, None)
             for k in req.get('del') or []:
                 E.pop(k, None)
             try:

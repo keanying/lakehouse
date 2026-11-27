@@ -48,7 +48,11 @@ def category(n, keys, layer):
     return '维度属性'
 
 
-SRCDDL = {}
+SRCDDL, SRCDEP = {}, {}
+
+
+def dep_text(d):
+    return '客户标记弃用' + (f"（{d['reason']}" + (f"，{d['note']}" if d.get('note') else '') + '）' if d.get('reason') else '')
 
 
 def ddl_col(lds, ltb, c):
@@ -90,8 +94,10 @@ def build():
     C = catalog.build(nodes)
     T, S, SC = C['tables'], C['sources'], C['schemas']
     tables, fields, mapping = [], [], {}
-    global SRCDDL
-    SRCDDL, notes_ = src_ddl.load(sorted({':'.join(rules.logical_source(ds, tb)) for ds, tb in S}))
+    global SRCDDL, SRCDEP
+    got, notes_ = src_ddl.load(sorted({':'.join(rules.logical_source(ds, tb)) for ds, tb in S}))
+    SRCDDL = {k: v for k, v in got.items() if v.get('ddl')}
+    SRCDEP = {k: v for k, v in got.items() if v.get('status') == '弃用'}
     for x in notes_:
         print('业务库 DDL：', x)
 
@@ -134,6 +140,9 @@ def build():
             note.append('不同步：' + '、'.join(drop))
         if o['ltb'] in rules.PINYIN or re.match(r'formtable_main_\d+', o['ltb']):
             note.append('源表名为拼音 / 编号，中文名待业务确认')
+        dep = SRCDEP.get(f"{o['lds']}:{o['ltb']}")
+        if dep:
+            note.insert(0, f'源表已弃用：{dep_text(dep)}；建议停掉同步、ODS 下线（下游如仍引用需先改造）')
         tables.append({'layer': 'ODS', 'dom': o['dom'], 'name': name, 'cn': cn, 'grain': '同源表，1行=1条源记录', 'suffix': suffix_of(name),
                        'part': 'travel_date（YYYYMMDD）', 'src': '、'.join(srcs), 'keys': '源表全字段（敏感字段按备注处理）', 'up': f'{o["lds"]}:{o["ltb"]}', 'note': '；'.join(note),
                        'legacy': landing, 'lsrc': (o['lds'], o['ltb'])})
@@ -672,6 +681,8 @@ def legacy_src(C, logical, ods_of_source, fcols, tcols):
             note.append('未落数仓：同步任务直接写到 ' + ('、'.join(targets[:3]) + (' 等' if len(targets) > 3 else '') if targets else '其他系统'))
         if any(rules.DROP.match(c) for c in cols):
             note.append('含密码类字段，标准化后不同步')
+        if name in SRCDEP:
+            note.insert(0, dep_text(SRCDEP[name]))
         if D:
             ddl_done[name] = D.get('at') or D['file']
             miss = [x['n'] for x in D['cols'] if x['n'].lower() not in synced]

@@ -3,7 +3,8 @@
 文件放在 dataworks/input/src_ddl*.sql（多个文件按文件名排序，后面的覆盖前面的同名表）。格式：
     -- @table 数据源:表名        （未对上页面业务库表的，数据源为 ?）
     -- @at 录入时间
-    CREATE TABLE ... ;
+    -- @status 弃用 / @reason 原因 / @note 备注（标记弃用时才有）
+    CREATE TABLE ... ;          （弃用表可以没有）
 没有 @table 标记的普通 DDL 文件也能读：按表名对到业务库表（同名多数据源时跳过并提示）。
 """
 import pathlib, re
@@ -107,10 +108,10 @@ def load(src_names=()):
             parts = re.split(r'^--\s*@table\s+(\S+)\s*$', text, flags=re.M)
             for k in range(1, len(parts), 2):
                 body = parts[k + 1]
-                at = (re.search(r'^--\s*@at\s+(.+)$', body, re.M) or [None, ''])[1]
+                meta = {m: (re.search(rf'^--\s*@{m}\s+(.+)$', body, re.M) or [None, ''])[1].strip() for m in ('at', 'status', 'reason', 'note')}
                 p = parse(body)
-                if p:
-                    res[parts[k]] = {**p[0], 'at': at.strip(), 'file': f.name}
+                if p or meta['status']:
+                    res[parts[k]] = {**(p[0] if p else {'cols': [], 'pk': [], 'comment': '', 'ddl': ''}), **meta, 'file': f.name}
         else:
             for p in parse(text):
                 c = by_tb.get(p['table'].lower(), [])
