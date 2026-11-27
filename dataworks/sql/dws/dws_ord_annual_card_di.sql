@@ -19,6 +19,7 @@ INSERT OVERWRITE TABLE dws.dws_ord_annual_card_di PARTITION (travel_date = '${bi
 SELECT
     scenic_id,
     card_product_id,
+    ticket_id,
     SUM(card_sale_qty)                                           AS card_sale_qty,
     SUM(card_sale_amt)                                           AS card_sale_amt,
     SUM(card_active_qty)                                         AS card_active_qty,
@@ -29,18 +30,20 @@ FROM (
     SELECT
         CAST(-1 AS BIGINT)                                           AS scenic_id,   -- 该来源无此维度，取默认值
         COALESCE(card_product_id, CAST(-1 AS BIGINT))                AS card_product_id,
+        COALESCE(ticket_id, CAST(-1 AS BIGINT))                      AS ticket_id,
         SUM(IF(trade_type = 'SELL', 1, 0))                           AS card_sale_qty,
         SUM(IF(trade_type = 'SELL', trade_amt, 0))                   AS card_sale_amt,
         SUM(IF(trade_type = 'ACTIVE', 1, 0))                         AS card_active_qty,
         CAST(0 AS BIGINT)                                            AS card_verify_qty
     FROM dwd.dwd_ord_annual_card_trade_di
     WHERE travel_date = '${bizdate}'
-    GROUP BY COALESCE(card_product_id, CAST(-1 AS BIGINT))
+    GROUP BY COALESCE(card_product_id, CAST(-1 AS BIGINT)), COALESCE(ticket_id, CAST(-1 AS BIGINT))
     UNION ALL
     -- vfy：核销：验证日分区 = bizdate
     SELECT
         COALESCE(scenic_id, CAST(-1 AS BIGINT))                      AS scenic_id,
         CAST(-1 AS BIGINT)                                           AS card_product_id,   -- 该来源无此维度，取默认值
+        COALESCE(ticket_id, CAST(-1 AS BIGINT))                      AS ticket_id,
         CAST(0 AS BIGINT)                                            AS card_sale_qty,
         CAST(0 AS DECIMAL(18,2))                                     AS card_sale_amt,
         CAST(0 AS BIGINT)                                            AS card_active_qty,
@@ -48,6 +51,6 @@ FROM (
     FROM dwd.dwd_ord_verify_di
     WHERE travel_date = '${bizdate}'
       AND test_flag = 0
-    GROUP BY COALESCE(scenic_id, CAST(-1 AS BIGINT))
+    GROUP BY COALESCE(scenic_id, CAST(-1 AS BIGINT)), COALESCE(ticket_id, CAST(-1 AS BIGINT))
 ) u
-GROUP BY scenic_id, card_product_id
+GROUP BY scenic_id, card_product_id, ticket_id

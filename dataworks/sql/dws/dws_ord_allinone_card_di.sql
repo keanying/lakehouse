@@ -18,6 +18,10 @@ SELECT
     trade_source,
     trade_type,
     aio_pay_type,
+    aio_channel,
+    scenic_id,
+    ticket_id,
+    pay_mode,
     SUM(aio_trade_qty)                                           AS aio_trade_qty,
     SUM(aio_trade_amt)                                           AS aio_trade_amt,
     SUM(aio_principal_amt)                                       AS aio_principal_amt,
@@ -30,13 +34,17 @@ FROM (
         trade_source,
         trade_type,
         COALESCE(pay_type, CAST(-1 AS INT))                          AS aio_pay_type,
+        COALESCE(channel, CAST(-1 AS INT))                           AS aio_channel,
+        COALESCE(scenic_id, CAST(-1 AS BIGINT))                      AS scenic_id,
+        COALESCE(ticket_id, CAST(-1 AS BIGINT))                      AS ticket_id,
+        COALESCE(order_pay_mode, CAST(-1 AS INT))                    AS pay_mode,
         COUNT(1)                                                     AS aio_trade_qty,
         SUM(trade_amt)                                               AS aio_trade_amt,
         SUM(principal_amt)                                           AS aio_principal_amt,
         SUM(bonus_amt)                                               AS aio_bonus_amt
     FROM dwd.dwd_ord_allinone_card_trade_di
     WHERE travel_date = '${bizdate}'
-      AND (trade_source IN ('CARD_OP', 'IC_ORDER') OR (trade_source = 'PAY' AND pay_status = 2) OR (trade_source = 'REFUND' AND refund_status = 2))
-    GROUP BY COALESCE(supplier_id, CAST(-1 AS BIGINT)), trade_source, trade_type, COALESCE(pay_type, CAST(-1 AS INT))
+      AND (trade_source IN ('CARD_OP', 'IC_ORDER') OR (trade_source = 'PAY' AND pay_status <> 3 AND trade_no NOT LIKE 'CMB%' AND prepaid_dup_flag = 0) OR (trade_source = 'REFUND' AND refund_status = 2))
+    GROUP BY COALESCE(supplier_id, CAST(-1 AS BIGINT)), trade_source, trade_type, COALESCE(pay_type, CAST(-1 AS INT)), COALESCE(channel, CAST(-1 AS INT)), COALESCE(scenic_id, CAST(-1 AS BIGINT)), COALESCE(ticket_id, CAST(-1 AS BIGINT)), COALESCE(order_pay_mode, CAST(-1 AS INT))
 ) u
-GROUP BY supplier_id, trade_source, trade_type, aio_pay_type
+GROUP BY supplier_id, trade_source, trade_type, aio_pay_type, aio_channel, scenic_id, ticket_id, pay_mode

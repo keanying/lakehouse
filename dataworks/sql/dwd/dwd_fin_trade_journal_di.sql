@@ -27,7 +27,7 @@ SELECT
     CAST(NULL AS BIGINT)                                         AS repeatable,   -- 待确认：来源未同步（旧字段 ods_fin_account_book_subject_df.repeatable）
     CAST(NULL AS BIGINT)                                         AS refund_expires,   -- 待确认：来源未同步（旧字段 ods_fin_account_book_subject_df.refund_expires）
     CAST(NULL AS BIGINT)                                         AS refund_limit,   -- 待确认：来源未同步（旧字段 ods_fin_account_book_subject_df.refund_limit）
-    CAST(NULL AS BIGINT(12))                                     AS remaining_limit,   -- 待确认：来源未同步（旧字段 ods_fin_account_book_subject_df.remaining_limit）
+    CAST(NULL AS BIGINT)                                         AS remaining_limit,   -- 待确认：来源未同步（旧字段 ods_fin_account_book_subject_df.remaining_limit）
     CAST(NULL AS BIGINT)                                         AS third_party,   -- 待确认：来源未同步（旧字段 ods_fin_account_book_subject_df.third_party）
     CAST(NULL AS BIGINT)                                         AS trade_type,   -- 待确认：来源未同步（旧字段 ods_fin_account_book_subject_df.trade_type）
     CAST(NULL AS STRING)                                         AS ext,   -- 待确认：来源未同步（旧字段 ods_fin_account_book_subject_df.ext）
@@ -40,9 +40,9 @@ SELECT
     CAST(aid AS BIGINT)                                          AS supplier_id,
     dmoney,
     lmoney,
-    CAST(frozen_money AS DECIMAL(14,0) UNSIGNED)                 AS frozen_amt,
+    CAST(frozen_money AS DECIMAL(14,0))                          AS frozen_amt,
     CAST(frozen_remain_money AS DECIMAL(14,0))                   AS frozen_remain_amt,
-    CAST(trade_limit_money AS BIGINT(12))                        AS trade_limit_amt,
+    CAST(trade_limit_money AS BIGINT)                            AS trade_limit_amt,
     trade_limit_type,
     trade_limit_total,
     orderid                                                      AS order_no,
@@ -70,8 +70,8 @@ SELECT
     sequence,
     total_trade,
     available_trade,
-    CAST(available_money AS BIGINT(20))                          AS available_amt,
-    CAST(available_remain_money AS BIGINT(20))                   AS available_remain_amt,
+    CAST(available_money AS BIGINT)                              AS available_amt,
+    CAST(available_remain_money AS BIGINT)                       AS available_remain_amt,
     available_trade_type,
     frozen_trade,
     frozen_trade_type,

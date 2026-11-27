@@ -17,6 +17,7 @@ SELECT
     'sixun'                                                      AS retail_vendor,
     CAST(NULL AS STRING)                                         AS goods_code,   -- 待确认：来源未同步
     CAST(NULL AS BIGINT)                                         AS item_qty,
+    CAST(NULL AS DECIMAL(18,2))                                  AS profit_amt,
     IF(status = '2', 1, 0)                                       AS refund_flag,
     id,
     con_sys_bind,
@@ -45,6 +46,7 @@ SELECT
     'yinbao'                                                     AS retail_vendor,
     CAST(NULL AS STRING)                                         AS goods_code,
     CAST(NULL AS BIGINT)                                         AS item_qty,
+    CAST(total_profit AS DECIMAL(18,2))                          AS profit_amt,
     IF(ticket_type = 'SELL_RETURN', 1, 0)                        AS refund_flag,
     id,
     con_sys_bind,
@@ -73,6 +75,7 @@ SELECT
     'xisland'                                                    AS retail_vendor,
     CAST(NULL AS STRING)                                         AS goods_code,
     CAST(NULL AS BIGINT)                                         AS item_qty,
+    CAST(NULL AS DECIMAL(18,2))                                  AS profit_amt,
     IF(CAST(return_amount AS DECIMAL(18,2)) > 0, 1, 0)           AS refund_flag,
     id,
     con_sys_bind,

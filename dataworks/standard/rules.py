@@ -181,10 +181,12 @@ HIVE_TYPE = {'INT': 'BIGINT', 'TINYINT': 'INT', 'SMALLINT': 'INT', 'MEDIUMINT': 
 
 
 def std_type(t):
-    t = (t or 'STRING').upper()
+    t = re.sub(r'\s+(UNSIGNED|SIGNED|ZEROFILL)\b', '', (t or 'STRING').upper()).strip()   # MySQL 修饰符 Hive 不支持
     base = re.sub(r'\(.*$', '', t)
     if base == 'DECIMAL':
         return t
+    if base in ('BIGINT', 'INT', 'TINYINT', 'SMALLINT', 'MEDIUMINT'):
+        return HIVE_TYPE.get(base, base)                       # BIGINT(20) / INT(11)：显示宽度去掉
     return HIVE_TYPE.get(base, t if base in ('BIGINT', 'STRING', 'INT', 'DECIMAL', 'BOOLEAN') else 'STRING')
 
 

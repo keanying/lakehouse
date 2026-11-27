@@ -16,20 +16,34 @@ INSERT OVERWRITE TABLE ads.ads_fin_account_balance_di PARTITION (travel_date = '
 SELECT
     account_id,
     subject_code,
+    trade_account_id,
+    account_book_id,
+    template_item_code,
     SUM(account_income_amt)                                      AS account_income_amt,
     SUM(account_expense_amt)                                     AS account_expense_amt,
     MAX(account_balance_amt)                                     AS account_balance_amt,
+    SUM(account_frozen_income_amt)                               AS account_frozen_income_amt,
+    SUM(account_frozen_expense_amt)                              AS account_frozen_expense_amt,
+    SUM(account_available_income_amt)                            AS account_available_income_amt,
+    SUM(account_available_expense_amt)                           AS account_available_expense_amt,
     DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time
 FROM (
     -- dws_fin_account_trans_di
     SELECT
         account_id,
         subject_code,
+        trade_account_id,
+        account_book_id,
+        template_item_code,
         SUM(account_income_amt)                                      AS account_income_amt,
         SUM(account_expense_amt)                                     AS account_expense_amt,
-        SUM(account_balance_amt)                                     AS account_balance_amt
+        SUM(account_balance_amt)                                     AS account_balance_amt,
+        SUM(account_frozen_income_amt)                               AS account_frozen_income_amt,
+        SUM(account_frozen_expense_amt)                              AS account_frozen_expense_amt,
+        SUM(account_available_income_amt)                            AS account_available_income_amt,
+        SUM(account_available_expense_amt)                           AS account_available_expense_amt
     FROM dws.dws_fin_account_trans_di
     WHERE travel_date = '${bizdate}'
-    GROUP BY account_id, subject_code
+    GROUP BY account_id, subject_code, trade_account_id, account_book_id, template_item_code
 ) u
-GROUP BY account_id, subject_code
+GROUP BY account_id, subject_code, trade_account_id, account_book_id, template_item_code

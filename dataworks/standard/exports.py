@@ -7,12 +7,14 @@
 import collections, json, pathlib, re
 
 import legacy_metrics as LM
+import field_map
 
 HERE = pathlib.Path(__file__).resolve().parent
 
 # 由票 / 渠道 / 景区等维度关联即可得到的维度（不需要进 ADS 粒度）
 DERIVABLE = {'product_id': 'ticket_id', 'product_type': 'ticket_id', 'supplier_id': 'ticket_id', 'scenic_id': 'ticket_id',
              '维度名称（关联维表）': None, '统计周期（时间表）': None}
+LOC = re.compile(r'park|inout|terminal|retail|hotel|aioc|allinone|passenger|tourist_in_out')
 STD_DATE = {'order': '下单日', 'pay': '支付日', 'cancel': '取消日', 'verify': '验证日', 'finish': '完结日', 'revoke': '撤销日', 'print': '取票日', 'after_sale': '售后日'}
 
 
@@ -63,7 +65,7 @@ def label(trace):
     return ' · '.join(dict.fromkeys(parts)), f'{bf}' + (f'  WHERE {bw}' if bw else '')
 
 
-def analyse(nodes, C, mapping_rows, ads_specs, metrics):
+def analyse(nodes, C, mapping_rows, ads_specs, metrics, resolve=None, dims=(), blocked=()):
     """mapping_rows: 旧表映射；ads_specs: {ADS表: set(字段)}；metrics: 标准口径 M
     → (覆盖明细行, 口径统一行, {指标: 注释}, {ADS表: [补全指标]})"""
     F = load_formulas()
@@ -83,13 +85,23 @@ def analyse(nodes, C, mapping_rows, ads_specs, metrics):
         wc = [c.lower().strip('`') for c in w.get('columns') or [] if isinstance(c, str)]
         dims = [LM.dim_of(c) for c in rc]
         grain = {d for d in dims if d and d not in DERIVABLE}
+        if LOC.search(ht):              # 业态 / 出入园类旧表的省市是景区所在地：由景区维度带出
+            grain -= {'province_code', 'city_code', 'district_code'}
         for i, c in enumerate(rc):
             out = wc[i] if i < len(wc) else c
             d = LM.decode(c, ht + ' ' + target)
+            x = field_map.decode(out, ht + ' ' + target) or field_map.decode(c, ht + ' ' + target)
+            if x and (not d or d['metric'] not in metrics or x[0] in metrics):
+                d = {'metric': x[0], 'role': 'ALL', 'cum': False, 'dims': {k: v for k, v in x[1].items() if k in dims},
+                     'note': '、'.join(f'{k}={v}' for k, v in x[1].items() if k not in dims)}
             if not d:
                 dm = LM.dim_of(c)
+                rv = (resolve(c, std) or resolve(out, std)) if resolve and not dm else None
+                if rv:
+                    cover.append([target, out, ht, c, '', rv[0], std, rv[0], rv[1], '', ''])
+                    continue
                 kind = '维度' if dm else '其他'
-                how = (f'维度 → {dm}' if dm else '非指标字段（明细 / 配置 / 备注）')
+                how = (f'维度 → {dm}' if dm else field_map.gap_reason(out, ht + ' ' + target) or '非指标字段（明细 / 配置 / 备注）')
                 cover.append([target, out, ht, c, '', kind, std, '维度' if dm else '—', how, '', ''])
                 continue
             m = d['metric']
@@ -105,9 +117,12 @@ def analyse(nodes, C, mapping_rows, ads_specs, metrics):
                             break
             trace = F.get(f'{ht}.{c}', [])
             lab, formula = label(trace)
+            blk = sorted(x for x in ({m} | {f'dim:{y}' for y in need}) if (std, x) in blocked)
             if have:
                 status = '已覆盖' + ('（时间表派生）' if d['cum'] or '统计周期（时间表）' in dims else '')
-            elif m in metrics:
+            elif blk:
+                status = '缺口（标准表来源不支持：' + '、'.join(x.replace('dim:', '维度 ') for x in blk) + '）'
+            elif m in metrics and (std in ads_specs or m.split('_')[0] in STD_DATE):
                 status = '补全'
                 tgt = std if std in ads_specs else 'ads_ord_scenic_trade_overview_di'
                 gaps[tgt].add(m)
@@ -115,7 +130,7 @@ def analyse(nodes, C, mapping_rows, ads_specs, metrics):
                 have = tgt
             else:
                 status = '缺口（无标准口径）'
-            why = '、'.join(filter(None, [f'主子单={d["role"]}' if d['role'] != 'ALL' else '', '、'.join(f'{k}={v}' for k, v in d['dims'].items()),
+            why = '、'.join(filter(None, [f'主子单={d["role"]}' if d['role'] != 'ALL' else '', '、'.join(f'{k}={v}' for k, v in d['dims'].items()), d.get('note', ''),
                                          '累计（_all）' if d['cum'] else '']))
             cover.append([target, out, ht, c, m, '指标', have or '', status, why, lab, formula[:400]])
             if m in metrics:

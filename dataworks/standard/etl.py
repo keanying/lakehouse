@@ -9,7 +9,7 @@
 """
 import collections, json, re
 
-import model, rules, proc_model
+import model, rules, proc_model, proc_metrics
 import etl_core
 
 P = "travel_date = '${bizdate}'"
@@ -230,11 +230,14 @@ CORE = {
                                            '待确认：ketuo 出场表没有收费金额；金额单位按分（/100）与厂商接口核对']},
     'dwd_opr_retail_order_di': {'branches': [
         ('ods_opr_retail_sixun_order_di', {'retail_vendor': "'sixun'", 'shop_code': 'shop_code', 'order_no': 'order_no', 'sale_amt': 'CAST(payment_money AS DECIMAL(18,2))',
-                                           'refund_flag': "IF(status = '2', 1, 0)", 'item_qty': 'CAST(NULL AS BIGINT)', 'pay_amt': 'payment_money', 'settlement_amt': 'settlement_money'}),
+                                           'refund_flag': "IF(status = '2', 1, 0)", 'item_qty': 'CAST(NULL AS BIGINT)', 'pay_amt': 'payment_money', 'settlement_amt': 'settlement_money',
+                                           'profit_amt': 'CAST(NULL AS DECIMAL(18,2))'}),
         ('ods_opr_retail_yinbao_ticket_di', {'retail_vendor': "'yinbao'", 'shop_code': 'CAST(app_id AS STRING)', 'order_no': 'sn', 'sale_amt': 'CAST(total_amount AS DECIMAL(18,2))',
-                                             'refund_flag': "IF(ticket_type = 'SELL_RETURN', 1, 0)", 'create_time': 'date_time'}),
+                                             'refund_flag': "IF(ticket_type = 'SELL_RETURN', 1, 0)", 'create_time': 'date_time',
+                                             'profit_amt': 'CAST(total_profit AS DECIMAL(18,2))'}),
         ('ods_opr_retail_xisland_order_di', {'retail_vendor': "'xisland'", 'shop_code': 'store_name', 'order_no': 'order_code', 'sale_amt': 'CAST(pay_amount AS DECIMAL(18,2))',
-                                             'refund_flag': 'IF(CAST(return_amount AS DECIMAL(18,2)) > 0, 1, 0)', 'pay_amt': 'pay_amount', 'create_time': 'order_create_time'})],
+                                             'refund_flag': 'IF(CAST(return_amount AS DECIMAL(18,2)) > 0, 1, 0)', 'pay_amt': 'pay_amount', 'create_time': 'order_create_time',
+                                             'profit_amt': 'CAST(NULL AS DECIMAL(18,2))'})],
         'note': ['银豹 / 思迅 / 小岛 3 套零售系统 UNION ALL 归一（旧系统每套一条独立链路）', '待确认：退货标识各系统码值（思迅 status=2、银豹 SELL_RETURN）上线前与厂商确认；商品明细在 *_item 表，件数待接入']},
     'dwd_trf_scenic_inout_di': {'branches': [
         ('ods_trf_device_inout_journal_di', {'scenic_id': 'CAST(land_id AS BIGINT)', 'supplier_id': 'CAST(sid AS BIGINT)', 'terminal_no': 'CAST(device_key AS STRING)',
@@ -563,6 +566,7 @@ DWS_SRC = {
     'dws_sup_member_di': ['login', 'relation', 'ticketdim', 'module'], 'dws_sup_contract_di': ['contract'], 'dws_prd_resource_center_di': ['resource'],
     'dws_trf_page_view_di': ['pv'],
 }
+proc_metrics.etl(SRC, R, DWS_SRC)
 
 
 def _agg_of(ty, n):

@@ -26,10 +26,6 @@ INSERT OVERWRITE TABLE ads.ads_ord_scenic_trade_overview_di PARTITION (travel_da
 SELECT
     scenic_id,
     ticket_id,
-    distributor_id,
-    order_mode,
-    order_role,
-    pay_mode,
     SUM(order_order_qty)                                         AS order_order_qty,
     SUM(order_ticket_qty)                                        AS order_ticket_qty,
     SUM(order_sale_amt)                                          AS order_sale_amt,
@@ -55,24 +51,15 @@ SELECT
     SUM(revoke_cost_amt)                                         AS revoke_cost_amt,
     SUM(after_sale_refund_amt)                                   AS after_sale_refund_amt,
     BITMAP_UNION(buyer_bitmap)                                   AS buyer_bitmap,
-    SUM(after_sale_income_amt)                                   AS after_sale_income_amt,
-    SUM(after_sale_ticket_qty)                                   AS after_sale_ticket_qty,
-    SUM(card_sale_amt)                                           AS card_sale_amt,
-    SUM(card_sale_qty)                                           AS card_sale_qty,
-    SUM(enter_qty)                                               AS enter_qty,
-    SUM(print_order_qty)                                         AS print_order_qty,
-    SUM(print_sale_amt)                                          AS print_sale_amt,
-    SUM(print_ticket_qty)                                        AS print_ticket_qty,
+    SUM(pay_cost_amt)                                            AS pay_cost_amt,
+    SUM(cancel_fee_amt)                                          AS cancel_fee_amt,
+    SUM(revoke_fee_amt)                                          AS revoke_fee_amt,
     DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time
 FROM (
     -- dws_ord_scenic_ticket_trade_di
     SELECT
         scenic_id,
         ticket_id,
-        distributor_id,
-        order_mode,
-        order_role,
-        pay_mode,
         SUM(order_order_qty)                                         AS order_order_qty,
         SUM(order_ticket_qty)                                        AS order_ticket_qty,
         SUM(order_sale_amt)                                          AS order_sale_amt,
@@ -98,16 +85,11 @@ FROM (
         SUM(revoke_cost_amt)                                         AS revoke_cost_amt,
         SUM(after_sale_refund_amt)                                   AS after_sale_refund_amt,
         BITMAP_UNION(buyer_qty)                                      AS buyer_bitmap,
-        SUM(after_sale_income_amt)                                   AS after_sale_income_amt,
-        SUM(after_sale_ticket_qty)                                   AS after_sale_ticket_qty,
-        SUM(card_sale_amt)                                           AS card_sale_amt,
-        SUM(card_sale_qty)                                           AS card_sale_qty,
-        SUM(enter_qty)                                               AS enter_qty,
-        SUM(print_order_qty)                                         AS print_order_qty,
-        SUM(print_sale_amt)                                          AS print_sale_amt,
-        SUM(print_ticket_qty)                                        AS print_ticket_qty
+        SUM(pay_cost_amt)                                            AS pay_cost_amt,
+        SUM(cancel_fee_amt)                                          AS cancel_fee_amt,
+        SUM(revoke_fee_amt)                                          AS revoke_fee_amt
     FROM dws.dws_ord_scenic_ticket_trade_di
     WHERE travel_date = '${bizdate}'
-    GROUP BY scenic_id, ticket_id, distributor_id, order_mode, order_role, pay_mode
+    GROUP BY scenic_id, ticket_id
 ) u
-GROUP BY scenic_id, ticket_id, distributor_id, order_mode, order_role, pay_mode
+GROUP BY scenic_id, ticket_id

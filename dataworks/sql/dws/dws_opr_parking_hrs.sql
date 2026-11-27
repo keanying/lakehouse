@@ -23,6 +23,7 @@ SELECT
     SUM(park_exit_qty)                                           AS park_exit_qty,
     SUM(park_fee_amt)                                            AS park_fee_amt,
     SUM(park_minute_qty)                                         AS park_minute_qty,
+    SUM(park_in_lot_qty)                                         AS park_in_lot_qty,
     DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time
 FROM (
     -- park：停车进出（5 厂商已在 DWD 归一）
@@ -34,7 +35,8 @@ FROM (
         SUM(IF(inout_type = 'IN', 1, 0))                             AS park_entry_qty,
         SUM(IF(inout_type = 'OUT', 1, 0))                            AS park_exit_qty,
         SUM(IF(inout_type = 'OUT', fee_amt, 0))                      AS park_fee_amt,
-        SUM(IF(inout_type = 'OUT', (UNIX_TIMESTAMP(inout_time) - UNIX_TIMESTAMP(in_time)) DIV 60, 0)) AS park_minute_qty
+        SUM(IF(inout_type = 'OUT', (UNIX_TIMESTAMP(inout_time) - UNIX_TIMESTAMP(in_time)) DIV 60, 0)) AS park_minute_qty,
+        SUM(CASE inout_type WHEN 'IN' THEN 1 WHEN 'OUT' THEN -1 ELSE 0 END) AS park_in_lot_qty
     FROM dwd.dwd_opr_parking_record_di
     WHERE travel_date = '${bizdate}'
     GROUP BY parking_lot_code, parking_vendor, COALESCE(HOUR(inout_time), CAST(-1 AS INT))

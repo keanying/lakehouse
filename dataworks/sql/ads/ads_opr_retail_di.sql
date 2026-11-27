@@ -32,8 +32,12 @@ SELECT
     SUM(retail_item_qty)                                         AS retail_item_qty,
     SUM(retail_sale_amt)                                         AS retail_sale_amt,
     SUM(retail_refund_amt)                                       AS retail_refund_amt,
-    SUM(cancel_profit_amt)                                       AS cancel_profit_amt,
-    SUM(order_profit_amt)                                        AS order_profit_amt,
+    SUM(retail_pay_amt)                                          AS retail_pay_amt,
+    SUM(retail_discount_amt)                                     AS retail_discount_amt,
+    SUM(retail_refund_item_qty)                                  AS retail_refund_item_qty,
+    SUM(retail_customer_qty)                                     AS retail_customer_qty,
+    SUM(retail_profit_amt)                                       AS retail_profit_amt,
+    SUM(retail_refund_profit_amt)                                AS retail_refund_profit_amt,
     DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time
 FROM (
     -- dws_opr_retail_di
@@ -46,8 +50,12 @@ FROM (
         SUM(retail_item_qty)                                         AS retail_item_qty,
         SUM(retail_sale_amt)                                         AS retail_sale_amt,
         SUM(retail_refund_amt)                                       AS retail_refund_amt,
-        SUM(cancel_profit_amt)                                       AS cancel_profit_amt,
-        SUM(order_profit_amt)                                        AS order_profit_amt
+        SUM(retail_pay_amt)                                          AS retail_pay_amt,
+        SUM(retail_discount_amt)                                     AS retail_discount_amt,
+        SUM(retail_refund_item_qty)                                  AS retail_refund_item_qty,
+        SUM(retail_customer_qty)                                     AS retail_customer_qty,
+        SUM(retail_profit_amt)                                       AS retail_profit_amt,
+        SUM(retail_refund_profit_amt)                                AS retail_refund_profit_amt
     FROM dws.dws_opr_retail_di
     WHERE travel_date = '${bizdate}'
     GROUP BY scenic_id, shop_code, goods_code, pay_mode

@@ -13,7 +13,6 @@
 --   · 数据平台/平台湖仓工作流/小岛零售/dws_sup_xisland_retail_summary_yr（SERVERLESS_SPARK_SQL，cron 00 30 06 * * ?）
 -- 性能：
 --   · 同一来源的指标在一个子查询里预聚合（一次扫描），各来源 UNION ALL 后按粒度汇总，不做明细级 JOIN
---   · 待确认（无来源）：cancel_profit_amt、order_profit_amt
 --   · 来源：retail = dwd.dwd_opr_retail_order_di（零售订单（3 系统已在 DWD 归一））
 -- ================================================================================================
 INSERT OVERWRITE TABLE dws.dws_opr_retail_di PARTITION (travel_date = '${bizdate}')
@@ -27,8 +26,12 @@ SELECT
     SUM(retail_item_qty)                                         AS retail_item_qty,
     SUM(retail_sale_amt)                                         AS retail_sale_amt,
     SUM(retail_refund_amt)                                       AS retail_refund_amt,
-    CAST(NULL AS DECIMAL(18,2))                                  AS cancel_profit_amt,   -- 待确认：没有可用来源
-    CAST(NULL AS DECIMAL(18,2))                                  AS order_profit_amt,   -- 待确认：没有可用来源
+    SUM(retail_pay_amt)                                          AS retail_pay_amt,
+    SUM(retail_discount_amt)                                     AS retail_discount_amt,
+    SUM(retail_refund_item_qty)                                  AS retail_refund_item_qty,
+    SUM(retail_customer_qty)                                     AS retail_customer_qty,
+    SUM(retail_profit_amt)                                       AS retail_profit_amt,
+    SUM(retail_refund_profit_amt)                                AS retail_refund_profit_amt,
     DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time
 FROM (
     -- retail：零售订单（3 系统已在 DWD 归一）
@@ -42,8 +45,12 @@ FROM (
         SUM(IF(refund_flag = 0, COALESCE(item_qty, 0), 0))           AS retail_item_qty,
         SUM(IF(refund_flag = 0, sale_amt, 0))                        AS retail_sale_amt,
         SUM(IF(refund_flag = 1, sale_amt, 0))                        AS retail_refund_amt,
-        CAST(0 AS DECIMAL(18,2))                                     AS cancel_profit_amt,
-        CAST(0 AS DECIMAL(18,2))                                     AS order_profit_amt
+        SUM(IF(refund_flag = 0, COALESCE(pay_amt, sale_amt), 0))     AS retail_pay_amt,
+        SUM(IF(refund_flag = 0, sale_amt - COALESCE(pay_amt, sale_amt), 0)) AS retail_discount_amt,
+        SUM(IF(refund_flag = 1, COALESCE(item_qty, 0), 0))           AS retail_refund_item_qty,
+        SUM(IF(refund_flag = 0, COALESCE(number_of_people, 0), 0))   AS retail_customer_qty,
+        SUM(IF(refund_flag = 0, COALESCE(profit_amt, 0), 0))         AS retail_profit_amt,
+        SUM(IF(refund_flag = 1, COALESCE(profit_amt, 0), 0))         AS retail_refund_profit_amt
     FROM dwd.dwd_opr_retail_order_di
     WHERE travel_date = '${bizdate}'
     GROUP BY shop_code, retail_vendor, goods_code
