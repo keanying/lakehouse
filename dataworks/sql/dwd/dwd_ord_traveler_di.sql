@@ -20,9 +20,10 @@ WITH tr AS (
     SELECT orderid, idx, lid, tourist, idcard, voucher_type, mobile, check_time,
            FROM_UNIXTIME(CAST(order_time AS BIGINT), 'yyyyMMdd') AS order_date,
            -- ODS 证件号前缀 11 位 = 地区 6 + 出生年 4 + 性别位 1（仅 18 位身份证）
+           -- 年龄按下单日计算（不随跑批日期变化）
            IF(
                LENGTH(SUBSTRING_INDEX(idcard, '#', 1)) = 11,
-               YEAR(CURRENT_DATE()) - CAST(SUBSTR(idcard, 7, 4) AS INT),
+               YEAR(FROM_UNIXTIME(CAST(order_time AS BIGINT))) - CAST(SUBSTR(idcard, 7, 4) AS INT),
                NULL
            ) AS age,                                                              -- 年龄
            IF(LENGTH(SUBSTRING_INDEX(idcard, '#', 1)) = 11, IF(
@@ -43,6 +44,8 @@ SELECT /*+ BROADCAST(ic, ph) */
     o.ticket_id,                                                                  -- 票ID
     o.order_role,                                                                 -- 主子单
     COALESCE(o.team_flag, 0)                                         AS team_flag,  -- 是否团队订单（订单退化维度）
+    o.order_mode,                                                                 -- 下单渠道编码（订单退化维度）｜下单渠道（订单带出，画像按渠道拆分用）
+    o.pay_mode,                                                                   -- 支付方式编码（订单退化维度）｜支付方式（订单带出）
     CONCAT(SUBSTR(tr.tourist, 1, 1), '**')                           AS traveler_name_mask,  -- 游客姓名（掩码）
     SUBSTRING_INDEX(tr.idcard, '#', -1)                                   AS id_card_hash,  -- 证件号哈希
     tr.voucher_type                                                  AS id_card_type,  -- 证件类型
@@ -72,11 +75,17 @@ LEFT JOIN (
     ticket_id,                                                                    -- 票ID
     order_role,                                                                   -- 主子单
     team_flag,                                                                    -- 是否团队订单（订单退化维度）
+    order_mode,                                                                   -- 下单渠道编码（订单退化维度）
+    pay_mode,                                                                     -- 支付方式编码（订单退化维度）
     order_time,                                                                   -- 下单时间
     test_flag FROM dwd.dwd_ord_order_di
 ) o
        ON o.travel_date = tr.order_date AND o.order_no = tr.orderid               -- 按 order_date→travel_date、orderid→order_no 关联
-LEFT JOIN (SELECT area_code, province_code, city_code FROM dim.dim_opr_idcard_area_f) ic  -- 关联「身份证地区码」按键聚合
+LEFT JOIN (SELECT area_code, province_code, city_code FROM dim.dim_opr_idcard_area_f) ic  -- 关联「身份证地区维度」按键聚合
   ON ic.area_code = SUBSTR(tr.idcard, 1, 6)
-LEFT JOIN (SELECT phone_prefix, province_code, city_code FROM dim.dim_opr_phone_area_f) ph  -- 关联「手机号归属地」按键聚合
+LEFT JOIN (
+    SELECT phone_prefix,
+    province_code,                                                                -- 客源省（证件优先、手机号次之）
+    city_code FROM dim.dim_opr_phone_area_f WHERE phone_prefix_type = 'SEGMENT'
+) ph
   ON ph.phone_prefix = SUBSTRING_INDEX(tr.mobile, '#', 1)

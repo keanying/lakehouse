@@ -16,24 +16,6 @@ SELECT
     CAST(IF(daction = 0, dmoney, -dmoney) AS DECIMAL(18,2)) / 100 AS trade_amt,   -- 交易金额
     CAST(lmoney AS DECIMAL(18,2)) / 100                          AS balance_amt,  -- 余额金额
     id,                                                                           -- 自增ID
-    CAST(NULL AS STRING)                                         AS subject_name,  -- 账本科目名称｜冗余维度属性：查询时关联维表，建议从明细移除
-    CAST(NULL AS BIGINT)                                         AS type,         -- 账本科目类型｜待确认：来源未同步（旧字段 ods_fin_account_book_subject_df.type）
-    CAST(NULL AS STRING)                                         AS unit,         -- 单位｜待确认：来源未同步（旧字段 ods_fin_account_book_subject_df.unit）
-    CAST(NULL AS BIGINT)                                         AS can_withdraw,  -- 是否可提现｜待确认：来源未同步（旧字段 ods_fin_account_book_subject_df.can_withdraw）
-    CAST(NULL AS BIGINT)                                         AS can_invoice,  -- 是否可打印发票｜待确认：来源未同步（旧字段 ods_fin_account_book_subject_df.can_invoice）
-    CAST(NULL AS BIGINT)                                         AS can_integral,  -- 是否可计算积分｜待确认：来源未同步（旧字段 ods_fin_account_book_subject_df.can_integral）
-    CAST(NULL AS BIGINT)                                         AS is_default,   -- 是否默认创建｜待确认：来源未同步（旧字段 ods_fin_account_book_subject_df.is_default）
-    CAST(NULL AS BIGINT)                                         AS priority,     -- 优先级｜待确认：来源未同步（旧字段 ods_fin_account_book_subject_df.priority）
-    CAST(NULL AS BIGINT)                                         AS repeatable,   -- 是否可以多条记录｜待确认：来源未同步（旧字段 ods_fin_account_book_subject_df.repeatable）
-    CAST(NULL AS BIGINT)                                         AS refund_expires,  -- 退款期限｜待确认：来源未同步（旧字段 ods_fin_account_book_subject_df.refund_expires）
-    CAST(NULL AS BIGINT)                                         AS refund_limit,  -- 退款上限｜待确认：来源未同步（旧字段 ods_fin_account_book_subject_df.refund_limit）
-    CAST(NULL AS BIGINT)                                         AS remaining_limit,  -- 余额上限｜待确认：来源未同步（旧字段 ods_fin_account_book_subject_df.remaining_limit）
-    CAST(NULL AS BIGINT)                                         AS third_party,  -- 是否为第三方支付｜待确认：来源未同步（旧字段 ods_fin_account_book_subject_df.third_party）
-    CAST(NULL AS BIGINT)                                         AS trade_type,   -- 交易类型｜待确认：来源未同步（旧字段 ods_fin_account_book_subject_df.trade_type）
-    CAST(NULL AS STRING)                                         AS ext,          -- 扩展规则｜待确认：来源未同步（旧字段 ods_fin_account_book_subject_df.ext）
-    CAST(NULL AS STRING)                                         AS remark,       -- 备注｜待确认：来源未同步（旧字段 ods_fin_account_book_subject_df.remark）
-    CAST(NULL AS BIGINT)                                         AS add_time,     -- 创建时间｜待确认：来源未同步（旧字段 ods_fin_account_book_subject_df.add_time）
-    CAST(NULL AS BIGINT)                                         AS update_time,  -- 更新时间｜待确认：来源未同步（旧字段 ods_fin_account_book_subject_df.update_time）
     customer_id,                                                                  -- 客户ID
     trade_account_id,                                                             -- 交易目标账户
     CAST(fid AS BIGINT)                                          AS member_id,    -- 会员ID

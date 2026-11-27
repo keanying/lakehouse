@@ -447,10 +447,17 @@ AIO_WHERE = ("(trade_source IN ('CARD_OP', 'IC_ORDER') OR (trade_source = 'PAY' 
              " OR (trade_source = 'REFUND' AND refund_status = 2))")
 
 
+import std_rebuild  # noqa: E402,F401  旧数仓 DIM / DWD 从 ODS 显式重建（登记进 SPECS）
+
 def register(t, F, model):
     """在 model.T 的 DWD 段末尾登记业务过程表；另登记一卡通 DWS 的维度与指标"""
     for s in SPECS:
+        old = next((i for i, x in enumerate(model.T) if x['name'] == s['name']), None)
         t(s['name'], s['cn'], s['grain'], s['up'], s['note'], F(*[(n, ty, cat, cm, '') for n, ty, cat, cm, _ in s['cols']]), s['legacy'], part=s['part'])
+        if old is not None:                  # 重建已有表：原位替换，保留原来归并的旧表
+            new = model.T.pop()
+            new['legacy'] = new['legacy'] or model.T[old]['legacy']
+            model.T[old] = new
     model.D.update(DIMS)
     for m in METRICS:
         model.METRICS.append(m)

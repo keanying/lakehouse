@@ -8,6 +8,7 @@
 --   · 同一来源的指标在一个子查询里预聚合（一次扫描），各来源 UNION ALL 后按粒度汇总，不做明细级 JOIN
 --   · 来源：ord = dwd.dwd_ord_order_di（预订：下单日分区 = bizdate，已支付（含现场支付、含之后取消））；trk = dwd.dwd_ord_order_track_di（订单操作：操作日分区 = bizdate）；vfy = dwd.dwd_ord_verify_di（核销：验证日分区 = bizdate）
 -- ================================================================================================
+-- 补 0 / 补空列：多来源 UNION ALL 时，某来源不产出的指标补 0 或空，外层按粒度 SUM 后即为各来源之和，不影响结果
 INSERT OVERWRITE TABLE dws.dws_ord_scenic_ticket_trade_hrs PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
 SELECT
     scenic_id,                                                                    -- 景区ID
@@ -40,14 +41,14 @@ FROM (
         SUM(origin_ticket_qty)                                       AS order_ticket_qty,  -- 预订票数
         SUM(origin_ticket_qty * sale_price_amt)                      AS order_sale_amt,  -- 预订金额
         SUM(origin_ticket_qty * cost_price_amt)                      AS order_cost_amt,  -- 预订成本金额
-        CAST(0 AS BIGINT)                                            AS verify_order_qty,  -- 验证订单数
-        CAST(0 AS BIGINT)                                            AS verify_ticket_qty,  -- 验证票数
-        CAST(0 AS DECIMAL(18,2))                                     AS verify_sale_amt,  -- 验证金额
-        CAST(0 AS DECIMAL(18,2))                                     AS verify_cost_amt,  -- 验证成本金额
-        CAST(0 AS BIGINT)                                            AS cancel_order_qty,  -- 取消订单数
-        CAST(0 AS BIGINT)                                            AS cancel_ticket_qty,  -- 取消票数
-        CAST(0 AS DECIMAL(18,2))                                     AS cancel_sale_amt,  -- 取消金额
-        CAST(0 AS DECIMAL(18,2))                                     AS cancel_cost_amt  -- 取消成本金额
+        CAST(0 AS BIGINT)                                            AS verify_order_qty,  -- 验证订单数：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS verify_ticket_qty,  -- 验证票数：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS verify_sale_amt,  -- 验证金额：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS verify_cost_amt,  -- 验证成本金额：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS cancel_order_qty,  -- 取消订单数：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS cancel_ticket_qty,  -- 取消票数：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS cancel_sale_amt,  -- 取消金额：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS cancel_cost_amt  -- 取消成本金额：此来源不产出，补0
     FROM dwd.dwd_ord_order_di
     WHERE travel_date = '${bizdate}'                                              -- 只取当日分区
       AND test_flag = 0
@@ -65,14 +66,14 @@ FROM (
         COALESCE(order_mode, CAST(-1 AS INT))                        AS order_mode,  -- 下单渠道编码
         order_role,                                                               -- 主子单
         COALESCE(HOUR(action_time), CAST(-1 AS INT))                 AS stat_hour,  -- 小时
-        CAST(0 AS BIGINT)                                            AS order_order_qty,  -- 预订订单数
-        CAST(0 AS BIGINT)                                            AS order_ticket_qty,  -- 预订票数
-        CAST(0 AS DECIMAL(18,2))                                     AS order_sale_amt,  -- 预订金额
-        CAST(0 AS DECIMAL(18,2))                                     AS order_cost_amt,  -- 预订成本金额
-        CAST(0 AS BIGINT)                                            AS verify_order_qty,  -- 验证订单数
-        CAST(0 AS BIGINT)                                            AS verify_ticket_qty,  -- 验证票数
-        CAST(0 AS DECIMAL(18,2))                                     AS verify_sale_amt,  -- 验证金额
-        CAST(0 AS DECIMAL(18,2))                                     AS verify_cost_amt,  -- 验证成本金额
+        CAST(0 AS BIGINT)                                            AS order_order_qty,  -- 预订订单数：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS order_ticket_qty,  -- 预订票数：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS order_sale_amt,  -- 预订金额：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS order_cost_amt,  -- 预订成本金额：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS verify_order_qty,  -- 验证订单数：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS verify_ticket_qty,  -- 验证票数：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS verify_sale_amt,  -- 验证金额：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS verify_cost_amt,  -- 验证成本金额：此来源不产出，补0
         COUNT(DISTINCT IF(track_action IN ('CANCEL', 'MODIFY'), order_no, NULL)) AS cancel_order_qty,  -- 取消订单数
         SUM(IF(track_action IN ('CANCEL', 'MODIFY'), ticket_qty, 0)) AS cancel_ticket_qty,  -- 取消票数
         SUM(IF(track_action IN ('CANCEL', 'MODIFY'), sale_amt, 0))   AS cancel_sale_amt,  -- 取消金额
@@ -93,18 +94,18 @@ FROM (
         COALESCE(order_mode, CAST(-1 AS INT))                        AS order_mode,  -- 下单渠道编码
         order_role,                                                               -- 主子单
         COALESCE(HOUR(verify_time), CAST(-1 AS INT))                 AS stat_hour,  -- 小时
-        CAST(0 AS BIGINT)                                            AS order_order_qty,  -- 预订订单数
-        CAST(0 AS BIGINT)                                            AS order_ticket_qty,  -- 预订票数
-        CAST(0 AS DECIMAL(18,2))                                     AS order_sale_amt,  -- 预订金额
-        CAST(0 AS DECIMAL(18,2))                                     AS order_cost_amt,  -- 预订成本金额
+        CAST(0 AS BIGINT)                                            AS order_order_qty,  -- 预订订单数：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS order_ticket_qty,  -- 预订票数：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS order_sale_amt,  -- 预订金额：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS order_cost_amt,  -- 预订成本金额：此来源不产出，补0
         COUNT(DISTINCT order_no)                                     AS verify_order_qty,  -- 验证订单数
         SUM(verify_ticket_qty)                                       AS verify_ticket_qty,  -- 验证票数
         SUM(verify_sale_amt)                                         AS verify_sale_amt,  -- 验证金额
         SUM(verify_cost_amt)                                         AS verify_cost_amt,  -- 验证成本金额
-        CAST(0 AS BIGINT)                                            AS cancel_order_qty,  -- 取消订单数
-        CAST(0 AS BIGINT)                                            AS cancel_ticket_qty,  -- 取消票数
-        CAST(0 AS DECIMAL(18,2))                                     AS cancel_sale_amt,  -- 取消金额
-        CAST(0 AS DECIMAL(18,2))                                     AS cancel_cost_amt  -- 取消成本金额
+        CAST(0 AS BIGINT)                                            AS cancel_order_qty,  -- 取消订单数：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS cancel_ticket_qty,  -- 取消票数：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS cancel_sale_amt,  -- 取消金额：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS cancel_cost_amt  -- 取消成本金额：此来源不产出，补0
     FROM dwd.dwd_ord_verify_di
     WHERE travel_date = '${bizdate}'                                              -- 只取当日分区
       AND test_flag = 0

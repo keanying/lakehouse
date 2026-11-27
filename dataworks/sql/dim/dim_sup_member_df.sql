@@ -3,7 +3,7 @@
 -- 粒度：1行=1个平台账号（pft_member）
 -- 分区：无分区
 -- 调度：每日，ODS 全部完成后；维表之间按上游顺序
--- 上游：ods_sup_member_df、ods_sup_member_ext_df、ods_sup_member_relation_df、ods_prd_scenic_df、ods_opr_distribute_system_type_df、ods_opr_datav_auth_df、ods_trf_tb_bind_df、ods_fin_merchant_payment_method_df
+-- 上游：ods_sup_member_df、ods_sup_member_ext_df、ods_opr_region_area_df、ods_sup_member_relation_df、ods_prd_scenic_df、ods_opr_distribute_system_type_df、ods_opr_datav_auth_df、ods_trf_tb_bind_df、ods_fin_merchant_payment_method_df
 -- 替代旧任务 9 个（上线对数一致后下线）：
 --   · 数据中台/数据维度(DIM)/dim_用户域/dim_user_d_f（EMR_SPARK_SQL，cron 00 00 01 * * ?）
 --   · 数据平台/DIM/dim_cus_member_info_df（SERVERLESS_SPARK_SQL，cron 00 14 00 * * ?）
@@ -35,7 +35,10 @@ WITH member AS (
 ),
 ext AS (
     SELECT CAST(fid AS BIGINT) AS member_id,                                      -- 会员ID（平台账号ID）
-           com_name FROM ods.ods_sup_member_ext_df WHERE travel_date = '${bizdate}'
+           com_name,
+           province,
+           city,
+           corp_kind FROM ods.ods_sup_member_ext_df WHERE travel_date = '${bizdate}'
 ),
 -- 对接分销平台：账号二维码链接匹配平台特征串；多条命中取特征串最长（最具体）的一条
 dsys AS (
@@ -89,6 +92,11 @@ SELECT
     IF(dv.member_id IS NOT NULL, 1, 0)                               AS datav_open_flag,  -- 是否开通数据大屏
     IF(tb.member_id IS NOT NULL, 1, 0)                               AS taobao_bind_flag,  -- 是否绑定淘宝
     c.self_collect_way,                                                           -- 独立收款方式
+    CAST(e.province AS STRING)                                       AS province_code,  -- 商户（公司）所在省编码
+    rp.region_name                                                   AS province_name,  -- 商户所在省
+    CAST(e.city AS STRING)                                           AS city_code,  -- 商户（公司）所在市编码
+    rc.region_name                                                   AS city_name,  -- 商户所在市
+    e.corp_kind                                                      AS corp_kind_type,  -- 公司类型
     IF(m.group_id IN ('2', '3'), 1, 0)                               AS test_flag,  -- 是否测试账号
     DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time           -- ETL 加载时间
 FROM member m
@@ -99,3 +107,7 @@ LEFT JOIN distributor d  ON d.member_id  = m.member_id
 LEFT JOIN datav       dv ON dv.member_id = m.member_id
 LEFT JOIN taobao      tb ON tb.member_id = m.member_id
 LEFT JOIN collect     c  ON c.member_id  = m.member_id
+LEFT JOIN (SELECT area_code, MAX(area_name) AS region_name FROM ods.ods_opr_region_area_df WHERE travel_date = '${bizdate}' GROUP BY area_code) rp  -- 关联「国家的地区表」按键聚合
+       ON rp.area_code = CAST(e.province AS STRING)                               -- 公司所在省 → 省名
+LEFT JOIN (SELECT area_code, MAX(area_name) AS region_name FROM ods.ods_opr_region_area_df WHERE travel_date = '${bizdate}' GROUP BY area_code) rc  -- 关联「国家的地区表」按键聚合
+       ON rc.area_code = CAST(e.city AS STRING)                                   -- 公司所在市 → 市名

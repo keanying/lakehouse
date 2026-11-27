@@ -15,6 +15,7 @@ import etl as etl_mod  # noqa: E402
 import src_ddl  # noqa: E402
 import domains  # noqa: E402
 import field_map  # noqa: E402
+import std_rebuild  # noqa: E402
 
 sh = catalog.sh
 LAYER_CN = {'ODS': '原始数据层', 'DIM': '维度层', 'DWD': '明细层', 'DWS': '汇总层', 'ADS': '应用层'}
@@ -168,8 +169,8 @@ def build():
             if dd and dd['c'] and not rules.FIELD_FIX.get((o['ltb'], c.lower())):
                 cm = dd['c']          # 业务库 DDL 注释是源头，优先于旧 Hive 表注释
             cat = '主键' if c.lower() == 'id' else 'ETL' if c.lower() in ETL_COLS else category(c.lower(), [], 'ODS')
-            fields.append(['ODS', f'ods.{name}', cn, seq, c.lower(), rules.std_type(ty), cat, (cm or c) + ('（脱敏）' if rules.SENSITIVE.search(c) else ''),
-                           f'{srcs[0]}.{c}' + ('，落地脱敏' if rules.SENSITIVE.search(c) else ''), ''])
+            fields.append(['ODS', f'ods.{name}', cn, seq, c.lower(), rules.std_type(ty), cat, (cm or c) + ('（脱敏）' if rules.SENSITIVE.search(c) and f'{name}.{c.lower()}' not in rules.NOT_SENSITIVE else ''),
+                           f'{srcs[0]}.{c}' + ('，落地脱敏' if rules.SENSITIVE.search(c) and f'{name}.{c.lower()}' not in rules.NOT_SENSITIVE else ''), ''])
         fields.append(['ODS', f'ods.{name}', cn, seq + 1, 'travel_date', 'STRING', '分区', '数据日期，格式 YYYYMMDD', '调度参数 ${bizdate}', ''])
         for l in landing:
             mapping[l] = (name, '合并' if len(landing) > 1 or l != name else '保留')
@@ -283,6 +284,8 @@ def build():
                     if n not in seen:
                         seen[n] = (rules.std_type(ty), cm or '', f'沿用旧表 {l}.{c}', l)
             ordered = [k for k in core if k in seen] + [k for k in core if k not in seen] + [k for k in seen if k not in core]
+            drop_ = std_rebuild.DWD_FIX.get(spec['name'], {}).get('drop', {})
+            ordered = [n for n in ordered if n not in drop_]
             for n in ordered:
                 ty, cm, proc, l = seen.get(n, (guess_type(n), '', '新增（标准化后补齐）', ''))
                 flist.append((n, ty, category(n, keys, layer), cm or n, proc, ''))
@@ -808,6 +811,16 @@ def fill_gaps(gaps):
             BLOCKED.update((t, f'dim:{d}') for d in nd if d not in ok_d)
             BLOCKED.update((t, m) for m in nm if m not in ok_m)
             nd, nm = ok_d, ok_m
+        elif t.startswith('ads_'):               # ADS：上游 DWS 已有或能产出的才补，否则记缺口（不再往 DWS 塞产不出的列）
+            ups_ = [u.strip() for u in re.split('、', sp['up']) if u.strip().startswith('dws_') and u.strip() in by]
+            has = lambda x, kind: any((x in {f[0] for f in by[u]['fields']}) or
+                                      (dws_can(u, x, by) if kind == 'd' else any(s_ in etl_mod.R.get(x, {}) for s_ in etl_mod.DWS_SRC.get(u, [])))
+                                      for u in ups_ if isinstance(by[u]['fields'], list))
+            ok_d = [d for d in nd if d in DERIVED_DIMS or has(d, 'd')]
+            ok_m = [m for m in nm if has(m, 'm') or (m in model.M and model.M[m][4] == '计算指标')]   # 计算指标由 ADS 用分子分母派生
+            BLOCKED.update((t, f'dim:{d}') for d in nd if d not in ok_d)
+            BLOCKED.update((t, m) for m in nm if m not in ok_m)
+            nd, nm = ok_d, ok_m
         k = max([i for i, f in enumerate(sp['fields']) if f[2] == '粒度键'] or [-1]) + 1
         sp['fields'][k:k] = model.dims(*nd)
         sp['fields'] += model.mets(*nm)
@@ -817,8 +830,8 @@ def fill_gaps(gaps):
             if u and isinstance(u['fields'], list) and up.startswith('dws_'):
                 uh = {f[0] for f in u['fields']}
                 kk = max([i for i, f in enumerate(u['fields']) if f[2] == '粒度键'] or [-1]) + 1
-                u['fields'][kk:kk] = model.dims(*[x for x in nd if x not in uh and x not in DERIVED_DIMS])
-                u['fields'] += model.mets(*[x for x in nm if x not in uh])
+                u['fields'][kk:kk] = model.dims(*[x for x in nd if x not in uh and x not in DERIVED_DIMS and dws_can(up.strip(), x, by)])
+                u['fields'] += model.mets(*[x for x in nm if x not in uh and any(s_ in etl_mod.R.get(x, {}) for s_ in etl_mod.DWS_SRC.get(up.strip(), []))])
     return added
 
 

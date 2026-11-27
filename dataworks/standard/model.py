@@ -210,7 +210,7 @@ t('dim_sup_supplier_df', '供应商维度', '1行=1个供应商（租户，sid�
     ('first_ticket_time', 'STRING', '时间', '首次上架票时间', 'MIN(uu_jq_ticket.update_time)'),
     ('test_flag', 'INT', '状态类型', '是否测试账号：用户分组 2 / 3', 'pft_member.group_id IN (2,3)')),
   ['dim_cus_core_attributes_df', 'dim_cus_user_customer_info_df', 'dim_bloc_company_d_f', 'ods_c_land_authorize_d_f'], part='')
-t('dim_sup_member_df', '会员（平台账号）维度', '1行=1个平台账号（pft_member）', 'ods_sup_member_df、ods_sup_member_ext_df、ods_sup_member_relation_df、ods_prd_scenic_df、ods_opr_distribute_system_type_df、ods_opr_datav_auth_df、ods_trf_tb_bind_df、ods_fin_merchant_payment_method_df',
+t('dim_sup_member_df', '会员（平台账号）维度', '1行=1个平台账号（pft_member）', 'ods_sup_member_df、ods_sup_member_ext_df、ods_opr_region_area_df、ods_sup_member_relation_df、ods_prd_scenic_df、ods_opr_distribute_system_type_df、ods_opr_datav_auth_df、ods_trf_tb_bind_df、ods_fin_merchant_payment_method_df',
   '平台所有账号（供应商 / 分销商 / 散客会员 / 员工账号）的统一维度，角色标志由业务行为推出；联系人手机号只存哈希',
   F(('member_id', 'BIGINT', '主键', '会员ID（平台账号ID）', 'pft_member.id'), ('member_name', 'STRING', '维度属性', '账号名称', 'pft_member.dname'),
     ('account', 'STRING', '维度属性', '登录账号', 'pft_member.account'), ('member_type_code', 'STRING', '状态类型', '账号类型：5-普通用户，其余见码表 member_dtype', 'pft_member.dtype'),
@@ -222,6 +222,10 @@ t('dim_sup_member_df', '会员（平台账号）维度', '1行=1个平台账号�
     ('register_time', 'STRING', '时间', '注册时间', 'pft_member.creattime'), ('last_login_time', 'STRING', '时间', '最近登录时间', 'pft_member.lasttime'),
     ('datav_open_flag', 'INT', '状态类型', '是否开通数据大屏', 'datav_auth'), ('taobao_bind_flag', 'INT', '状态类型', '是否绑定淘宝', 'pft_tb_bind'),
     ('self_collect_way', 'STRING', '维度属性', '独立收款方式', 'pft_merchant_payment_method → 支付渠道'),
+    ('province_code', 'STRING', '外键', '商户（公司）所在省编码，关联 dim_opr_region_f', 'pft_member_extinfo.province'),
+    ('province_name', 'STRING', '维度属性', '商户所在省', 'dim_opr_region_f'),
+    ('city_code', 'STRING', '外键', '商户（公司）所在市编码', 'pft_member_extinfo.city'), ('city_name', 'STRING', '维度属性', '商户所在市', 'dim_opr_region_f'),
+    ('corp_kind_type', 'INT', '状态类型', '公司类型：0-酒店 1-景区 2-旅行社 …', 'pft_member_extinfo.corp_kind'),
     ('test_flag', 'INT', '状态类型', '是否测试账号：用户分组 2 / 3', 'pft_member.group_id IN (2,3)')),
   ['dim_user_d_f', 'dim_cus_member_info_df', 'dim_user_datav_d_f', 'dim_thirdsystem_d_f', 'dim_user_thirdsystem_d_f', 'dwd_cus_qualification_auth_df', 'dwd_cus_user_base_bind_df', 'dim_sid_white_list_d_f'], part='')
 t('dim_cus_tourist_df', '游客维度', '1行=1位游客（证件号哈希）', 'dwd_ord_traveler_di、dwd_ord_order_di、ods_cus_tourist_info_df、ods_cus_tourist_auth_info_df、dim_opr_idcard_area_f、dim_opr_phone_area_f',
@@ -283,7 +287,7 @@ t('dim_opr_dict_f', '公共码表', '1行=1个码值', 'ods_opr_common_dict_df�
   ['dim_order_status_o_f', 'dim_dataoutput_config_d_i', 'tmp_mid_dim_dataoutput_config', 'dim_opr_dashboard_user_auth_df', 'dwd_opr_dashboard_user_auth_df'], part='')
 
 # ======================= DWD =======================
-t('dwd_ord_order_di', '订单明细', '1行=1张子订单（ordernum）', 'ods_ord_order_di、ods_ord_order_addon_di、ods_ord_order_apply_di、ods_ord_order_ticket_taker_di、dim_prd_ticket_df、dim_prd_scenic_df、dim_sup_member_df',
+t('dwd_ord_order_di', '订单明细', '1行=1张子订单（ordernum）', 'ods_ord_order_di、ods_ord_order_addon_di、ods_ord_order_apply_di、ods_ord_order_ticket_taker_di、ods_trf_all_api_order_di、dim_prd_ticket_df、dim_prd_scenic_df、dim_sup_member_df',
   '订单域唯一的订单明细：主子票、团队、取票人（脱敏）、景区 / 门票 / 供应商 / 渠道冗余，按下单日分区；替代旧系统 13 张订单 DWD / 宽表',
   F(('order_no', 'STRING', '主键', '订单号（子单号 ordernum）', 'ordernum / order_id / orderid'),
     ('main_order_no', 'STRING', '外键', '主票订单号；单票 = 自身，套票子票 = 主票订单号', 'main_order_id / pack_order_main_ordernum'),
@@ -392,6 +396,8 @@ t('dwd_ord_traveler_di', '订单游客明细', '1行=1张订单×1位游客', 'o
   F(('order_no', 'STRING', '主键', '订单号', 'ordernum / order_id'), ('traveler_seq', 'INT', '主键', '订单内游客序号', 'idx / id'),
     ('scenic_id', 'BIGINT', '外键', '景区ID', 'lid / land_id'), ('ticket_id', 'BIGINT', '外键', '票ID', 'tid'), ('order_role', 'STRING', '状态类型', '主子单', 'mo / no_mo'),
     ('team_flag', 'INT', '状态类型', '是否团队订单（订单退化维度）', 'is_team'),
+    ('order_mode', 'INT', '外键', '下单渠道编码（订单退化维度），关联 dim_trf_channel_f', 'ordermode'),
+    ('pay_mode', 'INT', '外键', '支付方式编码（订单退化维度），关联 dim_fin_pay_channel_f', 'paymode'),
     ('traveler_name_mask', 'STRING', '维度属性', '游客姓名（掩码）', 'tourist / name'), ('id_card_hash', 'STRING', '维度属性', '证件号哈希', 'idcard / id_card / personid'),
     ('id_card_type', 'STRING', '状态类型', '证件类型', 'voucher_type'), ('phone_hash', 'STRING', '维度属性', '手机号哈希', 'mobile / tel'),
     ('gender', 'STRING', '维度属性', '性别：M / F / U（证件解析）', 'sex / gender'), ('age', 'INT', '维度属性', '年龄（证件解析，按下单日）', 'age'),
@@ -415,7 +421,7 @@ t('dwd_fin_trade_journal_di', '账户交易流水', '1行=1笔账户流水', 'od
 t('dwd_sup_member_login_di', '商户登录明细', '1行=1次登录', 'ods_sup_member_login_log_di', '商户账号登录记录（活跃商户口径）', ('union', ['member_id', 'login_time']), ['dwd_company_login_d_f'])
 t('dwd_opr_module_open_di', '应用模块开通明细', '1行=1次模块 / 套餐开通或续费', 'ods_opr_module_used_df、ods_opr_module_used_ext_df、ods_opr_module_package_log_df、dim_opr_module_package_df',
   '商户开通、续费、到期应用模块与套餐', ('union', ['member_id', 'module_id', 'open_time', 'expire_time']),
-  ['dwd_user_module_d_f', 'dwd_user_package_d_f', 'dwd_mkt_module_combo_open_df', 'dim_user_module_d_f'])
+  ['dwd_user_module_d_f', 'dwd_mkt_module_combo_open_df', 'dim_user_module_d_f'])
 t('dwd_prd_resource_order_di', '资源中心订单明细', '1行=1张经资源中心采购商品产生的订单', 'dwd_ord_order_di、ods_prd_resource_purchase_df、dim_prd_resource_df',
   '资源中心供应 / 采购关系下的订单', ('union', ['order_no', 'resource_id', 'supplier_id', 'purchase_member_id']),
   ['dwd_resource_center_order_d_f', 'dwd_resource_center_order_d_f2'])

@@ -154,6 +154,10 @@ def id_comment(name, old=''):
     return None
 
 
+# 名字像敏感字段、实为编码 / 号段的列：不脱敏（否则地区 / 号段维表无法关联）
+NOT_SENSITIVE = {'ods_opr_idcard_city_df.idcard',            # 身份证前 6 位地区码
+                 'ods_opr_global_phone_area_df.phone_area_code',  # 国际电话区号（86 / 852 …）
+                 'ods_opr_city_phone_df.number'}              # 手机号段（前 7 位）
 SENSITIVE = re.compile(r'(phone|mobile$|(?<!ho)tel$|id_card|idcard|personid|id_number|card_no|bank_no|bank_account|bank_card|alipay|address|passport|email|password|pwd)', re.I)
 DROP = re.compile(r'^(password|pwd|passwd|salt|secret)$', re.I)
 

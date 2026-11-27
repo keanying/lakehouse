@@ -88,7 +88,7 @@ WITH member AS (
     WHERE {P}
 ),
 ext AS (
-    SELECT CAST(fid AS BIGINT) AS member_id, com_name FROM ods.ods_sup_member_ext_df WHERE {P}
+    SELECT CAST(fid AS BIGINT) AS member_id, com_name, province, city, corp_kind FROM ods.ods_sup_member_ext_df WHERE {P}
 ),
 -- 对接分销平台：账号二维码链接匹配平台特征串；多条命中取特征串最长（最具体）的一条
 dsys AS (
@@ -140,6 +140,11 @@ SELECT
     IF(dv.member_id IS NOT NULL, 1, 0)                               AS datav_open_flag,
     IF(tb.member_id IS NOT NULL, 1, 0)                               AS taobao_bind_flag,
     c.self_collect_way,
+    CAST(e.province AS STRING)                                       AS province_code,
+    rp.region_name                                                   AS province_name,
+    CAST(e.city AS STRING)                                           AS city_code,
+    rc.region_name                                                   AS city_name,
+    e.corp_kind                                                      AS corp_kind_type,
     IF(m.group_id IN ('2', '3'), 1, 0)                               AS test_flag,
     {NOW}
 FROM member m
@@ -150,6 +155,10 @@ LEFT JOIN distributor d  ON d.member_id  = m.member_id
 LEFT JOIN datav       dv ON dv.member_id = m.member_id
 LEFT JOIN taobao      tb ON tb.member_id = m.member_id
 LEFT JOIN collect     c  ON c.member_id  = m.member_id
+LEFT JOIN (SELECT area_code, MAX(area_name) AS region_name FROM ods.ods_opr_region_area_df WHERE {P} GROUP BY area_code) rp
+       ON rp.area_code = CAST(e.province AS STRING)      -- 公司所在省 → 省名
+LEFT JOIN (SELECT area_code, MAX(area_name) AS region_name FROM ods.ods_opr_region_area_df WHERE {P} GROUP BY area_code) rc
+       ON rc.area_code = CAST(e.city AS STRING)          -- 公司所在市 → 市名
 """
 
 
@@ -490,9 +499,9 @@ SELECT /*+ BROADCAST(t, s, mb, ms, ph, ic) */
     COALESCE(b.distribute_level_qty, b.p_distribute_level_qty)       AS distribute_level_qty,
     b.ordermode                                                      AS order_mode,
     IF(b.ordermode = 17, 'OTA', mb.distribute_system_code)           AS distribute_system_code,   -- 17 = 淘宝 / 飞猪
-    CAST(NULL AS STRING)                                             AS purchase_system_code,     -- 待确认：采购平台订单表（旧 ods_third_purchase_order_d_f）未纳入同步
+    ap.coopb                                                         AS purchase_system_code,     -- 对接采购平台：第三方对接订单的系统ID（旧 ods_third_purchase_order_d_f），关联 dim_trf_channel_f（PURCHASE_SYSTEM）
     b.paymode                                                        AS pay_mode,
-    CAST(NULL AS STRING)                                             AS pay_account_type,         -- 待确认：资金账户类型不在订单表
+    CAST(b.paymode AS STRING)                                        AS pay_account_type,         -- 付款资金账户类型：旧 pay_funding_type 即订单 paymode，归类看 dim_fin_pay_channel_f.pay_channel_mapping_name
     CAST(b.status AS STRING)                                         AS order_status,
     CAST(b.pay_status AS STRING)                                     AS pay_status,
     b.tnum                                                           AS ticket_qty,
@@ -535,11 +544,13 @@ SELECT /*+ BROADCAST(t, s, mb, ms, ph, ic) */
     {NOW},
     DATE_FORMAT(b.ordertime, 'yyyyMMdd')                             AS travel_date      -- 分区 = 下单日
 FROM base b
+LEFT JOIN (SELECT pftorder, MAX(CAST(coopb AS STRING)) AS coopb FROM ods.ods_trf_all_api_order_di WHERE {P} GROUP BY pftorder) ap
+       ON ap.pftorder = b.ordernum      -- 第三方对接订单（采购平台）
 LEFT JOIN (SELECT ticket_id, test_flag FROM dim.dim_prd_ticket_df) t ON t.ticket_id = b.tid
 LEFT JOIN (SELECT scenic_id, scenic_type_code, test_flag FROM dim.dim_prd_scenic_df) s ON s.scenic_id = b.lid
 LEFT JOIN (SELECT member_id, member_type_code, distribute_system_code FROM dim.dim_sup_member_df) mb ON mb.member_id = b.member
 LEFT JOIN (SELECT member_id, test_flag FROM dim.dim_sup_member_df) ms ON ms.member_id = b.aid
-LEFT JOIN (SELECT phone_prefix, province_code, city_code FROM dim.dim_opr_phone_area_f) ph ON ph.phone_prefix = {PREFIX.format(c='b.taker_tel')}
+LEFT JOIN (SELECT phone_prefix, province_code, city_code FROM dim.dim_opr_phone_area_f WHERE phone_prefix_type = 'SEGMENT') ph ON ph.phone_prefix = {PREFIX.format(c='b.taker_tel')}
 LEFT JOIN (SELECT area_code, province_code, city_code FROM dim.dim_opr_idcard_area_f) ic ON ic.area_code = SUBSTR(b.taker_idcard, 1, 6)
 UNION ALL
 -- ④ 受影响分区里今天没变的订单：原样写回（动态分区覆盖会整分区替换）
@@ -685,7 +696,8 @@ WITH tr AS (
     SELECT orderid, idx, lid, tourist, idcard, voucher_type, mobile, check_time,
            FROM_UNIXTIME(CAST(order_time AS BIGINT), 'yyyyMMdd') AS order_date,
            -- ODS 证件号前缀 11 位 = 地区 6 + 出生年 4 + 性别位 1（仅 18 位身份证）
-           IF(LENGTH({PREFIX.format(c='idcard')}) = 11, YEAR(CURRENT_DATE()) - CAST(SUBSTR(idcard, 7, 4) AS INT), NULL) AS age,
+           -- 年龄按下单日计算（不随跑批日期变化）
+           IF(LENGTH({PREFIX.format(c='idcard')}) = 11, YEAR(FROM_UNIXTIME(CAST(order_time AS BIGINT))) - CAST(SUBSTR(idcard, 7, 4) AS INT), NULL) AS age,
            IF(LENGTH({PREFIX.format(c='idcard')}) = 11, IF(CAST(SUBSTR(idcard, 11, 1) AS INT) % 2 = 1, 'M', 'F'), 'U') AS gender
     FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY orderid, idx ORDER BY update_time DESC) AS rn
           FROM ods.ods_ord_order_traveler_di WHERE {P}) t
@@ -700,6 +712,8 @@ SELECT /*+ BROADCAST(ic, ph) */
     o.ticket_id,
     o.order_role,
     COALESCE(o.team_flag, 0)                                         AS team_flag,
+    o.order_mode,                                                    -- 下单渠道（订单带出，画像按渠道拆分用）
+    o.pay_mode,                                                      -- 支付方式（订单带出）
     CONCAT(SUBSTR(tr.tourist, 1, 1), '**')                           AS traveler_name_mask,
     {HASH.format(c='tr.idcard')}                                   AS id_card_hash,
     tr.voucher_type                                                  AS id_card_type,
@@ -719,10 +733,10 @@ SELECT /*+ BROADCAST(ic, ph) */
     {NOW}
 FROM tr
 LEFT JOIN fellow f ON f.orderid = tr.orderid
-LEFT JOIN (SELECT order_no, travel_date, ticket_id, order_role, team_flag, order_time, test_flag FROM dwd.dwd_ord_order_di) o
+LEFT JOIN (SELECT order_no, travel_date, ticket_id, order_role, team_flag, order_mode, pay_mode, order_time, test_flag FROM dwd.dwd_ord_order_di) o
        ON o.travel_date = tr.order_date AND o.order_no = tr.orderid
 LEFT JOIN (SELECT area_code, province_code, city_code FROM dim.dim_opr_idcard_area_f) ic ON ic.area_code = SUBSTR(tr.idcard, 1, 6)
-LEFT JOIN (SELECT phone_prefix, province_code, city_code FROM dim.dim_opr_phone_area_f) ph ON ph.phone_prefix = {PREFIX.format(c='tr.mobile')}
+LEFT JOIN (SELECT phone_prefix, province_code, city_code FROM dim.dim_opr_phone_area_f WHERE phone_prefix_type = 'SEGMENT') ph ON ph.phone_prefix = {PREFIX.format(c='tr.mobile')}
 """
 
 

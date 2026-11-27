@@ -22,6 +22,8 @@
 --   · 同一来源的指标在一个子查询里预聚合（一次扫描），各来源 UNION ALL 后按粒度汇总，不做明细级 JOIN
 --   · 来源：inout = dwd.dwd_trf_scenic_inout_di（闸机进出流水，闸机组取自 dim_trf_gate_f）；vfy = dwd.dwd_ord_verify_di（核销：验证日分区 = bizdate）
 -- ================================================================================================
+-- 补 0 / 补空列：多来源 UNION ALL 时，某来源不产出的指标补 0 或空，外层按粒度 SUM 后即为各来源之和，不影响结果
+-- 取 -1 的维度列：该来源没有这个维度（如核销来源没有下单渠道），用 -1 表示「不适用」，按该维度分析时只看产出它的来源
 INSERT OVERWRITE TABLE dws.dws_trf_scenic_inout_hrs PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
 SELECT
     scenic_id,                                                                    -- 景区ID
@@ -48,13 +50,13 @@ FROM (
         COALESCE(gate_group_id, CAST(-1 AS BIGINT))                  AS gate_group_id,  -- 闸机组ID
         terminal_no,                                                              -- 终端号（闸机 / 手持机）
         COALESCE(HOUR(inout_time), CAST(-1 AS INT))                  AS stat_hour,  -- 小时
-        CAST(-1 AS BIGINT)                                           AS ticket_id,  -- 票ID｜该来源无此维度，取默认值
+        COALESCE(ticket_id, CAST(-1 AS BIGINT))                      AS ticket_id,  -- 票ID
         SUM(IF(inout_type = 'IN', person_qty, 0))                    AS enter_qty,  -- 入园人次
         SUM(IF(inout_type = 'OUT', person_qty, 0))                   AS exit_qty,  -- 出园人次
         SUM(CASE inout_type WHEN 'IN' THEN person_qty WHEN 'OUT' THEN -person_qty ELSE 0 END) AS in_park_qty,  -- 在园人数
-        CAST(0 AS BIGINT)                                            AS verify_order_qty,  -- 验证订单数
-        CAST(0 AS BIGINT)                                            AS verify_ticket_qty,  -- 验证票数
-        CAST(0 AS BIGINT)                                            AS verify_person_qty  -- 核销人数
+        CAST(0 AS BIGINT)                                            AS verify_order_qty,  -- 验证订单数：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS verify_ticket_qty,  -- 验证票数：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS verify_person_qty  -- 核销人数：此来源不产出，补0
     FROM (
         SELECT /*+ BROADCAST(g) */ i.*, g.gate_group_id
         FROM dwd.dwd_trf_scenic_inout_di i
@@ -65,18 +67,19 @@ FROM (
     GROUP BY COALESCE(scenic_id, CAST(-1 AS BIGINT)),                             -- 按粒度键汇总
              COALESCE(gate_group_id, CAST(-1 AS BIGINT)),
              terminal_no,                                                         -- 终端号（闸机 / 手持机）
-             COALESCE(HOUR(inout_time), CAST(-1 AS INT))
+             COALESCE(HOUR(inout_time), CAST(-1 AS INT)),
+             COALESCE(ticket_id, CAST(-1 AS BIGINT))
     UNION ALL
     -- vfy：核销：验证日分区 = bizdate
     SELECT
         COALESCE(scenic_id, CAST(-1 AS BIGINT))                      AS scenic_id,  -- 景区ID
-        CAST(-1 AS BIGINT)                                           AS gate_group_id,  -- 闸机组ID｜该来源无此维度，取默认值
+        CAST(-1 AS BIGINT)                                           AS gate_group_id,  -- 闸机组ID：此来源不区分，取 -1（不适用）
         terminal_no,                                                              -- 终端号（闸机 / 手持机）
         COALESCE(HOUR(verify_time), CAST(-1 AS INT))                 AS stat_hour,  -- 小时
         COALESCE(ticket_id, CAST(-1 AS BIGINT))                      AS ticket_id,  -- 票ID
-        CAST(0 AS BIGINT)                                            AS enter_qty,  -- 入园人次
-        CAST(0 AS BIGINT)                                            AS exit_qty,  -- 出园人次
-        CAST(NULL AS BIGINT)                                         AS in_park_qty,  -- 在园人数
+        CAST(0 AS BIGINT)                                            AS enter_qty,  -- 入园人次：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS exit_qty,  -- 出园人次：此来源不产出，补0
+        CAST(NULL AS BIGINT)                                         AS in_park_qty,  -- 在园人数：此来源不产出，补空
         COUNT(DISTINCT order_no)                                     AS verify_order_qty,  -- 验证订单数
         SUM(verify_ticket_qty)                                       AS verify_ticket_qty,  -- 验证票数
         SUM(COALESCE(traveler_qty, verify_ticket_qty))               AS verify_person_qty  -- 核销人数

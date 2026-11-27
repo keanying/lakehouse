@@ -21,9 +21,9 @@
 -- 性能：
 --   · 同一来源的指标在一个子查询里预聚合（一次扫描），各来源 UNION ALL 后按粒度汇总，不做明细级 JOIN
 --   · 去重类指标存位图（TO_BITMAP / BITMAP_UNION，UDF 与 PFT3.0 同一套），任意周期 BITMAP_UNION_COUNT
---   · order_avg_ticket_price 为表内派生，下游按分子分母重算，不直接 SUM
 --   · 来源：ord = dwd.dwd_ord_order_di（预订：下单日分区 = bizdate，已支付（含现场支付、含之后取消））；trk = dwd.dwd_ord_order_track_di（订单操作：操作日分区 = bizdate）；vfy = dwd.dwd_ord_verify_di（核销：验证日分区 = bizdate）
 -- ================================================================================================
+-- 补 0 / 补空列：多来源 UNION ALL 时，某来源不产出的指标补 0 或空，外层按粒度 SUM 后即为各来源之和，不影响结果
 INSERT OVERWRITE TABLE dws.dws_ord_scenic_ticket_trade_di PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
 SELECT
     scenic_id,                                                                    -- 景区ID
@@ -35,8 +35,6 @@ SELECT
     order_role,                                                                   -- 主子单
     team_type,                                                                    -- 团散
     province_code,                                                                -- 客源省编码（取票人证件 / 手机号归属）
-    city_code,                                                                    -- 客源市编码
-    district_code,                                                                -- 客源区县编码
     SUM(order_order_qty)                                         AS order_order_qty,  -- 预订订单数
     SUM(order_ticket_qty)                                        AS order_ticket_qty,  -- 预订票数
     SUM(order_sale_amt)                                          AS order_sale_amt,  -- 预订金额
@@ -70,7 +68,6 @@ SELECT
     SUM(pay_cost_amt)                                            AS pay_cost_amt,  -- 支付成本金额
     SUM(cancel_fee_amt)                                          AS cancel_fee_amt,  -- 取消手续费
     SUM(revoke_fee_amt)                                          AS revoke_fee_amt,  -- 撤销手续费
-    CAST(SUM(order_sale_amt) / NULLIF(SUM(order_ticket_qty), 0) AS DECIMAL(18,2)) AS order_avg_ticket_price,  -- 预订票均价｜表内派生：不可跨行再汇总
     DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time           -- ETL 加载时间
 FROM (
     -- ord：预订：下单日分区 = bizdate，已支付（含现场支付、含之后取消）
@@ -84,41 +81,39 @@ FROM (
         order_role,                                                               -- 主子单
         IF(team_flag = 1, 'TEAM', 'INDIVIDUAL')                      AS team_type,  -- 团散
         taker_province_code                                          AS province_code,  -- 客源省编码（取票人证件 / 手机号归属）
-        taker_city_code                                              AS city_code,  -- 客源市编码
-        taker_district_code                                          AS district_code,  -- 客源区县编码
         COUNT(1)                                                     AS order_order_qty,  -- 预订订单数
         SUM(origin_ticket_qty)                                       AS order_ticket_qty,  -- 预订票数
         SUM(origin_ticket_qty * sale_price_amt)                      AS order_sale_amt,  -- 预订金额
         SUM(origin_ticket_qty * cost_price_amt)                      AS order_cost_amt,  -- 预订成本金额
-        CAST(0 AS BIGINT)                                            AS pay_order_qty,  -- 支付订单数
-        CAST(0 AS BIGINT)                                            AS pay_ticket_qty,  -- 支付票数
-        CAST(0 AS DECIMAL(18,2))                                     AS pay_sale_amt,  -- 支付金额
-        CAST(0 AS BIGINT)                                            AS cancel_order_qty,  -- 取消订单数
-        CAST(0 AS BIGINT)                                            AS cancel_ticket_qty,  -- 取消票数
-        CAST(0 AS DECIMAL(18,2))                                     AS cancel_sale_amt,  -- 取消金额
-        CAST(0 AS DECIMAL(18,2))                                     AS cancel_cost_amt,  -- 取消成本金额
-        CAST(0 AS BIGINT)                                            AS verify_order_qty,  -- 验证订单数
-        CAST(0 AS BIGINT)                                            AS verify_ticket_qty,  -- 验证票数
-        CAST(0 AS DECIMAL(18,2))                                     AS verify_sale_amt,  -- 验证金额
-        CAST(0 AS DECIMAL(18,2))                                     AS verify_cost_amt,  -- 验证成本金额
-        CAST(0 AS BIGINT)                                            AS finish_order_qty,  -- 完结订单数
-        CAST(0 AS BIGINT)                                            AS finish_ticket_qty,  -- 完结票数
-        CAST(0 AS DECIMAL(18,2))                                     AS finish_sale_amt,  -- 完结金额
-        CAST(0 AS DECIMAL(18,2))                                     AS finish_cost_amt,  -- 完结成本金额
-        CAST(0 AS BIGINT)                                            AS revoke_order_qty,  -- 撤销订单数
-        CAST(0 AS BIGINT)                                            AS revoke_ticket_qty,  -- 撤销票数
-        CAST(0 AS DECIMAL(18,2))                                     AS revoke_sale_amt,  -- 撤销金额
-        CAST(0 AS DECIMAL(18,2))                                     AS revoke_cost_amt,  -- 撤销成本金额
-        CAST(0 AS BIGINT)                                            AS print_order_qty,  -- 取票订单数
-        CAST(0 AS BIGINT)                                            AS print_ticket_qty,  -- 取票票数
-        CAST(0 AS DECIMAL(18,2))                                     AS print_sale_amt,  -- 取票金额
-        CAST(0 AS BIGINT)                                            AS after_sale_ticket_qty,  -- 售后票数
-        CAST(0 AS DECIMAL(18,2))                                     AS after_sale_refund_amt,  -- 售后退回金额
-        CAST(0 AS DECIMAL(18,2))                                     AS after_sale_income_amt,  -- 售后收入金额
+        CAST(0 AS BIGINT)                                            AS pay_order_qty,  -- 支付订单数：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS pay_ticket_qty,  -- 支付票数：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS pay_sale_amt,  -- 支付金额：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS cancel_order_qty,  -- 取消订单数：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS cancel_ticket_qty,  -- 取消票数：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS cancel_sale_amt,  -- 取消金额：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS cancel_cost_amt,  -- 取消成本金额：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS verify_order_qty,  -- 验证订单数：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS verify_ticket_qty,  -- 验证票数：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS verify_sale_amt,  -- 验证金额：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS verify_cost_amt,  -- 验证成本金额：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS finish_order_qty,  -- 完结订单数：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS finish_ticket_qty,  -- 完结票数：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS finish_sale_amt,  -- 完结金额：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS finish_cost_amt,  -- 完结成本金额：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS revoke_order_qty,  -- 撤销订单数：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS revoke_ticket_qty,  -- 撤销票数：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS revoke_sale_amt,  -- 撤销金额：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS revoke_cost_amt,  -- 撤销成本金额：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS print_order_qty,  -- 取票订单数：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS print_ticket_qty,  -- 取票票数：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS print_sale_amt,  -- 取票金额：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS after_sale_ticket_qty,  -- 售后票数：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS after_sale_refund_amt,  -- 售后退回金额：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS after_sale_income_amt,  -- 售后收入金额：此来源不产出，补0
         BITMAP_UNION(TO_BITMAP(XXHASH64(taker_id_card_hash)))        AS buyer_qty,  -- 购买人数
-        CAST(0 AS DECIMAL(18,2))                                     AS pay_cost_amt,  -- 支付成本金额
-        CAST(0 AS DECIMAL(18,2))                                     AS cancel_fee_amt,  -- 取消手续费
-        CAST(0 AS DECIMAL(18,2))                                     AS revoke_fee_amt  -- 撤销手续费
+        CAST(0 AS DECIMAL(18,2))                                     AS pay_cost_amt,  -- 支付成本金额：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS cancel_fee_amt,  -- 取消手续费：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS revoke_fee_amt  -- 撤销手续费：此来源不产出，补0
     FROM dwd.dwd_ord_order_di
     WHERE travel_date = '${bizdate}'                                              -- 只取当日分区
       AND test_flag = 0
@@ -131,9 +126,7 @@ FROM (
              COALESCE(pay_mode, CAST(-1 AS INT)),
              order_role,                                                          -- 主子单
              IF(team_flag = 1, 'TEAM', 'INDIVIDUAL'),
-             taker_province_code,
-             taker_city_code,
-             taker_district_code
+             taker_province_code
     UNION ALL
     -- trk：订单操作：操作日分区 = bizdate
     SELECT
@@ -146,12 +139,10 @@ FROM (
         order_role,                                                               -- 主子单
         IF(team_flag = 1, 'TEAM', 'INDIVIDUAL')                      AS team_type,  -- 团散
         taker_province_code                                          AS province_code,  -- 客源省编码（取票人证件 / 手机号归属）
-        taker_city_code                                              AS city_code,  -- 客源市编码
-        taker_district_code                                          AS district_code,  -- 客源区县编码
-        CAST(0 AS BIGINT)                                            AS order_order_qty,  -- 预订订单数
-        CAST(0 AS BIGINT)                                            AS order_ticket_qty,  -- 预订票数
-        CAST(0 AS DECIMAL(18,2))                                     AS order_sale_amt,  -- 预订金额
-        CAST(0 AS DECIMAL(18,2))                                     AS order_cost_amt,  -- 预订成本金额
+        CAST(0 AS BIGINT)                                            AS order_order_qty,  -- 预订订单数：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS order_ticket_qty,  -- 预订票数：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS order_sale_amt,  -- 预订金额：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS order_cost_amt,  -- 预订成本金额：此来源不产出，补0
         COUNT(DISTINCT IF(track_action IN ('PAY', 'ADD_TICKET'), order_no, NULL)) AS pay_order_qty,  -- 支付订单数
         SUM(IF(track_action IN ('PAY', 'ADD_TICKET'), ticket_qty, 0)) AS pay_ticket_qty,  -- 支付票数
         SUM(IF(track_action IN ('PAY', 'ADD_TICKET'), sale_amt, 0))  AS pay_sale_amt,  -- 支付金额
@@ -159,10 +150,10 @@ FROM (
         SUM(IF(track_action IN ('CANCEL', 'MODIFY'), ticket_qty, 0)) AS cancel_ticket_qty,  -- 取消票数
         SUM(IF(track_action IN ('CANCEL', 'MODIFY'), sale_amt, 0))   AS cancel_sale_amt,  -- 取消金额
         SUM(IF(track_action IN ('CANCEL', 'MODIFY'), cost_amt, 0))   AS cancel_cost_amt,  -- 取消成本金额
-        CAST(0 AS BIGINT)                                            AS verify_order_qty,  -- 验证订单数
-        CAST(0 AS BIGINT)                                            AS verify_ticket_qty,  -- 验证票数
-        CAST(0 AS DECIMAL(18,2))                                     AS verify_sale_amt,  -- 验证金额
-        CAST(0 AS DECIMAL(18,2))                                     AS verify_cost_amt,  -- 验证成本金额
+        CAST(0 AS BIGINT)                                            AS verify_order_qty,  -- 验证订单数：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS verify_ticket_qty,  -- 验证票数：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS verify_sale_amt,  -- 验证金额：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS verify_cost_amt,  -- 验证成本金额：此来源不产出，补0
         COUNT(DISTINCT IF(track_action IN ('FINISH'), order_no, NULL)) AS finish_order_qty,  -- 完结订单数
         SUM(IF(track_action IN ('FINISH'), ticket_qty, 0))           AS finish_ticket_qty,  -- 完结票数
         SUM(IF(track_action IN ('FINISH'), sale_amt, 0))             AS finish_sale_amt,  -- 完结金额
@@ -177,7 +168,7 @@ FROM (
         SUM(IF(track_action IN ('AFTER_SALE'), ticket_qty, 0))       AS after_sale_ticket_qty,  -- 售后票数
         SUM(IF(track_action = 'AFTER_SALE', refund_amt, 0))          AS after_sale_refund_amt,  -- 售后退回金额
         SUM(IF(track_action = 'AFTER_SALE', service_fee_amt, 0))     AS after_sale_income_amt,  -- 售后收入金额
-        CAST(NULL AS BINARY)                                         AS buyer_qty,  -- 购买人数
+        CAST(NULL AS BINARY)                                         AS buyer_qty,  -- 购买人数：此来源不产出，补空
         SUM(IF(track_action IN ('PAY', 'ADD_TICKET'), cost_amt, 0))  AS pay_cost_amt,  -- 支付成本金额
         SUM(IF(track_action IN ('CANCEL', 'MODIFY'), service_fee_amt, 0)) AS cancel_fee_amt,  -- 取消手续费
         SUM(IF(track_action IN ('REVOKE', 'REVOKE_MODIFY'), service_fee_amt, 0)) AS revoke_fee_amt  -- 撤销手续费
@@ -192,9 +183,7 @@ FROM (
              COALESCE(pay_mode, CAST(-1 AS INT)),
              order_role,                                                          -- 主子单
              IF(team_flag = 1, 'TEAM', 'INDIVIDUAL'),
-             taker_province_code,
-             taker_city_code,
-             taker_district_code
+             taker_province_code
     UNION ALL
     -- vfy：核销：验证日分区 = bizdate
     SELECT
@@ -207,41 +196,39 @@ FROM (
         order_role,                                                               -- 主子单
         IF(team_flag = 1, 'TEAM', 'INDIVIDUAL')                      AS team_type,  -- 团散
         taker_province_code                                          AS province_code,  -- 客源省编码（取票人证件 / 手机号归属）
-        taker_city_code                                              AS city_code,  -- 客源市编码
-        taker_district_code                                          AS district_code,  -- 客源区县编码
-        CAST(0 AS BIGINT)                                            AS order_order_qty,  -- 预订订单数
-        CAST(0 AS BIGINT)                                            AS order_ticket_qty,  -- 预订票数
-        CAST(0 AS DECIMAL(18,2))                                     AS order_sale_amt,  -- 预订金额
-        CAST(0 AS DECIMAL(18,2))                                     AS order_cost_amt,  -- 预订成本金额
-        CAST(0 AS BIGINT)                                            AS pay_order_qty,  -- 支付订单数
-        CAST(0 AS BIGINT)                                            AS pay_ticket_qty,  -- 支付票数
-        CAST(0 AS DECIMAL(18,2))                                     AS pay_sale_amt,  -- 支付金额
-        CAST(0 AS BIGINT)                                            AS cancel_order_qty,  -- 取消订单数
-        CAST(0 AS BIGINT)                                            AS cancel_ticket_qty,  -- 取消票数
-        CAST(0 AS DECIMAL(18,2))                                     AS cancel_sale_amt,  -- 取消金额
-        CAST(0 AS DECIMAL(18,2))                                     AS cancel_cost_amt,  -- 取消成本金额
+        CAST(0 AS BIGINT)                                            AS order_order_qty,  -- 预订订单数：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS order_ticket_qty,  -- 预订票数：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS order_sale_amt,  -- 预订金额：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS order_cost_amt,  -- 预订成本金额：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS pay_order_qty,  -- 支付订单数：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS pay_ticket_qty,  -- 支付票数：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS pay_sale_amt,  -- 支付金额：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS cancel_order_qty,  -- 取消订单数：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS cancel_ticket_qty,  -- 取消票数：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS cancel_sale_amt,  -- 取消金额：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS cancel_cost_amt,  -- 取消成本金额：此来源不产出，补0
         COUNT(DISTINCT order_no)                                     AS verify_order_qty,  -- 验证订单数
         SUM(verify_ticket_qty)                                       AS verify_ticket_qty,  -- 验证票数
         SUM(verify_sale_amt)                                         AS verify_sale_amt,  -- 验证金额
         SUM(verify_cost_amt)                                         AS verify_cost_amt,  -- 验证成本金额
-        CAST(0 AS BIGINT)                                            AS finish_order_qty,  -- 完结订单数
-        CAST(0 AS BIGINT)                                            AS finish_ticket_qty,  -- 完结票数
-        CAST(0 AS DECIMAL(18,2))                                     AS finish_sale_amt,  -- 完结金额
-        CAST(0 AS DECIMAL(18,2))                                     AS finish_cost_amt,  -- 完结成本金额
-        CAST(0 AS BIGINT)                                            AS revoke_order_qty,  -- 撤销订单数
-        CAST(0 AS BIGINT)                                            AS revoke_ticket_qty,  -- 撤销票数
-        CAST(0 AS DECIMAL(18,2))                                     AS revoke_sale_amt,  -- 撤销金额
-        CAST(0 AS DECIMAL(18,2))                                     AS revoke_cost_amt,  -- 撤销成本金额
-        CAST(0 AS BIGINT)                                            AS print_order_qty,  -- 取票订单数
-        CAST(0 AS BIGINT)                                            AS print_ticket_qty,  -- 取票票数
-        CAST(0 AS DECIMAL(18,2))                                     AS print_sale_amt,  -- 取票金额
-        CAST(0 AS BIGINT)                                            AS after_sale_ticket_qty,  -- 售后票数
-        CAST(0 AS DECIMAL(18,2))                                     AS after_sale_refund_amt,  -- 售后退回金额
-        CAST(0 AS DECIMAL(18,2))                                     AS after_sale_income_amt,  -- 售后收入金额
-        CAST(NULL AS BINARY)                                         AS buyer_qty,  -- 购买人数
-        CAST(0 AS DECIMAL(18,2))                                     AS pay_cost_amt,  -- 支付成本金额
-        CAST(0 AS DECIMAL(18,2))                                     AS cancel_fee_amt,  -- 取消手续费
-        CAST(0 AS DECIMAL(18,2))                                     AS revoke_fee_amt  -- 撤销手续费
+        CAST(0 AS BIGINT)                                            AS finish_order_qty,  -- 完结订单数：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS finish_ticket_qty,  -- 完结票数：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS finish_sale_amt,  -- 完结金额：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS finish_cost_amt,  -- 完结成本金额：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS revoke_order_qty,  -- 撤销订单数：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS revoke_ticket_qty,  -- 撤销票数：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS revoke_sale_amt,  -- 撤销金额：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS revoke_cost_amt,  -- 撤销成本金额：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS print_order_qty,  -- 取票订单数：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS print_ticket_qty,  -- 取票票数：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS print_sale_amt,  -- 取票金额：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS after_sale_ticket_qty,  -- 售后票数：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS after_sale_refund_amt,  -- 售后退回金额：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS after_sale_income_amt,  -- 售后收入金额：此来源不产出，补0
+        CAST(NULL AS BINARY)                                         AS buyer_qty,  -- 购买人数：此来源不产出，补空
+        CAST(0 AS DECIMAL(18,2))                                     AS pay_cost_amt,  -- 支付成本金额：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS cancel_fee_amt,  -- 取消手续费：此来源不产出，补0
+        CAST(0 AS DECIMAL(18,2))                                     AS revoke_fee_amt  -- 撤销手续费：此来源不产出，补0
     FROM dwd.dwd_ord_verify_di
     WHERE travel_date = '${bizdate}'                                              -- 只取当日分区
       AND test_flag = 0
@@ -253,9 +240,7 @@ FROM (
              COALESCE(pay_mode, CAST(-1 AS INT)),
              order_role,                                                          -- 主子单
              IF(team_flag = 1, 'TEAM', 'INDIVIDUAL'),
-             taker_province_code,
-             taker_city_code,
-             taker_district_code
+             taker_province_code
 ) u                                                                               -- 各来源合并后的明细
 GROUP BY scenic_id,                                                               -- 按粒度键汇总
          ticket_id,                                                               -- 票ID
@@ -265,6 +250,4 @@ GROUP BY scenic_id,                                                             
          pay_mode,                                                                -- 支付方式编码
          order_role,                                                              -- 主子单
          team_type,                                                               -- 团散
-         province_code,                                                           -- 客源省编码（取票人证件 / 手机号归属）
-         city_code,                                                               -- 客源市编码
-         district_code                                                            -- 客源区县编码
+         province_code                                                            -- 客源省编码（取票人证件 / 手机号归属）

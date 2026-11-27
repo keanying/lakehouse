@@ -38,7 +38,7 @@ for k, (n, cn, cond, old) in enumerate(ACC, 1):
 
 # ---------------------------------------------------------------- 零售
 RET = [('retail_pay_amt', '零售实付金额', '元', DEC, 'SUM(IF(refund_flag = 0, COALESCE(pay_amt, sale_amt), 0))', '实付 = SUM(实付) 条件：非退货', 'payment_money'),
-       ('retail_discount_amt', '零售优惠金额', '元', DEC, 'SUM(IF(refund_flag = 0, sale_amt - COALESCE(pay_amt, sale_amt), 0))', '优惠 = SUM(应收 − 实付) 条件：非退货', 'discount_amount'),
+       ('retail_discount_amt', '零售优惠金额', '元', DEC, 'SUM(IF(refund_flag = 0, COALESCE(discount_amt, 0), 0))', '优惠 = SUM(商品行优惠) 条件：非退货', 'discount_amount'),
        ('retail_refund_item_qty', '零售退货件数', '件', B, 'SUM(IF(refund_flag = 1, COALESCE(item_qty, 0), 0))', '退货件数 = SUM(件数) 条件：退货', 'cancel_num'),
        ('retail_customer_qty', '零售客流人数', '人', B, 'SUM(IF(refund_flag = 0, COALESCE(number_of_people, 0), 0))', '客流 = SUM(就餐 / 消费人数) 条件：非退货', 'number_of_people')]
 RET += [('retail_profit_amt', '零售利润金额', '元', DEC, 'SUM(IF(refund_flag = 0, COALESCE(profit_amt, 0), 0))', '利润 = SUM(单据利润) 条件：销售单（仅银豹提供利润）', 'profit_money'),

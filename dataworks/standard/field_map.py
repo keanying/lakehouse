@@ -29,10 +29,22 @@ ALIAS = {
     'ticket_taker_province_idcard': 'taker_province_code', 'ticket_taker_city_idcard': 'taker_city_code', 'ticket_taker_county_idcard': 'taker_district_code',
     'expiration_time': 'valid_end_time', 'add_ticket_time': 'action_time', 'order_type': 'order_role', 'distribute_1_type': 'buyer_type', 'record_id': 'order_no',
     'main_tid': 'main_ticket_id', 'site_id': 'site_id', 'product_type': 'product_type', 'p_type': 'product_type',
+    'package_price': 'package_price_amt', 'package_negotiated_price': 'package_invoice_amt', 'package_achievement': 'package_performance_amt',
+    'sale_man_department': 'sale_man_group', 'customer_service_department': 'customer_service_group', 'back_detail': 'repayment_record',
+    'open_type_catalogue': 'open_type', 'cancel_status': 'order_status', 'distributor_is_ota': 'ota_flag', 'ticket_taker_country': 'country_code',
+    'land_province': 'province_name', 'land_city': 'city_name', 'land_country': 'country_name', 'member_kind': 'member_type_code',
+    'member_type': 'member_type_code', 'ticket_zip_code': 'zip_code', 'main_tid': 'main_ticket_id', 'level': 'distribute_level',
+    'sub_merchant_id': 'sub_merchant_id', 'verify_amount': 'verify_sale_amt',
     'order_pay_funding_type_id': 'pay_mode', 'order_pay_channel_id': 'pay_mode', 'sales_channel_id': 'order_mode', 'travel_minute': 'stat_minute',
 }
 TIME = re.compile(r'^(year|month|week|quarter|day|hour|fulldate|stat_date|insertdate|created_at|booking_month|booking_date|date_type|deadline|time_range|travel_minute|pay_date|'
                   r'(vertify|booking|pay|play|expiration|cancel)_(year|month|quarter|week|hour|date)|today|yesterday|weeks|more_week)$')
+DERIVE = {   # 由已有字段直接派生的属性（查询 / 回流时计算）
+    'is_around': '是否周边游客 = 取票人省（dwd_ord_order_di.taker_province_code）与景区所在省（dim_prd_scenic_df.province_code）相同',
+    'mall_distinguish': '是否微商城订单 = dwd_ord_order_di.mall_supplier_id 非空',
+    'add_ticket_time': '加票时间 = dwd_ord_order_track_di 中 track_action = ADD_TICKET 的 action_time',
+    'based_on_order': '按订单统计口径标志：出入园按核销（dwd_ord_verify_di）为 1，按闸机流水（dwd_trf_scenic_inout_di）为 0',
+}
 TECH = re.compile(r'^(id|dw_ins_time|update_time|updated_at|etl_time|payload|key|value|flat|configuration|auth_key|remark|memo)$')
 
 
@@ -230,6 +242,8 @@ def make_resolver(tables, fields):
         c = col.lower()
         if TIME.match(c):
             return '统计周期（时间表）', '时间列：查询时关联 dim_opr_period_f / dim_opr_date_f'
+        if c in DERIVE:
+            return '属性 / 明细字段', '派生：' + DERIVE[c]
         if TECH.match(c):
             return '技术列', '主键 / 加载时间 / 扩展报文，迁移时按目标表结构生成'
         cands = [c, ALIAS.get(c, ''), rules.std_col(c)[0]]

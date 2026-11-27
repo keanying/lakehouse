@@ -150,7 +150,7 @@ def ods_di(tb, fl, group, writers):
     rcols, wcols, masks = [], [], []
     for n in names:
         c = src_cols.get(n, n)
-        e, why = mask_expr(c, types.get(n), dom, dialect)
+        e, why = mask_expr(c, types.get(n), dom, dialect) if f"{tb['name']}.{n}" not in rules.NOT_SENSITIVE else (None, '')
         rcols.append(e or c)
         wcols.append(n)
         if e:
@@ -291,7 +291,6 @@ CORE = {
                                       "        WHERE o.travel_date = '${bizdate}' AND o.test_flag = 0\n    ) t")},
         'note': ['资源中心订单 = 标准订单明细 ∩ 资源中心采购关系（采购商 + 票），不再单独从业务库拉一遍订单（旧 dwd_resource_center_order_d_f 重算订单）',
                  '名称 / 账号 / 省市等冗余维度属性不在明细计算，查询时关联 dim_sup_member_df、dim_prd_scenic_df']},
-    **proc_model.core(),
     'dim_opr_region_f': {'branches': [
         ('ods_opr_region_area_df', {'region_code': 'area_code', 'region_name': 'area_name', 'parent_code': 'parent_code', 'region_level': 'level', 'area_code': 'area_code',
                                     'zip_code': 'zip_code', 'lng': 'lng', 'lat': 'lat', 'city_code': 'city_code'})],
@@ -314,6 +313,8 @@ CORE = {
         'dedup': ['pay_channel_id'], 'note': ['支付渠道码表：商户支付方式去重得到渠道清单；待确认：订单 paymode 与 channel_id 的对应关系']},
 }
 
+
+CORE.update(proc_model.core())   # 显式映射（业务过程 / 重建的维表）优先于上面的通用映射
 
 def _find_source(f, ups, OF):
     m = re.search(r'沿用旧表 (\w+)\.(\w+)', f['proc'])

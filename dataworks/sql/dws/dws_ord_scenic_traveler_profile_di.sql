@@ -6,9 +6,9 @@
 -- 上游：dwd_ord_traveler_di、dwd_ord_order_di、dwd_ord_verify_di
 -- 性能：
 --   · 同一来源的指标在一个子查询里预聚合（一次扫描），各来源 UNION ALL 后按粒度汇总，不做明细级 JOIN
---   · 待确认（无来源）：order_sale_amt、pay_sale_amt、pay_ticket_qty、verify_sale_amt
 --   · 来源：trv_book = dwd.dwd_ord_traveler_di（预订游客：当日下单）；trv_verify = dwd.dwd_ord_traveler_di（核销游客：当日验证）
 -- ================================================================================================
+-- 补 0 / 补空列：多来源 UNION ALL 时，某来源不产出的指标补 0 或空，外层按粒度 SUM 后即为各来源之和，不影响结果
 INSERT OVERWRITE TABLE dws.dws_ord_scenic_traveler_profile_di PARTITION (travel_date = '${bizdate}')  -- 写入当日分区
 SELECT
     scenic_id,                                                                    -- 景区ID
@@ -28,10 +28,6 @@ SELECT
     SUM(order_order_qty)                                         AS order_order_qty,  -- 预订订单数
     SUM(order_ticket_qty)                                        AS order_ticket_qty,  -- 预订票数
     SUM(verify_ticket_qty)                                       AS verify_ticket_qty,  -- 验证票数
-    CAST(NULL AS DECIMAL(18,2))                                  AS order_sale_amt,  -- 预订金额｜待确认：没有可用来源
-    CAST(NULL AS DECIMAL(18,2))                                  AS pay_sale_amt,  -- 支付金额｜待确认：没有可用来源
-    CAST(NULL AS BIGINT)                                         AS pay_ticket_qty,  -- 支付票数｜待确认：没有可用来源
-    CAST(NULL AS DECIMAL(18,2))                                  AS verify_sale_amt,  -- 验证金额｜待确认：没有可用来源
     DATE_FORMAT(CURRENT_TIMESTAMP(), 'yyyy-MM-dd HH:mm:ss') AS etl_time           -- ETL 加载时间
 FROM (
     -- trv_book：预订游客：当日下单
@@ -52,16 +48,12 @@ FROM (
             ELSE '10+'
         END AS fellow_group,                                                      -- 同行人数段
         district_code,                                                            -- 客源区县编码
-        CAST(-1 AS INT)                                              AS order_mode,  -- 下单渠道编码｜该来源无此维度，取默认值
-        CAST(-1 AS INT)                                              AS pay_mode,  -- 支付方式编码｜该来源无此维度，取默认值
+        COALESCE(order_mode, CAST(-1 AS INT))                        AS order_mode,  -- 下单渠道编码
+        COALESCE(pay_mode, CAST(-1 AS INT))                          AS pay_mode,  -- 支付方式编码
         COUNT(1)                                                     AS traveler_qty,  -- 游客人数
         COUNT(DISTINCT order_no)                                     AS order_order_qty,  -- 预订订单数
         COUNT(1)                                                     AS order_ticket_qty,  -- 预订票数
-        CAST(0 AS BIGINT)                                            AS verify_ticket_qty,  -- 验证票数
-        CAST(0 AS DECIMAL(18,2))                                     AS order_sale_amt,  -- 预订金额
-        CAST(0 AS DECIMAL(18,2))                                     AS pay_sale_amt,  -- 支付金额
-        CAST(0 AS BIGINT)                                            AS pay_ticket_qty,  -- 支付票数
-        CAST(0 AS DECIMAL(18,2))                                     AS verify_sale_amt  -- 验证金额
+        CAST(0 AS BIGINT)                                            AS verify_ticket_qty  -- 验证票数：此来源不产出，补0
     FROM dwd.dwd_ord_traveler_di
     WHERE travel_date = '${bizdate}'                                              -- 只取当日分区
       AND test_flag = 0
@@ -80,7 +72,7 @@ FROM (
         WHEN fellow_qty <= 4 THEN '2-4'
         WHEN fellow_qty <= 9 THEN '5-9'
         ELSE '10+'
-    END , district_code
+    END , district_code, COALESCE(order_mode, CAST(-1 AS INT)), COALESCE(pay_mode, CAST(-1 AS INT))
     UNION ALL
     -- trv_verify：核销游客：当日验证
     SELECT
@@ -100,16 +92,12 @@ FROM (
             ELSE '10+'
         END AS fellow_group,                                                      -- 同行人数段
         district_code,                                                            -- 客源区县编码
-        CAST(-1 AS INT)                                              AS order_mode,  -- 下单渠道编码｜该来源无此维度，取默认值
-        CAST(-1 AS INT)                                              AS pay_mode,  -- 支付方式编码｜该来源无此维度，取默认值
-        CAST(0 AS BIGINT)                                            AS traveler_qty,  -- 游客人数
-        CAST(0 AS BIGINT)                                            AS order_order_qty,  -- 预订订单数
-        CAST(0 AS BIGINT)                                            AS order_ticket_qty,  -- 预订票数
-        COUNT(1)                                                     AS verify_ticket_qty,  -- 验证票数
-        CAST(0 AS DECIMAL(18,2))                                     AS order_sale_amt,  -- 预订金额
-        CAST(0 AS DECIMAL(18,2))                                     AS pay_sale_amt,  -- 支付金额
-        CAST(0 AS BIGINT)                                            AS pay_ticket_qty,  -- 支付票数
-        CAST(0 AS DECIMAL(18,2))                                     AS verify_sale_amt  -- 验证金额
+        COALESCE(order_mode, CAST(-1 AS INT))                        AS order_mode,  -- 下单渠道编码
+        COALESCE(pay_mode, CAST(-1 AS INT))                          AS pay_mode,  -- 支付方式编码
+        CAST(0 AS BIGINT)                                            AS traveler_qty,  -- 游客人数：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS order_order_qty,  -- 预订订单数：此来源不产出，补0
+        CAST(0 AS BIGINT)                                            AS order_ticket_qty,  -- 预订票数：此来源不产出，补0
+        COUNT(1)                                                     AS verify_ticket_qty  -- 验证票数
     FROM dwd.dwd_ord_traveler_di
     WHERE travel_date = '${bizdate}'                                              -- 只取当日分区
       AND test_flag = 0
@@ -128,7 +116,7 @@ FROM (
         WHEN fellow_qty <= 4 THEN '2-4'
         WHEN fellow_qty <= 9 THEN '5-9'
         ELSE '10+'
-    END , district_code
+    END , district_code, COALESCE(order_mode, CAST(-1 AS INT)), COALESCE(pay_mode, CAST(-1 AS INT))
 ) u                                                                               -- 各来源合并后的明细
 GROUP BY scenic_id,                                                               -- 按粒度键汇总
          ticket_id,                                                               -- 票ID
